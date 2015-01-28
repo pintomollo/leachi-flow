@@ -273,7 +273,7 @@ function [mytracking, opts, is_updated] = inspect_recording(fname, opts)
     end
 
     % And set the colormap
-    colormap(hFig, colors.colormaps{color_index}());
+    colormap(hFig, colors.colormaps{color_index}(128));
 
     if (recompute)
       % Release the image

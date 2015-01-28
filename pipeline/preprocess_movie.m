@@ -4,7 +4,7 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
 % files.
 %
 %   [MYTRACKING] = PREPROCESS_MOVIE(MYTRACKING, OPTS) rescales all the recordings used
-%   in the tracking experiement using OPTS.
+%   in the tracking experiment using OPTS.
 %
 %   [MYTRACKING, OPTS] = PREPROCESS_MOVIE(...) returns in addition OPTS.
 %
@@ -143,6 +143,8 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
         end
       end
     end
+
+    keyboard
 
     % Rescale if required by the user
     if (mytracking.channels(k).normalize)
