@@ -76,8 +76,8 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
     % Store the resulting metadata
     mytracking.channels(k).metadata = metadata;
 
-    % Stire the original file name as we will replace it by the rescaled one
-    mytracking.channels(k).file = mytracking.channels(k).fname;
+    % Store the original file name as we will replace it by the rescaled one
+    mytracking.channels(k).file = absolutepath(mytracking.channels(k).fname);
 
     % Perfom some string formatting for the display
     indx = strfind(mytracking.channels(k).file, filesep);
@@ -92,7 +92,7 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
     end
 
     % Get the absolute file name
-    fname = absolutepath(mytracking.channels(k).file);
+    fname = mytracking.channels(k).file;
 
     % Get the name of the new file
     tmp_fname = absolutepath(get_new_name('tmpmat(\d+)\.ome\.tiff?', 'TmpData'));
@@ -144,8 +144,6 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
       end
     end
 
-    keyboard
-
     % Rescale if required by the user
     if (mytracking.channels(k).normalize)
       % Get a third file to write into
@@ -174,6 +172,10 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
     else
       mytracking.channels(k).fname = tmp_fname;
     end
+
+    % Get everything in relative paths
+    mytracking.channels(k).file = relativepath(mytracking.channels(k).file);
+    mytracking.channels(k).fname = relativepath(mytracking.channels(k).fname);
   end
 
   % Close the status bar
