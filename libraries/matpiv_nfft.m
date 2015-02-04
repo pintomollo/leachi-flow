@@ -29,6 +29,7 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   if (isempty(maske))
     maske=true(size(im1));
   end
+  imgsize=size(A);
   [sy,sx]=size(A);
 
   if size(wins,1)==1
@@ -41,19 +42,27 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   end
   iter=size(wins,1);
 
+  x=[];
+  y=[];
+  datax=[];
+  datay=[];
   for i=1:iter-1
       disp(['* Pass No: ',num2str(i)])
-      if i==1
-          [x,y,datax,datay]=firstpass(A,B,wins(i,:),overlap,[],[],maske);
-      else
-          [x,y,datax,datay]=firstpass(A,B,wins(i,:),overlap,datax,datay,maske);
-      end
-      win_maske=(interp2(double(maske),x,y)>=0.5);
+
+      [x,y,datax,datay,win_maske] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, maske);
+
+%      if i==1
+%          [x,y,datax,datay]=firstpass(A,B,wins(i,:),overlap,[],[],maske);
+%      else
+          %[x,y,datax,datay,win_maske]=firstpass(A,B,wins(i,:),overlap,x,y,datax,datay,maske);
+          [datax,datay]=firstpass(A,B,wins(i,:),x,y,datax,datay,win_maske);
+%      end
+%      win_maske=(interp2(double(maske),x,y)>=0.5);
 
       [datax,datay]=globfilt(x,y,datax,datay,3);
       [datax,datay]=localfilt(x,y,datax,datay,sensit,3,win_maske);
       [datax,datay]=naninterp2(datax,datay,win_maske,x,y);
-      datax=floor(datax); datay=floor(datay);
+      %datax=floor(datax); datay=floor(datay);
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       % expand the velocity data to twice the original size
@@ -70,18 +79,21 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
       %else
       %  YI=(1:((1-overlap)*wins(i+1,2)):sy-wins(i+1,2)+1)+(wins(i+1,2))/2; Y=YI;
       %end
-      steps=wins(i+1,:) ./ wins(i,:);
-      XI=[steps(1):steps(1):(size(datax, 2) + 1 - steps(1))];
-      YI=[steps(2):steps(2):(size(datay, 1) + 1 - steps(2))];
+      %steps=wins(i+1,:) ./ wins(i,:);
+      %XI=[steps(1):steps(1):(size(datax, 2) + 1 - steps(1))];
+      %YI=[steps(2):steps(2):(size(datay, 1) + 1 - steps(2))];
 
-      disp('   Expanding velocity-field for next pass')
+      %disp('   Expanding velocity-field for next pass')
       %datax=round(interp2(X,Y',datax,XI,YI'));
       %datay=round(interp2(X,Y',datay,XI,YI'));
-      datax=round(interp2(datax,XI,YI'));
-      datay=round(interp2(datay,XI,YI'));
-      win_maske=(interp2(double(win_maske),XI,YI')>=0.5);
-      [datax,datay]=naninterp2(datax,datay,win_maske,...
-                              repmat(XI,size(datax,1),1),repmat(YI',1,size(datax,2)));
+      %datax=round(interp2(datax,XI,YI'));
+      %datay=round(interp2(datay,XI,YI'));
+
+      %%%% NEED THE ORIGINAL MASK
+
+      %win_maske=(interp2(double(win_maske),XI,YI')>=0.5);
+      %[datax,datay]=naninterp2(datax,datay,win_maske,...
+      %                        repmat(XI,size(datax,1),1),repmat(YI',1,size(datax,2)));
 
       datax=round(datax); datay=round(datay);
       %end
@@ -89,15 +101,55 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Final pass. Gives displacement to subpixel accuracy.
   disp('* Final Pass')
-  [x,y,u,v,SnR]=finalpass_new(A,B,wins(end,:),overlap,round(datax),...
-                              round(datay),maske);
+
+  [x,y,datax,datay,win_maske] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, maske);
+
+  [datax,datay,SnR]=finalpass_new(A,B,wins(end,:),x,y,datax,datay,win_maske);
+  %[x,y,datax,datay,SnR]=finalpass_new(A,B,wins(end,:),overlap,datax,...
+  %                                    datay,maske);
+
+  %win_maske=(interp2(double(maske),x,y)>=0.5);
+
+  [datax,datay]=globfilt(x,y,datax,datay,3);
+  [datax,datay]=localfilt(x,y,datax,datay,sensit,3,win_maske);
+  [u,v]=naninterp2(datax,datay,win_maske,x,y);
+
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   disp(' ')
 
   return;
 end
 
-function [xx,yy,datax,datay]=firstpass(A,B,N,ol,idx,idy,maske)
+function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske)
+
+  M=winsize(1);
+  N=winsize(2);
+  x=[1:((1-ol)*M):imgsize(2)-M+1];
+  y=[1:((1-ol)*N):imgsize(1)-N+1];
+
+  nx=length(x);
+  ny=length(y);
+
+  xx=repmat(x+M/2,ny,1);
+  yy=repmat((y+N/2).',1,nx);
+
+  if (isempty(datax) || isempty(datay))
+    datax = zeros(ny,nx);
+    datay = zeros(ny,nx);
+  else
+    datax = round(interp2(prevx,prevy,datax,xx,yy));
+    datay = round(interp2(prevx,prevy,datay,xx,yy));
+  end
+  datax(isnan(datax)) = 0;
+  datay(isnan(datay)) = 0;
+
+  win_maske=(interp2(double(maske),xx,yy)>=0.5);
+
+  return;
+end
+
+%function [xx,yy,datax,datay,win_maske]=firstpass(A,B,N,ol,px,py,idx,idy,maske)
+function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
 
 % function [x,y,datax,datay]=firstpass(A,B,M,ol,idx,idy,maske)
 %
@@ -110,14 +162,15 @@ function [xx,yy,datax,datay]=firstpass(A,B,N,ol,idx,idy,maske)
 % timestamp: 14.41, 24 Mar 2005
 
   M=N(1); N=N(2); 
-  overlap=ol; [sy,sx]=size(A);
-  if isempty(idx) || isempty(idy)
-      idx=zeros(floor(sy/(N*(1-ol))),floor(sx/(M*(1-ol))));
-      idy=zeros(floor(sy/(N*(1-ol))),floor(sx/(M*(1-ol))));
-  end
-  xx=zeros(ceil((size(A,1)-N)/((1-overlap)*N))+1, ...
-      ceil((size(A,2)-M)/((1-overlap)*M)) +1);
-  yy=xx; datax=xx; datay=xx; 
+  [sy,sx]=size(A);
+  %overlap=ol; [sy,sx]=size(A);
+  %if isempty(idx) || isempty(idy)
+  %    idx=zeros(floor(sy/(N*(1-ol))),floor(sx/(M*(1-ol))));
+  %    idy=zeros(floor(sy/(N*(1-ol))),floor(sx/(M*(1-ol))));
+  %end
+  %xx=zeros(ceil((size(A,1)-N)/((1-overlap)*N))+1, ...
+  %    ceil((size(A,2)-M)/((1-overlap)*M)) +1);
+  %yy=xx; datax=xx; datay=xx; 
   % change . october 2001, weight matrix added.
   % W=weight('cosn',[M N],100);
   %if nargin==7, 
@@ -136,20 +189,52 @@ function [xx,yy,datax,datay]=firstpass(A,B,N,ol,idx,idy,maske)
   padn = 2^nextpow2(2*N);
   padm = 2^nextpow2(2*M);
 
-  cj=1;tic
-  for jj=1:((1-ol)*N):sy-N+1
-      ci=1;
-      for ii=1:((1-ol)*M):sx-M+1 
+  %x=[1:((1-ol)*M):sx-M+1];
+  %y=[1:((1-ol)*N):sy-N+1];
+
+  x=round(xx(1,:)-M/2);
+  y=round(yy(:,1)-N/2);
+
+  nx=length(x);
+  ny=length(y);
+
+  %xx=repmat(x+M/2,ny,1);
+  %yy=repmat((y+N/2).',1,nx);
+  datax=NaN(ny,nx);
+  datay=NaN(ny,nx);
+
+  %if (isempty(idx) || isempty(idy))
+  %  idx = zeros(ny,nx);
+  %  idy = zeros(ny,nx);
+  %else
+  %  idx = round(interp2(px,py,idx,xx,yy));
+  %  idy = round(interp2(px,py,idy,xx,yy));
+  %end
+  idx(isnan(idx)) = 0;
+  idy(isnan(idy)) = 0;
+
+  %win_maske=(interp2(double(maske),x,y.')>=0.5);
+
+  tic;
+  for cj=1:ny
+      jj = y(cj);
+      for ci=1:nx
+        ii = x(ci);
+  %cj=1;tic
+  %for jj=1:((1-ol)*N):sy-N+1
+  %    ci=1;
+  %    for ii=1:((1-ol)*M):sx-M+1 
 
           %if IN(jj+N/2,ii+M/2)~=1 
-          if maske(jj+N/2,ii+M/2)
+          %if maske(jj+N/2,ii+M/2)
+          if maske(cj,ci)
 
-              if isnan(idx(cj,ci))
-                  idx(cj,ci)=0;
-              end
-              if isnan(idy(cj,ci))
-                  idy(cj,ci)=0;
-              end
+              %if isnan(idx(cj,ci))
+              %    idx(cj,ci)=0;
+              %end
+              %if isnan(idy(cj,ci))
+              %    idy(cj,ci)=0;
+              %end
               if jj+idy(cj,ci)<1
                   idy(cj,ci)=1-jj;
               elseif jj+idy(cj,ci)>sy-N+1
@@ -194,16 +279,16 @@ function [xx,yy,datax,datay]=firstpass(A,B,N,ol,idx,idy,maske)
               %%%%%%%%%%%%%%%%%%%%%% Store the displacements in variable datax/datay
               datax(cj,ci)=-(max_x1-(M))+idx(cj,ci);
               datay(cj,ci)=-(max_y1-(N))+idy(cj,ci);
-              xx(cj,ci)=ii+M/2; yy(cj,ci)=jj+N/2;
-              ci=ci+1;
-          else
-              xx(cj,ci)=ii+M/2; yy(cj,ci)=jj+N/2;
-              datax(cj,ci)=NaN; datay(cj,ci)=NaN; ci=ci+1;
+              %xx(cj,ci)=ii+M/2; yy(cj,ci)=jj+N/2;
+              %ci=ci+1;
+          %else
+          %    xx(cj,ci)=ii+M/2; yy(cj,ci)=jj+N/2;
+          %    datax(cj,ci)=NaN; datay(cj,ci)=NaN; ci=ci+1;
           end  
       end
       fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1)-sum(isnan(datax(:))))
       fprintf(' , Seconds taken: %f', toc);
-      cj=cj+1;
+      %cj=cj+1;
   end
   disp('.')
 
@@ -272,7 +357,7 @@ function c = xcorrf2(a,b,padn,padm)
   return;
 end
 
-function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
+function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
 % function [x,y,u,v,SnR,PeakHeight,brc]=finalpass_new(A,B,N,ol,idx,idy,Dt,mask)
 %
 % Provides the final pass to get the displacements with
@@ -291,13 +376,28 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
   %else
       M=N(1); N=N(2);
   %end
-  cj=1;
+  %cj=1;
   [sy,sx]=size(A);
 
   % Allocate space for matrixes
-  xp=zeros(ceil((size(A,1)-N)/((1-ol)*N))+1, ...
-      ceil((size(A,2)-M)/((1-ol)*M))+1);
-  yp=xp; up=xp; vp=xp; brc=xp; SnR=xp; Pkh=xp;
+  %xp=zeros(ceil((size(A,1)-N)/((1-ol)*N))+1, ...
+  %    ceil((size(A,2)-M)/((1-ol)*M))+1);
+  %yp=xp; up=xp; vp=xp; brc=xp; SnR=xp; Pkh=xp;
+
+  x=round(xx(1,:)-M/2);
+  y=round(yy(:,1)-N/2);
+
+  nx=length(x);
+  ny=length(y);
+
+  up=NaN(ny,nx);
+  vp=NaN(ny,nx);
+
+  SnR=NaN(ny,nx);
+  Pkh=NaN(ny,nx);
+
+  idx(isnan(idx)) = 0;
+  idy(isnan(idy)) = 0;
 
   % Variables used for subpixel displacement in Fourier Domain
   min_res=0.005; % minimum residual to reach before breaking out of
@@ -309,7 +409,7 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
   J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
   %W=weight('cosn',[M,N],20); % weights used in the sub-pixel window shift
   dev=20;
-  tmpw = (1-cos(pi*(0:M-1)/(M-1)).^dev);tmpw2 = (1-cos(pi*(0:N-1)/(N-1)).^dev);
+  tmpw = (1-cos(pi*(0:N-1)/(N-1)).^dev);tmpw2 = (1-cos(pi*(0:M-1)/(M-1)).^dev);
   W = tmpw'*tmpw2;
   %W2=1-weight('cosn',2*[M N],20); %weight for FFT filtering
 
@@ -336,20 +436,30 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
   end
 
   mf = 2^nextpow2(M+N);
-  nf = mf;
+
+  full_sizes = [mf-1, 1/(mf-1)];
+  sub_sizes = [N-4, 1/(N-4)];
+  offset = [N M]/2 + 1;
+  no_off = [0 0];
 
   tic
-  for jj=1:((1-ol)*N):sy-N+1
-      ci=1;
-      for ii=1:((1-ol)*M):sx-M+1
-          %if IN(jj+N/2,ii+M/2)~=1
-          if maske(jj+N/2,ii+M/2)
-              if isnan(idx(cj,ci))
-                  idx(cj,ci)=0;
-              end
-              if isnan(idy(cj,ci))
-                  idy(cj,ci)=0;
-              end
+
+  for cj=1:ny
+      jj = y(cj);
+      for ci=1:nx
+        ii = x(ci);
+          if maske(cj,ci)
+  %for jj=1:((1-ol)*N):sy-N+1
+  %    ci=1;
+  %    for ii=1:((1-ol)*M):sx-M+1
+  %        %if IN(jj+N/2,ii+M/2)~=1
+  %        if maske(jj+N/2,ii+M/2)
+  %            if isnan(idx(cj,ci))
+  %                idx(cj,ci)=0;
+  %            end
+  %            if isnan(idy(cj,ci))
+  %                idy(cj,ci)=0;
+  %            end
               if jj+idy(cj,ci)<1
                   idy(cj,ci)=1-jj;
               elseif jj+idy(cj,ci)>sy-N+1
@@ -391,8 +501,8 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
               % take zero-padded Fourier Transform
               %mf = 2^nextpow2(M+N);
               %nf = mf;
-              at = fftn(E,[nf mf]);
-              bt = fftn(conj(F(end:-1:1,end:-1:1)),[nf mf]);
+              at = fftn(E,[mf mf]);
+              bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
               %at = fft2(E,nf,mf);
               %bt = fft2(conj(F(end:-1:1,end:-1:1)),nf,mf);
@@ -403,22 +513,24 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
               %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
               R = real(ifftn(bt.*at, 'nonsymmetric'));
               %R=real(ifft2(bt.*at));
-              R(end,:)=[]; R(:,end)=[];
+              %R(end,:)=[]; R(:,end)=[];
+              R=R(1:end-1,1:end-1);
               R=real(R)./(nelems*stad1*stad2);
               %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
               %%%%%%%%%%%%%%%%%%%%%% _IF_ the standard deviation is NOT NaN.
               if all(~isnan(R(:))) && ~all(R(:)==0)  %~isnan(stad1) & ~isnan(stad2)
-                  if size(R,1)==(N-1)
-                      [max_y1,max_x1]=find(R==max(R(:)));
-
+                  if full_sizes(1)==(N-1) || N < 5 || M < 5
+                      %[max_y1,max_x1]=find(R==max(R(:)));
+                      [max_y1,max_x1]=getmax(R, full_sizes, no_off);
                   else
-                      [max_y1,max_x1]=find(R==max(max(R(0.5*N+2:1.5*N-3,...
-                          0.5*M+2:1.5*M-3))));
+                      %[max_y1,max_x1]=find(R==max(max(R(0.5*N+2:1.5*N-3,...
+                      %    0.5*M+2:1.5*M-3))));
+                      [max_y1,max_x1]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
                   end
-                  if length(max_x1)>1
-                      max_x1=round(sum(max_x1.^2)./sum(max_x1));
-                      max_y1=round(sum(max_y1.^2)./sum(max_y1));
-                  end
+                  %if length(max_x1)>1
+                  %    max_x1=round(sum(max_x1.^2)./sum(max_x1));
+                  %    max_y1=round(sum(max_y1.^2)./sum(max_y1));
+                  %end
 
                   % loop on integer basis to make sure we've converged to
                   % +-0.5 pixels before entering subpixel shifting
@@ -431,15 +543,18 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
                           ii+stx:ii+M-1+stx);
 
                       F=(D2-sum(D2(:))/nelems).*W; F=F-sum(F(:))/nelems;
-                      bt = fftn(conj(F(end:-1:1,end:-1:1)),[nf mf]);
+                      bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
                       R = real(ifftn(bt.*at, 'nonsymmetric'));
 
                       %F=(D2-mean(D2(:))).*W; F=F-mean(F(:));
                       %bt = fft2(conj(F(end:-1:1,end:-1:1)),nf,mf);
                       %R=ifft2(bt.*at);
-                      R(end,:)=[]; R(:,end)=[];
+                      %R(end,:)=[]; R(:,end)=[];
+                      R=R(1:end-1,1:end-1);
                       R=real(R)./(nelems*stad1*stad2);
-                      [max_y1,max_x1]=find(R==max(R(:)));
+                      %[max_y1,max_x1]=find(R==max(R(:)));
+                      [max_y1,max_x1]=getmax(R, full_sizes, no_off);
+
                       stx=stx + (M-max_x1);
                       sty=sty + (N-max_y1);
 
@@ -479,10 +594,15 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
                           %
                           R=ifftn( bt2.*at, 'nonsymmetric');
                           %R=ifft2( bt2.*at );
-                          R(end,:)=[]; R(:,end)=[];
+                          %R(end,:)=[]; R(:,end)=[];
+                          %R=real(R)./(N*M*stad1*stad2);
+                          R=real(R(1:end-1,1:end-1));
+                          R(R<=0) = 1e-6;
                           R=real(R)./(N*M*stad1*stad2);
 
-                          [dy,dx]=find(R==max(R(:)));
+                          %[dy,dx]=find(R==max(R(:)));
+                          [dy,dx]=getmax(R, full_sizes, no_off);
+
                           X0=X0+(M-dx); Y0=Y0+(N -dy);
                           if dx>1 && dx<2*M-1 && dy>1 && dy<2*N-1
                               %only gaussian fit here
@@ -505,12 +625,12 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
                       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
                       % Find the signal to Noise ratio
                       R2=R;
-                      try
+                      if (max_y1 > 3 && max_y1 < N-2 && max_x1 > 3 && max_x1 < M-2)
                           R2(max_y1-3:max_y1+3,max_x1-3:max_x1+3)=NaN;
-                      catch
+                      else
                           R2(max_y1-1:max_y1+1,max_x1-1:max_x1+1)=NaN;
                       end
-                      if size(R,1)==(N-1)
+                      if size(R,1)==(N-1) || N < 5 || M < 5
                           [p2_y2,p2_x2]=find(R2==max(R2(:)));                        
                       else
                           [p2_y2,p2_x2]=find(R2==max(max(R2(0.5*N:1.5*N-1,0.5*M:1.5*M-1))));
@@ -518,7 +638,7 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
                       if length(p2_x2)>1
                           p2_x2=p2_x2(round(length(p2_x2)/2));
                           p2_y2=p2_y2(round(length(p2_y2)/2));
-                      elseif isempty(p2_x2)
+                      %elseif isempty(p2_x2)
 
                       end
                       % signal to noise:
@@ -532,26 +652,26 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
                       %%%%%%%%%%%%%%%%%%%%%% Store the displacements, SnR and Peak Height.
                       up(cj,ci)=(-X0+idx(cj,ci));
                       vp(cj,ci)=(-Y0+idy(cj,ci));
-                      xp(cj,ci)=(ii+(M/2)-1);
-                      yp(cj,ci)=(jj+(N/2)-1);
+                      %xp(cj,ci)=(ii+(M/2)-1);
+                      %yp(cj,ci)=(jj+(N/2)-1);
                       SnR(cj,ci)=snr;
                       Pkh(cj,ci)=R(max_y1,max_x1);
-                  else
-                      up(cj,ci)=NaN; vp(cj,ci)=NaN; SnR(cj,ci)=NaN; Pkh(cj,ci)=0;
-                      xp(cj,ci)=(ii+(M/2)-1);
-                      yp(cj,ci)=(jj+(N/2)-1);
+                  %else
+                  %    up(cj,ci)=NaN; vp(cj,ci)=NaN; SnR(cj,ci)=NaN; Pkh(cj,ci)=0;
+                  %    xp(cj,ci)=(ii+(M/2)-1);
+                  %    yp(cj,ci)=(jj+(N/2)-1);
                   end
-              else
-                  up(cj,ci)=NaN; vp(cj,ci)=NaN; SnR(cj,ci)=NaN; Pkh(cj,ci)=0;
-                  xp(cj,ci)=(ii+(M/2)-1);
-                  yp(cj,ci)=(jj+(N/2)-1);
+              %else
+              %    up(cj,ci)=NaN; vp(cj,ci)=NaN; SnR(cj,ci)=NaN; Pkh(cj,ci)=0;
+              %    xp(cj,ci)=(ii+(M/2)-1);
+              %    yp(cj,ci)=(jj+(N/2)-1);
               end
-              ci=ci+1;
-          else
-              xp(cj,ci)=(M/2)+ii-1;
-              yp(cj,ci)=(N/2)+jj-1;
-              up(cj,ci)=NaN; vp(cj,ci)=NaN;
-              SnR(cj,ci)=NaN; Pkh(cj,ci)=NaN;ci=ci+1;
+              %ci=ci+1;
+          %else
+          %    xp(cj,ci)=(M/2)+ii-1;
+          %    yp(cj,ci)=(N/2)+jj-1;
+          %    up(cj,ci)=NaN; vp(cj,ci)=NaN;
+          %    SnR(cj,ci)=NaN; Pkh(cj,ci)=NaN;ci=ci+1;
           end
           brc(cj,ci)=breakoutcounter;
       end
@@ -560,9 +680,20 @@ function [xp,yp,up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,ol,idx,idy,maske)
       % disp([num2str((cj-1)*(ci)+ci-1) ' vectors in ' num2str(toc) ' seconds'])
       fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1) -sum(isnan(up(:))))
       fprintf(', Seconds taken: %f', toc);
-      cj=cj+1;
+      %cj=cj+1;
   end
   fprintf('\n')
+  return;
+
+end
+
+function [si,sj] = getmax(mat, sizes, offset)
+
+  [junk, ind] = max(mat(:));
+  si = rem(ind-1,sizes(1)) + 1;
+  sj = (ind-si)*sizes(2) + 1 + offset(2);
+  si = si + offset(1);
+
   return;
 end
 
@@ -604,23 +735,34 @@ function [hu,hv]=globfilt(x,y,u,v,thresh)
 % Distributed under the Gnu General Public License
 
   fprintf(' Global filter running - ')
-  norm = (sqrt(u(:).^2+v(:).^2));
-  if max(norm)>0
-    scale=2/max(norm);
-  else
-    scale=0.1;
-  end
+  %norm = (sqrt(u(:).^2+v(:).^2));
+  %if max(norm)>0
+  %  scale=2/max(norm);
+  %else
+  %  scale=0.1;
+  %end
 
   [xo, sx] = mymean(u(:));
   [yo, sy] = mymean(v(:));
 
-  dist = (u(:) - xo).^2 + (v(:) - yo).^2;
-  valids = (dist <= (thresh*sx)^2 + (thresh*sy)^2);
-
-  u(~valids)=NaN; v(~valids)=NaN;
+  distx = (u(:) - xo).^2;
+  disty = (v(:) - yo).^2;
+  valids = (distx <= (thresh*sx)^2) & (disty <= (thresh*sy)^2);
+  %if (~sx)
+  % sx=1;
+  %end
+  %if (~sy)
+  % sy=1;
+  %end
+  %distx = ((u(:) - xo)/sx).^2;
+  %disty = ((v(:) - yo)/sy).^2;
+  %valids = (distx + disty <= thresh^2);
 
   fprintf([' ..... ',num2str(sum(~valids(:))-sum(isnan(u(:)))),...
         ' vectors changed\n'])
+
+  u(~valids)=NaN; v(~valids)=NaN;
+
   hu=u; hv=v;
   return;
 end
@@ -659,37 +801,51 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
 
   method='mnanmedian'; stat='median'; ff=1;
 
-  nu=NaN(size(u)+2*floor(m/2));
-  nv=NaN(size(u)+2*floor(m/2));
-  nu(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=u;
-  nv(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=v;
+  border = floor(m/2);
+  valids = true(2*border + 1);
+  valids(border+1, border+1) = false;
+  nans = NaN(1, 2);
 
-  INx=false(size(nu));
-  INx(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=maske;
+  %nu=NaN(size(u)+2*floor(m/2));
+  %nv=NaN(size(u)+2*floor(m/2));
+  %nu(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=u;
+  %nv(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=v;
 
-  prev=isnan(nu); previndx=find(prev==1); 
-  U2=nu+i*nv; teller=1; [ma,na]=size(U2); histo=zeros(size(nu));
-  histostd=zeros(size(nu));hista=zeros(size(nu));histastd=zeros(size(nu));
+  %INx=false(size(nu));
+  %INx(floor(m/2)+1:end-floor(m/2),floor(m/2)+1:end-floor(m/2))=maske;
+
+  %prev=isnan(nu); previndx=find(prev==1); 
+  %U2=nu+i*nv; teller=1; [ma,na]=size(U2); histo=zeros(size(nu));
+  %histostd=zeros(size(nu));hista=zeros(size(nu));histastd=zeros(size(nu));
   fprintf([' Local ',stat,' filter running: '])
 
-  for ii=m-1:1:na-m+2  
-      for jj=m-1:1:ma-m+2
-          if INx(jj,ii)
+  histou = blockproc(u, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
+  histov = blockproc(v, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
 
-              tmp=U2(jj-floor(m/2):jj+floor(m/2),ii-floor(m/2):ii+floor(m/2)); 
-              tmp(ceil(m/2),ceil(m/2))=NaN;
+  medu = histou(:,1:2:end);
+  stdu = threshold*histou(:,2:2:end);
 
-              usum=nanmedian(tmp(:));
+  medv = histov(:,1:2:end);
+  stdv = threshold*histov(:,2:2:end);
 
-              histostd(jj,ii)=nanstd(tmp(:));
-          else
-              usum=nan; tmp=NaN; histostd(jj,ii)=nan;
-          end
+  %for ii=m-1:1:na-m+2  
+  %    for jj=m-1:1:ma-m+2
+  %        if INx(jj,ii)
+
+  %            tmp=U2(jj-floor(m/2):jj+floor(m/2),ii-floor(m/2):ii+floor(m/2)); 
+  %            tmp(ceil(m/2),ceil(m/2))=NaN;
+
+  %            usum=nanmedian(tmp(:));
+%
+  %            histostd(jj,ii)=nanstd(tmp(:));
+  %        else
+  %            usum=nan; tmp=NaN; histostd(jj,ii)=nan;
+  %        end
   %         u1=real(usum).^2 - real(U2(jj,ii)).^2;
   %         v1=imag(usum).^2 - imag(U2(jj,ii)).^2;
   %         
   %         histo(jj,ii)=u1+i*v1;
-          histo(jj,ii)=usum;
+  %        histo(jj,ii)=usum;
           %histostd(jj,ii)=mnanstd(real(tmp(:))) + i*mnanstd(imag(tmp(:)));
 
           %th1=angle(usum); th2=angle(U2(jj,ii));
@@ -698,10 +854,10 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
           %hista(jj,ii)=(th1-th2);
           %if hista(jj,ii)<0, hista(jj,ii)=2*pi+hista(jj,ii); end 
           %histastd(jj,ii)=mnanstd(abs(angle(tmp(:))));
-      end
-      fprintf('.')
+  %    end
+  %    fprintf('.')
 
-  end
+  %end
 
   %%%%%%%% Locate gridpoints with a higher value than the threshold 
 
@@ -713,13 +869,18 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
   %    real(U2)<real(histo)-threshold*real(histostd) |...
   %    imag(U2)<imag(histo)-threshold*imag(histostd) ) );
 
-  bads=( real(U2)>real(histo)+threshold*real(histostd) |...
-      imag(U2)>imag(histo)+threshold*imag(histostd) |...
-      real(U2)<real(histo)-threshold*real(histostd) |...
-      imag(U2)<imag(histo)-threshold*imag(histostd) );
+  bads = (u > medu + stdu | u < medu - stdu | ...
+          v > medv + stdv | v < medv - stdv);
 
-  nu(bads)=NaN;
-  nv(bads)=NaN;
+  %bads=( real(U2)>real(histo)+threshold*real(histostd) |...
+  %    imag(U2)>imag(histo)+threshold*imag(histostd) |...
+  %    real(U2)<real(histo)-threshold*real(histostd) |...
+  %    imag(U2)<imag(histo)-threshold*imag(histostd) );
+
+  %nu(bads)=NaN;
+  %nv(bads)=NaN;
+  u(bads)=NaN;
+  v(bads)=NaN;
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -745,11 +906,25 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
   %    end
   %end
 
-  hu=nu(ceil(m/2):end-floor(m/2),ceil(m/2):end-floor(m/2));
-  hv=nv(ceil(m/2):end-floor(m/2),ceil(m/2):end-floor(m/2));
+  %hu=nu(ceil(m/2):end-floor(m/2),ceil(m/2):end-floor(m/2));
+  %hv=nv(ceil(m/2):end-floor(m/2),ceil(m/2):end-floor(m/2));
+  hu=u;
+  hv=v;
   fprintf('.\n')
 
   return;
+
+  function vals = blockstats(blk)
+
+    if (maske(blk.location(1), blk.location(2)))
+      data = blk.data(valids);
+      vals = [nanmedian(data), nanstd(data)];
+    else
+      vals = nans;
+    end
+
+    return;
+  end
 end
 
 function [u,v]=naninterp2(u,v,maske,xx,yy)
@@ -791,7 +966,7 @@ function [u,v]=naninterp2(u,v,maske,xx,yy)
   %        end 
   %    end
       %[py,px]=find(isnan(u)==1 & ~ipol2 );     
-      [py,px]=find(isnan(u)==1 & maske);
+      [py,px]=find(isnan(u) & maske);
   %end
 
   numm=size(py);
@@ -862,7 +1037,7 @@ function [u,v]=naninterp2(u,v,maske,xx,yy)
           %    in2=in2+double(in);
           %end
           %[py,px]=find(isnan(u)==1 & ~ipol2 );
-          [py,px]=find(isnan(u)==1 & maske);
+          [py,px]=find(isnan(u) & maske);
       %end
 
       lp=lp+1;
