@@ -30,7 +30,9 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
     maske=true(size(im1));
   end
   imgsize=size(A);
-  [sy,sx]=size(A);
+  %[sy,sx]=size(A);
+
+  wins = wins + rem(wins, 2);
 
   if size(wins,1)==1
       if size(wins,2)==1
@@ -47,7 +49,7 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   datax=[];
   datay=[];
   for i=1:iter-1
-      disp(['* Pass No: ',num2str(i)])
+%      disp(['* Pass No: ',num2str(i)])
 
       [x,y,datax,datay,win_maske] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, maske);
 
@@ -100,7 +102,7 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   end
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Final pass. Gives displacement to subpixel accuracy.
-  disp('* Final Pass')
+%  disp('* Final Pass')
 
   [x,y,datax,datay,win_maske] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, maske);
 
@@ -115,7 +117,7 @@ function [x,y,u,v,SnR]=matpiv_nfft(im1,im2,wins,overlap,sensit,maske,iter)
   [u,v]=naninterp2(datax,datay,win_maske,x,y);
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  disp(' ')
+%  disp(' ')
 
   return;
 end
@@ -215,7 +217,7 @@ function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
 
   %win_maske=(interp2(double(maske),x,y.')>=0.5);
 
-  tic;
+%  tic;
   for cj=1:ny
       jj = y(cj);
       for ci=1:nx
@@ -286,11 +288,11 @@ function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
           %    datax(cj,ci)=NaN; datay(cj,ci)=NaN; ci=ci+1;
           end  
       end
-      fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1)-sum(isnan(datax(:))))
-      fprintf(' , Seconds taken: %f', toc);
+%      fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1)-sum(isnan(datax(:))))
+%      fprintf(' , Seconds taken: %f', toc);
       %cj=cj+1;
   end
-  disp('.')
+%  disp('.')
 
   return;
 end
@@ -357,7 +359,8 @@ function c = xcorrf2(a,b,padn,padm)
   return;
 end
 
-function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
+%function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
+function [up,vp,SnR]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
 % function [x,y,u,v,SnR,PeakHeight,brc]=finalpass_new(A,B,N,ol,idx,idy,Dt,mask)
 %
 % Provides the final pass to get the displacements with
@@ -394,7 +397,8 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
   vp=NaN(ny,nx);
 
   SnR=NaN(ny,nx);
-  Pkh=NaN(ny,nx);
+  %Pkh=NaN(ny,nx);
+  %brc=NaN(ny,nx);
 
   idx(isnan(idx)) = 0;
   idy(isnan(idy)) = 0;
@@ -404,9 +408,9 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
   % sub-pixel iterations
   breakoutcounter=1; % count the iterations
   max_iterations=10; % max iterations before breaking out
-  I=1:2*M; I(I>M)=I(I>M)-2*M; I=repmat(I,2*N,1); % used in the sub-pixel
+  %I=1:2*M; I(I>M)=I(I>M)-2*M; I=repmat(I,2*N,1); % used in the sub-pixel
   % window shift
-  J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
+  %J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
   %W=weight('cosn',[M,N],20); % weights used in the sub-pixel window shift
   dev=20;
   tmpw = (1-cos(pi*(0:N-1)/(N-1)).^dev);tmpw2 = (1-cos(pi*(0:M-1)/(M-1)).^dev);
@@ -423,10 +427,10 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
   %    end, 
   %end
 
-  fprintf([' Continuous windows shifting in Fourier space\n', ...
-      '  Local iterations applied\n',...
-      '  - Using ',num2str(M),'*',num2str(N),...
-      ' interrogation windows! \n'])
+%  fprintf([' Continuous windows shifting in Fourier space\n', ...
+%      '  Local iterations applied\n',...
+%      '  - Using ',num2str(M),'*',num2str(N),...
+%      ' interrogation windows! \n'])
   %%%%%%%%%%%%%%% MAIN LOOP %%%%%%%%%%%%%%%%%%%%%%%%%
   nelems=M*N;
   if (nelems>1)
@@ -436,13 +440,23 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
   end
 
   mf = 2^nextpow2(M+N);
+  % window shift
+  window_shift = zeros(mf);
+  I=1:2*M; I(I>M)=I(I>M)-2*M; I=repmat(I,2*N,1); % used in the sub-pixel
+  window_shift(1:2*N,1:2*M) = I;
+  I=window_shift;
+  J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
+  window_shift(1:2*N,1:2*M) = J;
+  J=window_shift;
 
   full_sizes = [mf-1, 1/(mf-1)];
   sub_sizes = [N-4, 1/(N-4)];
+  alt_sizes = [N, 1/N];
   offset = [N M]/2 + 1;
+  alt_off = [N M]/2 - 1;
   no_off = [0 0];
 
-  tic
+%  tic
 
   for cj=1:ny
       jj = y(cj);
@@ -573,7 +587,7 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
                   if max_x1~=1 && max_y1~=1 && max_x1~=M-1 && max_y1~=N-1
                       % 3-point peak fit using centroid, gaussian (default)
                       % or parabolic fit
-                      [x0 y0]=intpeak(max_x1,max_y1,R(max_y1,max_x1),...
+                      [x0, y0]=intpeak(max_x1,max_y1,R(max_y1,max_x1),...
                           R(max_y1,max_x1-1),R(max_y1,max_x1+1),...
                           R(max_y1-1,max_x1),R(max_y1+1,max_x1),M,N);
                       X0=x0; Y0=y0;
@@ -631,9 +645,11 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
                           R2(max_y1-1:max_y1+1,max_x1-1:max_x1+1)=NaN;
                       end
                       if size(R,1)==(N-1) || N < 5 || M < 5
-                          [p2_y2,p2_x2]=find(R2==max(R2(:)));                        
+                          %[p2_y2,p2_x2]=find(R2==max(R2(:)));                        
+                          [p2_y2,p2_x2]=getmax(R2, full_sizes, no_off);
                       else
-                          [p2_y2,p2_x2]=find(R2==max(max(R2(0.5*N:1.5*N-1,0.5*M:1.5*M-1))));
+                          %[p2_y2,p2_x2]=find(R2==max(max(R2(0.5*N:1.5*N-1,0.5*M:1.5*M-1))));
+                          [p2_y2,p2_x2]=getmax(R2(0.5*N:1.5*N-1,0.5*M:1.5*M-1), alt_sizes, alt_off);
                       end
                       if length(p2_x2)>1
                           p2_x2=p2_x2(round(length(p2_x2)/2));
@@ -655,7 +671,7 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
                       %xp(cj,ci)=(ii+(M/2)-1);
                       %yp(cj,ci)=(jj+(N/2)-1);
                       SnR(cj,ci)=snr;
-                      Pkh(cj,ci)=R(max_y1,max_x1);
+                      %Pkh(cj,ci)=R(max_y1,max_x1);
                   %else
                   %    up(cj,ci)=NaN; vp(cj,ci)=NaN; SnR(cj,ci)=NaN; Pkh(cj,ci)=0;
                   %    xp(cj,ci)=(ii+(M/2)-1);
@@ -673,16 +689,16 @@ function [up,vp,SnR,Pkh,brc]=finalpass_new(A,B,N,xx,yy,idx,idy,maske)
           %    up(cj,ci)=NaN; vp(cj,ci)=NaN;
           %    SnR(cj,ci)=NaN; Pkh(cj,ci)=NaN;ci=ci+1;
           end
-          brc(cj,ci)=breakoutcounter;
+          %brc(cj,ci)=breakoutcounter;
       end
       breakoutcounter=1;
 
       % disp([num2str((cj-1)*(ci)+ci-1) ' vectors in ' num2str(toc) ' seconds'])
-      fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1) -sum(isnan(up(:))))
-      fprintf(', Seconds taken: %f', toc);
+%      fprintf('\r No. of vectors: %d', ((cj-1)*(ci)+ci-1) -sum(isnan(up(:))))
+%      fprintf(', Seconds taken: %f', toc);
       %cj=cj+1;
   end
-  fprintf('\n')
+%  fprintf('\n')
   return;
 
 end
@@ -734,7 +750,7 @@ function [hu,hv]=globfilt(x,y,u,v,thresh)
 % For use with MatPIV 1.7 and later versions
 % Distributed under the Gnu General Public License
 
-  fprintf(' Global filter running - ')
+%  fprintf(' Global filter running - ')
   %norm = (sqrt(u(:).^2+v(:).^2));
   %if max(norm)>0
   %  scale=2/max(norm);
@@ -758,8 +774,8 @@ function [hu,hv]=globfilt(x,y,u,v,thresh)
   %disty = ((v(:) - yo)/sy).^2;
   %valids = (distx + disty <= thresh^2);
 
-  fprintf([' ..... ',num2str(sum(~valids(:))-sum(isnan(u(:)))),...
-        ' vectors changed\n'])
+%  fprintf([' ..... ',num2str(sum(~valids(:))-sum(isnan(u(:)))),...
+%        ' vectors changed\n'])
 
   u(~valids)=NaN; v(~valids)=NaN;
 
@@ -799,7 +815,7 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
 %
 % Time: 10:41, Jan 17 2002
 
-  method='mnanmedian'; stat='median'; ff=1;
+  %method='mnanmedian'; stat='median'; ff=1;
 
   border = floor(m/2);
   valids = true(2*border + 1);
@@ -817,7 +833,7 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
   %prev=isnan(nu); previndx=find(prev==1); 
   %U2=nu+i*nv; teller=1; [ma,na]=size(U2); histo=zeros(size(nu));
   %histostd=zeros(size(nu));hista=zeros(size(nu));histastd=zeros(size(nu));
-  fprintf([' Local ',stat,' filter running: '])
+%  fprintf([' Local ',stat,' filter running: '])
 
   histou = blockproc(u, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
   histov = blockproc(v, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
@@ -894,10 +910,10 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
   %end
 
   %rest=length(cy);
-  rest=sum(bads(:));
+  %rest=sum(bads(:));
 
   %rest2=sum(isnan(u(:)))-sum(prev(:));
-  fprintf([num2str(rest),' vectors changed'])
+%  fprintf([num2str(rest),' vectors changed'])
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Now we check for NaN's and interpolate where they exist
   %if any(strcmp(varargin,'interp'))
@@ -910,7 +926,7 @@ function [hu,hv]=localfilt(x,y,u,v,threshold,m,maske)
   %hv=nv(ceil(m/2):end-floor(m/2),ceil(m/2):end-floor(m/2));
   hu=u;
   hv=v;
-  fprintf('.\n')
+%  fprintf('.\n')
 
   return;
 
@@ -978,10 +994,11 @@ function [u,v]=naninterp2(u,v,maske,xx,yy)
   % physical values. Then we first interpolate those that have 8
   % neighbors, followed by 7, 6, 5, 4, 3, 2 and 1
   % use SORTROWS to sort the numbers
-  fprintf(' Interpolating outliers: ')
+%  fprintf(' Interpolating outliers: ')
   %pcolor(u), hold on
   while ~isempty(py)
       % check number of neighbors
+      nei=Nan(length(py), 3);
       for i=1:length(py)
           %correction if vector is on edge of matrix
           corx1=0; corx2=0; cory1=0; cory2=0;
@@ -1026,7 +1043,7 @@ function [u,v]=naninterp2(u,v,maske,xx,yy)
           if lp>numm(1), u(py(j),px(j))=0;v(py(j),px(j))=0;end
           teller=teller+1;
       end 
-      tt=length(py);
+      %tt=length(py);
 
       %if nargin==2
       %    [py,px]=find(isnan(u)==1);  
@@ -1041,14 +1058,14 @@ function [u,v]=naninterp2(u,v,maske,xx,yy)
       %end
 
       lp=lp+1;
-      fprintf('.')
+%      fprintf('.')
   end
-  if numm(1)~=0
+%  if numm(1)~=0
 
-      fprintf([num2str(numm(1)),' Nan''s interpolated.\n'])
-  else
-      fprintf('Nothing to interpolate \n')
-  end 
+%      fprintf([num2str(numm(1)),' Nan''s interpolated.\n'])
+%  else
+%      fprintf('Nothing to interpolate \n')
+%  end 
 
   return;
 end
@@ -1091,9 +1108,8 @@ function [x0,y0]=intpeak(x1,y1,R,Rxm1,Rxp1,Rym1,Ryp1,M,N)
       y0=y01-(N);
   end
 
-
   x0=real(x0);
   y0=real(y0);
-  return;
 
+  return;
 end
