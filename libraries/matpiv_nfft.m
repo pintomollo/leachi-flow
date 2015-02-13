@@ -93,7 +93,10 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
 
       [datax,datay]=globfilt(x,y,datax,datay,thresh(i));
       [datax,datay]=localfilt(x,y,datax,datay,thresh(i),win_mask);
-      [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
+
+      if (all(size(datax) > 1))
+        [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
+      end
 
       datax=round(datax);
       datay=round(datay);
@@ -103,11 +106,17 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
   % Final pass. Gives displacement to subpixel accuracy.
   [x,y,datax,datay,win_mask] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask);
 
-  [datax,datay,SnR]=finalpass(im2,im2,wins(end,:),x,y,datax,datay,win_mask);
+  [datax,datay,SnR]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
 
   [datax,datay]=globfilt(x,y,datax,datay,thresh(end));
   [datax,datay]=localfilt(x,y,datax,datay,thresh(end),win_mask);
-  [u,v]=naninterp2(datax,datay,win_mask,x,y);
+
+  if (all(size(datax) > 1))
+    [u,v]=naninterp2(datax,datay,win_mask,x,y);
+  else
+    u = datax;
+    v = datay;
+  end
 
   return;
 end
@@ -128,6 +137,9 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
   if (isempty(datax) || isempty(datay))
     datax = zeros(ny,nx);
     datay = zeros(ny,nx);
+  elseif (numel(prevx) == 1)
+    datax = ones(ny,nx) * datax;
+    datay = ones(ny,nx) * datay;
   else
     datax = round(interp2(prevx,prevy,datax,xx,yy));
     datay = round(interp2(prevx,prevy,datay,xx,yy));

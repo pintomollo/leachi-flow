@@ -22,6 +22,7 @@ function install_leachi_flow
   addpath(fullfile(current_dir, 'image_analysis'));
   addpath(fullfile(current_dir, 'libraries'));
   addpath(fullfile(current_dir, 'pipeline'));
+  addpath(fullfile(current_dir, 'simulation'));
   savepath;
 
   % And for the LOCI as well
