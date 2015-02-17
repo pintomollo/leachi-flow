@@ -62,6 +62,8 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
     thresh = 3;
   end
 
+  snr_thresh = 1;
+
   if (any(imgsize ~= size(im2) | imgsize ~= size(mask)))
     disp('Images must have consistent sizes. Aborting !')
     return;
@@ -89,8 +91,9 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
 
       [x,y,datax,datay,win_mask] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask);
 
-      [datax,datay]=firstpass(im1,im2,wins(i,:),x,y,datax,datay,win_mask);
+      [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax,datay,win_mask);
 
+      [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
       [datax,datay]=globfilt(x,y,datax,datay,thresh(i));
       [datax,datay]=localfilt(x,y,datax,datay,thresh(i),win_mask);
 
@@ -108,6 +111,7 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
 
   [datax,datay,SnR]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
 
+  [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
   [datax,datay]=globfilt(x,y,datax,datay,thresh(end));
   [datax,datay]=localfilt(x,y,datax,datay,thresh(end),win_mask);
 
@@ -144,15 +148,15 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
     datax = round(interp2(prevx,prevy,datax,xx,yy));
     datay = round(interp2(prevx,prevy,datay,xx,yy));
   end
-  datax(isnan(datax)) = 0;
-  datay(isnan(datay)) = 0;
+  %datax(isnan(datax)) = 0;
+  %datay(isnan(datay)) = 0;
 
   win_maske=(interp2(double(maske),xx,yy)>=0.5);
 
   return;
 end
 
-function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
+function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
 
 % function [x,y,datax,datay]=firstpass(A,B,M,ol,idx,idy,maske)
 %
@@ -167,14 +171,6 @@ function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
   M=N(1); N=N(2); 
   [sy,sx]=size(A);
 
-  padn = 2^nextpow2(2*N);
-  padm = 2^nextpow2(2*M);
-
-  full_sizes = [padn-1, 1/(padn-1)];
-  sub_sizes = [N-4, 1/(N-4)];
-  offset = [N M]/2 + 1;
-  no_off = [0 0];
-
   x=round(xx(1,:)-M/2);
   y=round(yy(:,1)-N/2);
 
@@ -183,9 +179,30 @@ function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
 
   datax=NaN(ny,nx);
   datay=NaN(ny,nx);
+  snr=NaN(ny,nx);
 
   idx(isnan(idx)) = 0;
   idy(isnan(idy)) = 0;
+
+  nelems=M*N;
+  inelems = 1/nelems;
+  if (nelems>1)
+    nestim=nelems-1;
+  else
+    nestim=nelems;
+  end
+  inestim = 1/nestim;
+
+  dev=20;
+  tmpw = (1-cos(pi*(0:N-1)/(N-1)).^dev);tmpw2 = (1-cos(pi*(0:M-1)/(M-1)).^dev);
+  W = tmpw'*tmpw2;
+
+  mf = 2^nextpow2(M+N);
+
+  full_sizes = [mf-1, 1/(mf-1)];
+  sub_sizes = [N-4, 1/(N-4)];
+  offset = [N M]/2 + 1;
+  no_off = [0 0];
 
   for cj=1:ny
       jj = y(cj);
@@ -203,32 +220,46 @@ function [datax,datay]=firstpass(A,B,N,xx,yy,idx,idy,maske)
                   idx(cj,ci)=sx-M+1-ii;
               end
 
-              C=A(jj:jj+N-1,ii:ii+M-1);   
-              D=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
-              C=C-mean(C(:)); D=D-mean(D(:));
-              stad1=std(C(:)); stad2=std(D(:)); 
-              if stad1==0, stad1=nan;end
-              if stad2==0, stad2=nan; end
+              E=A(jj:jj+N-1,ii:ii+M-1);   
+              D2=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
 
-              %%%%%%%%%%%%%%%%%%%%%%%Calculate the normalized correlation:   
-              R=xcorrf2(C,D,padn,padm)/(N*M*stad1*stad2);
+              mD2 = sum(D2(:)) * inelems;
+              mE = sum(E(:)) * inelems;
+
+              D2 = D2 - mD2;
+              E = E - mE;
+
+              stad1= sqrt(sum(E(:).^2) * inestim);
+              stad2= sqrt(sum(D2(:).^2) * inestim);
+
+              % use weights
+              E = E.*W;
+              F = D2.*W;
+
+              E = E - sum(E(:)) * inelems;
+              F = F - sum(F(:)) * inelems;
+
+              % take zero-padded Fourier Transform
+              at = fftn(E,[mf mf]);
+              bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+
+              %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
+              R = real(ifftn(bt.*at, 'nonsymmetric'));
+              R=R(1:end-1,1:end-1);
+              R=real(R)./(nelems*stad1*stad2);
+
               %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
               if full_sizes(1)==(N-1) || N < 5 || M < 5
-                  [max_y1,max_x1]=getmax(R, full_sizes, no_off);
+                  [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
               else
-                  [max_y1,max_x1]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                  [max_y1,max_x1,max_val]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
               end
 
-              if length(max_x1)>1
-                max_x1=round(sum(max_x1.*(1:length(max_x1))')./sum(max_x1));
-                max_y1=round(sum(max_y1.*(1:length(max_y1))')./sum(max_y1));
-              elseif isempty(max_x1)
-                idx(cj,ci)=nan; idy(cj,ci)=nan; max_x1=nan; max_y1=nan;
-              end
-              %%%%%%%%%%%%%%%%%%%%%% Store the displacements in variable datax/datay
-              datax(cj,ci)=-(max_x1-(M))+idx(cj,ci);
-              datay(cj,ci)=-(max_y1-(N))+idy(cj,ci);
-          end  
+              datax(cj,ci)=(M-max_x1)+idx(cj,ci);
+              datay(cj,ci)=(N-max_y1)+idy(cj,ci);
+
+              snr(cj,ci) = mf * max_val.^2 / sum(R(:).^2);
+          end
       end
   end
 
@@ -277,13 +308,16 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
 
   %%%%%%%%%%%%%%% MAIN LOOP %%%%%%%%%%%%%%%%%%%%%%%%%
   nelems=M*N;
+  inelems = 1/nelems;
   if (nelems>1)
     nestim=nelems-1;
   else
     nestim=nelems;
   end
+  inestim = 1/nestim;
 
   mf = 2^nextpow2(M+N);
+
   % window shift
   window_shift = zeros(mf);
   I=1:2*M; I(I>M)=I(I>M)-2*M; I=repmat(I,2*N,1); % used in the sub-pixel
@@ -292,6 +326,9 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
   J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
   window_shift(1:2*N,1:2*M) = J;
   J=window_shift;
+
+  iI = 1/(size(I,2));
+  iJ = 1/(size(J,1));
 
   full_sizes = [mf-1, 1/(mf-1)];
   sub_sizes = [N-4, 1/(N-4)];
@@ -315,44 +352,43 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
               elseif ii+idx(cj,ci)>sx-M+1
                   idx(cj,ci)=sx-M+1-ii;
               end
-              D2=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
               E=A(jj:jj+N-1,ii:ii+M-1);
+              D2=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
 
-              mD2 = sum(D2(:)) / nelems;
-              mE = sum(E(:)) / nelems;
+              mD2 = sum(D2(:)) * inelems;
+              mE = sum(E(:)) * inelems;
 
               D2 = D2 - mD2;
               E = E - mE;
 
-              stad1= sqrt(sum(E(:).^2) / nestim);
-              stad2= sqrt(sum(D2(:).^2) / nestim);
+              stad1= sqrt(sum(E(:).^2) * inestim);
+              stad2= sqrt(sum(D2(:).^2) * inestim);
 
-              if stad1==0, stad1=1; end
-              if stad2==0, stad2=1; end
+              ok1 = (stad1>eps);
+              ok2 = (stad2>eps);
 
-              % use weights
-              E = E.*W;
-              F = D2.*W;
+              if (ok1 && ok2)
+                  % use weights
+                  E = E.*W;
+                  F = D2.*W;
 
-              E = E - sum(E(:)) / nelems;
-              F = F - sum(F(:)) / nelems;
+                  E = E - sum(E(:)) * inelems;
+                  F = F - sum(F(:)) * inelems;
 
-              % take zero-padded Fourier Transform
-              at = fftn(E,[mf mf]);
-              bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+                  % take zero-padded Fourier Transform
+                  at = fftn(E,[mf mf]);
+                  bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
-              %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
-              R = real(ifftn(bt.*at, 'nonsymmetric'));
-              R=R(1:end-1,1:end-1);
-              R=real(R)./(nelems*stad1*stad2);
+                  %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
+                  R = real(ifftn(bt.*at, 'nonsymmetric'));
+                  R=R(1:end-1,1:end-1);
+                  R=real(R)./(nelems*stad1*stad2);
 
-              %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
-              %%%%%%%%%%%%%%%%%%%%%% _IF_ the standard deviation is NOT NaN.
-              if all(~isnan(R(:))) && ~all(R(:)==0)  %~isnan(stad1) & ~isnan(stad2)
+                  %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
                   if full_sizes(1)==(N-1) || N < 5 || M < 5
-                      [max_y1,max_x1]=getmax(R, full_sizes, no_off);
+                      [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
                   else
-                      [max_y1,max_x1]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                      [max_y1,max_x1,max_val]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
                   end
 
                   % loop on integer basis to make sure we've converged to
@@ -362,16 +398,17 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                   while max_x1~=M && max_y1~=N && ...
                           breakoutcounter<max_iterations &&...
                           jj+sty>0 && ii+stx>0 && ii+M-1+stx<=sx && jj+N-1+sty<=sy
+
                       D2=B(jj+sty:jj+N-1+sty,...
                           ii+stx:ii+M-1+stx);
 
-                      F=(D2-sum(D2(:))/nelems).*W; F=F-sum(F(:))/nelems;
+                      F=(D2-sum(D2(:))*inelems).*W; F=F-sum(F(:))*inelems;
                       bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
                       R = real(ifftn(bt.*at, 'nonsymmetric'));
 
                       R=R(1:end-1,1:end-1);
                       R=real(R)./(nelems*stad1*stad2);
-                      [max_y1,max_x1]=getmax(R, full_sizes, no_off);
+                      [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
 
                       stx=stx + (M-max_x1);
                       sty=sty + (N-max_y1);
@@ -388,7 +425,7 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
 
                   %Only enter next bit if the peak is not located at the
                   %edges of the correlation plane
-                  if max_x1~=1 && max_y1~=1 && max_x1~=M-1 && max_y1~=N-1
+                  if max_x1~=1 && max_y1~=1 && max_x1~=mf-1 && max_y1~=mf-1
                       % 3-point peak fit using centroid, gaussian (default)
                       % or parabolic fit
                       [x0, y0]=intpeak(max_x1,max_y1,R(max_y1,max_x1),...
@@ -399,8 +436,9 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                       % here we do the subpixel shifts in Fourier space
                       while (abs(x0)>min_res || abs(y0)>min_res) &&...
                               breakoutcounter<max_iterations
-                          bt2=(exp(2*1i*pi*( (I*(X0)/size(I,2)) + ...
-                              (J*(Y0)/size(J,1))))).*bt;
+
+                          bt2=(exp(2*1i*pi*( (I*(X0)*iI) + ...
+                              (J*(Y0)*iJ)))).*bt;
                           % At this point we could do some simple
                           % FFT-filtering like Todd and Liao suggests in
                           % their paper
@@ -413,12 +451,12 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                           R=ifftn( bt2.*at, 'nonsymmetric');
                           R=real(R(1:end-1,1:end-1));
                           R(R<=0) = 1e-6;
-                          R=real(R)./(N*M*stad1*stad2);
+                          R=real(R)./(nelems*stad1*stad2);
 
-                          [dy,dx]=getmax(R, full_sizes, no_off);
+                          [dy,dx,max_val]=getmax(R, full_sizes, no_off);
 
                           X0=X0+(M-dx); Y0=Y0+(N -dy);
-                          if dx>1 && dx<2*M-1 && dy>1 && dy<2*N-1
+                          if dx>1 && dx<mf-1 && dy>1 && dy<mf-1
                               %only gaussian fit here
                               x0= -(log(R(dy,dx-1))-log(R(dy,dx+1)))/...
                                   (2*log(R(dy,dx-1))-4*log(R(dy,dx))+2*log(R(dy,dx+1)));
@@ -429,39 +467,32 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                               breakoutcounter=breakoutcounter+1;
                           else
                               X0=nan; Y0=nan;
-                              breakoutcounter=16;
+                              breakoutcounter=max_iterations;
                           end
                       end
                       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
                       % Find the signal to Noise ratio
-                      R2=R;
-                      if (max_y1 > 3 && max_y1 < N-2 && max_x1 > 3 && max_x1 < M-2)
-                          R2(max_y1-3:max_y1+3,max_x1-3:max_x1+3)=NaN;
-                      else
-                          R2(max_y1-1:max_y1+1,max_x1-1:max_x1+1)=NaN;
-                      end
-                      if size(R,1)==(N-1) || N < 5 || M < 5
-                          [p2_y2,p2_x2]=getmax(R2, full_sizes, no_off);
-                      else
-                          [p2_y2,p2_x2]=getmax(R2(0.5*N:1.5*N-1,0.5*M:1.5*M-1), alt_sizes, alt_off);
-                      end
-                      if length(p2_x2)>1
-                          p2_x2=p2_x2(round(length(p2_x2)/2));
-                          p2_y2=p2_y2(round(length(p2_y2)/2));
-                      end
-                      % signal to noise:
-                      snr=R(max_y1,max_x1)/R2(p2_y2,p2_x2);
+                      SnR(cj,ci) = mf * max_val.^2 / sum(R(:).^2);
 
                       %%%%%%%%%%%%%%%%%%%%%% Store the displacements, SnR and Peak Height.
                       up(cj,ci)=(-X0+idx(cj,ci));
                       vp(cj,ci)=(-Y0+idy(cj,ci));
-                      SnR(cj,ci)=snr;
                   end
               end
           end
+          breakoutcounter=1;
       end
-      breakoutcounter=1;
   end
+
+  return;
+end
+
+function [u,v]=snrfilt(u,v,snr,thresh)
+
+  bads = ~(snr >= thresh);
+
+  u(bads) = NaN;
+  v(bads) = NaN;
 
   return;
 end
@@ -598,9 +629,9 @@ function c = xcorrf2(a,b,padn,padm)
   return;
 end
 
-function [si,sj] = getmax(mat, sizes, offset)
+function [si,sj,val] = getmax(mat, sizes, offset)
 
-  [junk, ind] = max(mat(:));
+  [val, ind] = max(mat(:));
   si = rem(ind-1,sizes(1)) + 1;
   sj = (ind-si)*sizes(2) + 1 + offset(2);
   si = si + offset(1);
