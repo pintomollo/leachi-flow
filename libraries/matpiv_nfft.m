@@ -19,7 +19,7 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
 % [1] Liao, Q., & Cowen, E. a. "An efficient anti-aliasing spectral continuous 
 % window shifting technique for PIV", Experiments in Fluids 38 (2005) 197–208.
 %
-% Quite heavly adapted by Simon Blanchoud (concatenated files and speedup).
+% Quite heavly adapted by Simon Blanchoud (concatenated files, bug fix and speedup).
 % 10.02.2015
 %
 % Copyright 1998-2011, Kristian Sveen, jks@math.uio.no/j.k.sveen@gmail.com
@@ -596,37 +596,6 @@ function [u, v] = localfilt(x, y, u, v, threshold, maske)
 
     return;
   end
-end
-
-% now we inline the function XCORRF2 to shave off some time.
-function c = xcorrf2(a,b,padn,padm)
-%  c = xcorrf2(a,b)
-%   Two-dimensional cross-correlation using Fourier transforms.
-%       XCORRF2(A,B) computes the crosscorrelation of matrices A and B.
-%       XCORRF2(A) is the autocorrelation function.
-%       This routine is functionally equivalent to xcorr2 but usually faster.
-%       See also XCORR2.
-
-%       Author(s): R. Johnson
-%       $Revision: 1.0 $  $Date: 1995/11/27 $
-
-  [N,M] = size(a);
-
-  b = conj(b(end:-1:1,end:-1:1));
-
-  at = fftn(b,[padn,padm]);
-  bt = fftn(a,[padn,padm]);
-
-  %       multiply transforms then inverse transform
-  c = ifftn(at.*bt, 'nonsymmetric');
-
-  %       make real output for real input
-  c = real(c);
-
-  %  trim to standard size
-  c=c(1:2*N,1:2*M);
-
-  return;
 end
 
 function [si,sj,val] = getmax(mat, sizes, offset)

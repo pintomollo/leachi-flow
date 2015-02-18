@@ -103,8 +103,10 @@ function leachi_flow(myrecording, opts)
   figure;
   prev_indx = -1;
 
-  windows = [32 32; 16 16; 8 8; 8 8];
-  threshs = [Inf; Inf; 10; 5];
+  %windows = [32 32; 16 16; 8 8; 8 8];
+  %threshs = [Inf; Inf; 10; 5];
+  windows = [64 64; 32 32; 16 16; 16 16];
+  threshs = [5; 5; 3; 3];
 
   for nimg=1:nframes-1
     if (~isnan(indexes(nimg, 1)))

@@ -28,7 +28,8 @@ function [nframes, ssize] = size_data(fname)
 
     % Try to open it
     else
-      fid = fopen(fname.fname, 'r');
+      fname = fname.fname;
+      fid = fopen(fname, 'r');
     end
 
   % If we have a string, try to open the file
