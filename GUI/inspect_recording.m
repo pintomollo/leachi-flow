@@ -1,17 +1,17 @@
-function [mytracking, opts, is_updated] = inspect_recording(fname, opts)
+function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
 % INSPECT_RECORDING displays a pop-up window for the user to manually identify the
 % type of data contained in the different channels of a movie recording.
 %
-%   [MYTRACKING] = INSPECT_RECORDING(CHANNELS) displays the window using the data
+%   [MYRECORDING] = INSPECT_RECORDING(CHANNELS) displays the window using the data
 %   contained in CHANNELS, updates it accordingly to the user's choice and returns
-%   the adequate structure for later analysis MYTRACKING. CHANNELS can either
+%   the adequate structure for later analysis MYRECORDING. CHANNELS can either
 %   be a string, a cell list of strings or a 'channel' structure (see get_struct.m).
-%   MYTRACKING is a structure as defined by get_struct('myrecording').
+%   MYRECORDING is a structure as defined by get_struct('myrecording').
 %
 %   [...] = INSPECT_RECORDING() prompts the user to select a recording and converts
 %   it before opening the GUI.
 %
-%   [MYTRACKING, OPTS] = INSPECT_RECORDING(...) returns in addition the parameters
+%   [MYRECORDING, OPTS] = INSPECT_RECORDING(...) returns in addition the parameters
 %   required to filter the various channels as chosen by the user.
 %
 % Gonczy & Naef labs, EPFL
@@ -26,7 +26,7 @@ function [mytracking, opts, is_updated] = inspect_recording(fname, opts)
 
   % We did not get anything to handle...
   if isempty(fname)
-    mytracking = [];
+    myrecording = [];
     opts = [];
     is_updated = false;
 
@@ -48,8 +48,8 @@ function [mytracking, opts, is_updated] = inspect_recording(fname, opts)
   % Create the channels structure if it was not provided.
   if (isstruct(fname))
     if (isfield(fname, 'experiment'))
-      mytracking = fname;
-      channels = mytracking.channels;
+      myrecording = fname;
+      channels = myrecording.channels;
       was_tracking = true;
 
       % Retrieve the original file
@@ -103,14 +103,14 @@ function [mytracking, opts, is_updated] = inspect_recording(fname, opts)
 
   % Now that the data are correct, create the whole structure
   if (~was_tracking || is_updated)
-    mytracking = get_struct('myrecording');
+    myrecording = get_struct('myrecording');
   end
 
   if (is_updated)
     % Copy the channels
-    mytracking.channels = channels;
+    myrecording.channels = channels;
     % And get the experiment name
-    mytracking.experiment = get(handles.experiment, 'String');
+    myrecording.experiment = get(handles.experiment, 'String');
   end
 
   % Delete the whole figure

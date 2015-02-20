@@ -26,12 +26,12 @@ function clean_tmp_files()
     data = load(ls_dir(i).name);
 
     % Check if it contains tracking data
-    if (~isfield(data, 'mytracking'))
+    if (~isfield(data, 'myrecording'))
       continue;
     end
 
     % Parse the whole structure and extract the ID of the used files
-    tmp_tmp = recursive_tmp(data.mytracking);
+    tmp_tmp = recursive_tmp(data.myrecording);
     used_tmp = [used_tmp; tmp_tmp];
 
     % Update hte waitbar

@@ -153,6 +153,7 @@ function [newfile] = bftools_convert(fname)
 
   % In case of multiple files, regroup them into one single file
   merge_cmd = '-stitch ';
+  do_merge = false;
   if (~isempty(file_pattern))
     orig_pattern = file_pattern{1};
     file_pattern = regexprep(orig_pattern, '<\d+-\d+>', '');
@@ -164,7 +165,8 @@ function [newfile] = bftools_convert(fname)
 
       % Otherwise, make sure they should be merged !!
       answer = questdlg(['There are several files with the naming pattern: ''' orig_pattern{1} '''. Should we merge them together ?'], 'Merging multiple files ?');
-      if (~strcmp(answer,'Yes'))
+      do_merge = strncmp(answer,'Yes',3);
+      if (~do_merge)
         merge_cmd = '';
         file_pattern = '';
       end
@@ -201,6 +203,12 @@ function [newfile] = bftools_convert(fname)
     newname = [name '.ome.tiff'];
   else
     [file_path, file_name, file_ext] = fileparts(file_pattern{1});
+
+    % If we merge the files, use also the folder name
+    if (do_merge)
+      [junk, tmp_name, junk] = fileparts(file_path);
+      file_name = [tmp_name '_' file_name];
+    end
     newname = fullfile(file_path, [file_name '.ome.tiff']);
   end
 

@@ -1,12 +1,12 @@
-function [mytracking, opts] = preprocess_movie(mytracking, opts)
+function [myrecording, opts] = preprocess_movie(myrecording, opts)
 % PREPROCESS_MOVIE converts the OME-TIFF recordings contained in a tracking structure
 % into properly filtered (as defined by the structure, see inspect_channels.m) UINT16
 % files.
 %
-%   [MYTRACKING] = PREPROCESS_MOVIE(MYTRACKING, OPTS) rescales all the recordings used
+%   [MYRECORDING] = PREPROCESS_MOVIE(MYRECORDING, OPTS) rescales all the recordings used
 %   in the tracking experiment using OPTS.
 %
-%   [MYTRACKING, OPTS] = PREPROCESS_MOVIE(...) returns in addition OPTS.
+%   [MYRECORDING, OPTS] = PREPROCESS_MOVIE(...) returns in addition OPTS.
 %
 % Gonczy & Naef labs, EPFL
 % Simon Blanchoud
@@ -21,13 +21,13 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
   end
 
   % Get the number of channels to parse
-  nchannels = length(mytracking.channels);
+  nchannels = length(myrecording.channels);
 
   % Loop over all of them
   for k = 1:nchannels
 
     % We need the absolute path for Java to work properly
-    fname = absolutepath(mytracking.channels(k).fname);
+    fname = absolutepath(myrecording.channels(k).fname);
 
     % Hide the bar in case we are loop several times
     if (opts.verbosity > 1)
@@ -73,26 +73,29 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
       error(metadata);
     end
 
+    % Try to identify better metadata
+    metadata = find_metadata(fname, metadata);
+
     % Store the resulting metadata
-    mytracking.channels(k).metadata = metadata;
+    myrecording.channels(k).metadata = metadata;
 
     % Store the original file name as we will replace it by the rescaled one
-    mytracking.channels(k).file = absolutepath(mytracking.channels(k).fname);
+    myrecording.channels(k).file = absolutepath(myrecording.channels(k).fname);
 
     % Perfom some string formatting for the display
-    indx = strfind(mytracking.channels(k).file, filesep);
+    indx = strfind(myrecording.channels(k).file, filesep);
     if (isempty(indx))
       indx = 1;
     else
       indx = indx(end) + 1;
     end
     if (opts.verbosity > 1)
-      waitbar(0, hwait, ['Preprocessing Movie ' strrep(mytracking.channels(k).file(indx:end),'_','\_')]);
+      waitbar(0, hwait, ['Preprocessing Movie ' strrep(myrecording.channels(k).file(indx:end),'_','\_')]);
       set(hwait, 'Visible', 'on');
     end
 
     % Get the absolute file name
-    fname = mytracking.channels(k).file;
+    fname = myrecording.channels(k).file;
 
     % Get the name of the new file
     tmp_fname = absolutepath(get_new_name('tmpmat(\d+)\.ome\.tiff?', 'TmpData'));
@@ -109,13 +112,13 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
       [img, img_params] = all2uint16(load_data(fname, i), img_params);
 
       % Perform the required filtering
-      if (mytracking.channels(k).detrend)
+      if (myrecording.channels(k).detrend)
         img = imdetrend(img, opts.filtering.detrend_meshpoints);
       end
-      if (mytracking.channels(k).cosmics)
+      if (myrecording.channels(k).cosmics)
         img = imcosmics(img, opts.filtering.cosmic_rays_window_size, opts.filtering.cosmic_rays_threshold);
       end
-      if (mytracking.channels(k).hot_pixels)
+      if (myrecording.channels(k).hot_pixels)
         img = imhotpixels(img, opts.filtering.hot_pixels_threshold);
       end
 
@@ -124,11 +127,11 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
       maximg = max(img(:));
 
       % We'll store the biggest range, to rescale it afterwards
-      if(minimg < mytracking.channels(k).min)
-        mytracking.channels(k).min = minimg;
+      if(minimg < myrecording.channels(k).min)
+        myrecording.channels(k).min = minimg;
       end
-      if(maximg > mytracking.channels(k).max)
-        mytracking.channels(k).max = maximg;
+      if(maximg > myrecording.channels(k).max)
+        myrecording.channels(k).max = maximg;
       end
 
       % Save the image in the temporary file
@@ -136,7 +139,7 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
 
       % Update the progress bar if needed
       if (opts.verbosity > 1)
-        if (mytracking.channels(k).normalize)
+        if (myrecording.channels(k).normalize)
           waitbar(i/(2*nframes),hwait);
         else
           waitbar(i/nframes,hwait);
@@ -145,18 +148,18 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
     end
 
     % Rescale if required by the user
-    if (mytracking.channels(k).normalize)
+    if (myrecording.channels(k).normalize)
       % Get a third file to write into
       fname = tmp_fname;
       tmp_fname = absolutepath(get_new_name('tmpmat(\d+)\.ome\.tiff?', 'TmpData'));
-      mytracking.channels(k).fname = tmp_fname;
+      myrecording.channels(k).fname = tmp_fname;
 
       % Loop again over the frames
       for i=1:nframes
 
         % Load and rescale using the previously measured range
         img = load_data(fname, i);
-        img = imnorm(img, mytracking.channels(k).min, mytracking.channels(k).max, '', 0, maxuint);
+        img = imnorm(img, myrecording.channels(k).min, myrecording.channels(k).max, '', 0, maxuint);
 
         % And save the final image
         save_data(tmp_fname, img);
@@ -170,17 +173,35 @@ function [mytracking, opts] = preprocess_movie(mytracking, opts)
       % Delete the intermidary file (i.e. the filtered one)
       delete(fname);
     else
-      mytracking.channels(k).fname = tmp_fname;
+      myrecording.channels(k).fname = tmp_fname;
     end
 
     % Get everything in relative paths
-    mytracking.channels(k).file = relativepath(mytracking.channels(k).file);
-    mytracking.channels(k).fname = relativepath(mytracking.channels(k).fname);
+    myrecording.channels(k).file = relativepath(myrecording.channels(k).file);
+    myrecording.channels(k).fname = relativepath(myrecording.channels(k).fname);
   end
 
   % Close the status bar
   if (opts.verbosity > 1)
     close(hwait);
+  end
+
+  return;
+end
+
+function metadata = find_metadata(filename, metadata)
+% This function tries to identify more suitable metadata. For now
+% on, the following metadata are supported:
+%   - Leica Application Suite ".las"
+
+  % Get the folder in which the file is contained
+  [file_path, file_name, file_ext] = fileparts(filename);
+
+  % Check if the file exists
+  if (exist(fullfile(file_path, '.las')))
+
+    % Load it !
+    metadata = fileread(fullfile(file_path, '.las'));
   end
 
   return;
