@@ -5,6 +5,14 @@ function [metadata, opts] = parse_metadata(data, opts)
   end
 
   metadata = get_struct('metadata');
+  max_iter = 15;
+
+  data = umanager2xml(data, max_iter);
+  data = parse_xml(data);
+
+  keyboard
+
+  return;
 
   data = strsplit(data, {'\n', '\r'});
   data = data(~cellfun('isempty', data));
@@ -263,6 +271,50 @@ function [metadata, opts] = parse_metadata(data, opts)
       opts.ccd_pixel_size = pixel_size * magnification / binning;
     end
   end
+
+  return;
+end
+
+function data = umanager2xml(data, max_iter)
+
+  if (any(data == '{'))
+    rem_spaces = @remove_spaces;
+    rem_eol = @remove_eol;
+
+    data = regexprep(data, '("\S*? +\S*?":)', '${rem_spaces($1)}');
+    data = regexprep(data, '(\[[^\]]*?\],)', '${rem_eol($1)}');
+
+    data = regexprep(data, '"([^\n\r]*?)": ([^\n\r{]*?),?[\r\n]+', '<$1>$2</$1>\n');
+    nprev = length(data);
+    for i=1:max_iter
+      data = regexprep(data, '[\n\r](\s+)"([^\n\r]*?)": {(.*?)[\n\r]\1}[,\r\n]+', '\n$1<$2>$3\n$1</$2>\n');
+      curr = length(data);
+      if (nprev == curr)
+        break;
+      else
+        nprev = curr;
+      end
+    end
+    data = regexprep(data, '{(.*)}', ['<?xml version="1.0" encoding="utf-8"?>\n'...
+                                        '<TimeSeries xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '...
+                                        'xmlns="http://www.w3.org/uManager">$1</TimeSeries>']);
+    data = regexprep(data, '>"', '>');
+    data = regexprep(data, '"<', '<');
+  end
+
+  return;
+end
+
+function str = remove_eol(str)
+
+  str = regexprep(str, '\s*[\n\r]\s*', '');
+
+  return;
+end
+
+function str = remove_spaces(str)
+
+  str = strrep(str, ' ', '_');
 
   return;
 end
