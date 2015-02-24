@@ -103,6 +103,11 @@ A=A(:);
 nm=n*m;
 k=isnan(A(:));
 
+if (all(k))
+  B=reshape(A,n,m);
+  return;
+end
+
 % list the nodes which are known, and which will
 % be interpolated
 nan_list=find(k);
