@@ -133,6 +133,9 @@ function xml_tree = parse_xml(data)
             nodeStruct = tmp;
           elseif (isempty(nodeStruct.Children))
             nodeStruct = nodeStruct.Name;
+          elseif (~isfield(nodeStruct.Children, 'Children'))
+            nodeStruct.Attributes = nodeStruct.Children;
+            nodeStruct.Children = [];
           end
         elseif (ischar(nodeStruct.Children) && isempty(nodeStruct.Data))
             nodeStruct.Data = nodeStruct.Children;
