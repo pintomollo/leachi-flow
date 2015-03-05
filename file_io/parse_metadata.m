@@ -17,42 +17,80 @@ function [metadata, opts] = parse_metadata(data, opts)
   switch xml_type
     case 'www.w3.org/uManager'
       summary_keys = {'Summary', 'Frames', 'Summary', 'Channels', 'Summary', 'Slices'};
-      frame_keys = {'FrameKey*', 'Frame', 'FrameKey*', 'Slice', 'FrameKey*', 'Channel', 'FrameKey*', 'ElapsedTime-ms', 'FrameKey*', 'Exposure-ms', 'FrameKey*', 'Z-um'};
-      infer_keys = {''};
-      resol_keys = {''};
+      frame_keys = {'FrameKey*', '^Frame$', 'FrameKey*', '^Slice$', 'FrameKey*', '^Channel$', {'FrameKey*', 1/1000}, '^ElapsedTime-ms$', {'FrameKey*', 1/1000}, '^Exposure-ms$', {'FrameKey*', 1}, '^Z-um$'};
+      infer_keys = {};
+      resol_keys = {};
     case 'www.openmicroscopy.org/Schemas/OME/2012-06'
-      summary_keys = {'Pixels', 'SizeT', 'SizeC', 'SizeZ'};
-      frame_keys = {''};
-      infer_keys = {''};
-      resol_keys = {''};
+      summary_keys = {'Pixels', 'SizeT', 'Pixels', 'SizeC', 'Pixels', 'SizeZ'};
+      frame_keys = {};
+      infer_keys = {};
+      resol_keys = {};
     case 'tempuri.org/UltraviewSchm.xsd'
-      summary_keys = {'Property', 'T', 'C', 'Z'};
-      frame_keys = {''};
-      infer_keys = {'ChannelSetting', 'ExposureTime','ChannelSetting', 'ChannelName',  'AcquiredTime', {'StartTime', 'FinishTime', 'yyyy-mm-ddTHH:MM:SS.FFF'}, 'ZSetting', {'TopPosition', 'BottomPosition'}};
+      summary_keys = {'Property', 'T', 'Property', 'C', 'Property', 'Z'};
+      frame_keys = {};
+      infer_keys = {'CameraSetting', 'ExposureTime','ChannelSetting', 'ChannelName',  {'AcquiredTime', 'yyyy-mm-ddTHH:MM:SS.FFF'}, {'StartTime', 'FinishTime'}, 'ZSetting', {'TopPosition', 'BottomPosition'}};
       resol_keys = {'SpatialCalibration', {'XBasePixelSize', 'YBasePixelSize'}, 'SpatialCalibration', 'ObjectiveMagn', 'CameraSetting', 'Binning'};
     case 'schemas.datacontract.org/2004/07/LeicaMicrosystems.DataEntities.V3_2'
-      summary_keys = {''};
-      frame_keys = {'LasImage', '', '', '', 'AcquiredDate', '', 'Microscope_Focus_Position'};
+      summary_keys = {};
+      frame_keys = {'', '', '', '', '', '', {'LasImage', 'yyyy-mm-ddTHH:MM:SS.FFF'}, '^AcquiredDate$', '', '', {'^Microscope_Focus_Position$', '%f mm', 1000}, ''};
       infer_keys = {'Camera', 'Exposure', 'Camera', 'Name', '', '', '', ''};
-      resol_keys = {'LasImage', {'XMetersPerPixel', 'YMetersPerPixel'}, 'Microscope_Visual_Magnification', '', '', ''};
+      resol_keys = {{'LasImage', 1e6}, {'XMetersPerPixel', 'YMetersPerPixel'}, 'Microscope_Visual_Magnification', '', '', ''};
       keyboard
     otherwise
-      summary_keys = {''};
-      frame_keys = {''};
-      infer_keys = {''};
-      resol_keys = {''};
+      summary_keys = {};
+      frame_keys = {};
+      infer_keys = {};
+      resol_keys = {};
 
       warning(['Unknown XML schema "' xml_type '", unable to parse it.']);
   end
 
-  keyboard
-
   metadata = parse_summary(xml_data, summary_keys);
   metadata = parse_frames(xml_data, frame_keys, metadata);
   metadata = infer_frames(xml_data, infer_keys, metadata);
+
+  dt = diff(metadata.acquisition_time, [], 2);
+  dt = median(dt(:));
+
+  if (isfinite(dt) && dt > 0)
+    opts.time_interval = dt;
+  end
+
   metadata.raw_data = data;
 
   opts = infer_resolution(xml_data, resol_keys, opts);
+
+  return;
+end
+
+function data = convert_data(data, formats)
+
+  if (isempty(formats) || isempty(data))
+    return;
+  end
+
+  if (iscell(data))
+    for i=1:numel(data)
+      data{i} = convert_data(data{i}, formats);
+    end
+  else
+    for i=1:numel(formats)
+      format = formats{i};
+
+      if (ischar(format))
+        if (any(format == '%'))
+          data = sscanf(data, format);
+        else
+          data = datevec(data, format);
+        end
+      elseif (isnumeric(format))
+        if (ischar(data))
+          data = str2double(data);
+        end
+        data = data * format;
+      end
+    end
+  end
 
   return;
 end
@@ -75,30 +113,55 @@ function value = get_attribute(node, attribute)
   return;
 end
 
+function [channel_index, metadata] = get_channel(channel, metadata)
+
+  is_empty = cellfun('isempty', metadata.channels);
+
+  if (isempty(is_empty))
+    channel_index = 1;
+    metadata.channels{channel_index} = channel;
+  else
+
+    if (~all(is_empty))
+      is_group = ismember(metadata.channels(~is_empty), channel);
+    else
+      is_group = ~is_empty;
+    end
+
+    if (any(is_group))
+      channel_index = find(is_group, 1);
+    else
+      channel_index = find(is_empty, 1);
+
+      metadata.channels{channel_index} = channel;
+    end
+  end
+
+  return;
+end
+
 function child = get_child(node, children)
 
   child = '';
 
-  if (regexp(node.Name, children))
-    child = node;
-    return;
-  end
-
   for i=1:length(node.Children)
     if (regexp(node.Children(i).Name, children))
-      child = node.Children(i);
-
-      break;
+      if (isempty(child))
+        child = node.Children(i);
+      else
+        child = [child node.Children(i)];
+      end
     end
   end
 
-  if (isempty(child))
-    for i=1:length(node.Children)
-      child = get_child(node.Children(i), children);
+  for i=1:length(node.Children)
+    grand_child = get_child(node.Children(i), children);
 
-      if (~isempty(child))
-
-        break;
+    if (~isempty(grand_child))
+      if (isempty(child))
+        child = grand_child;
+      else
+        child = [child grand_child];
       end
     end
   end
@@ -111,60 +174,58 @@ function values = get_values(node, keys)
   nkeys = length(keys) / 2;
 
   values = cell(1, nkeys);
+  has_any = false;
 
   for i=1:nkeys
     key = keys{2*i - 1};
     attr = keys{2*i};
 
     if (~isempty(key))
-      params = {};
+      formats = {};
       if (iscell(key))
-        params = key(2:end);
+        formats = key(2:end);
         key = key{1};
       end
 
-      child = get_child(node, key);
+      children = get_child(node, key);
+      nchilds = length(children);
 
-      if (~isempty(child))
-        if (isempty(attr))
-          values{i} = child.Data;
-        elseif (iscell(attr))
-          nattrs = length(attr);
-          tmp_val = cell(1, nattrs);
+      if (nchilds > 0)
+        good_child = false(1, nchilds);
+        child_values = cell(nchilds, 1);
 
-          for j=1:nattrs
-            tmp_val{j} = get_attribute(child, attr{j});
+        for c = 1:nchilds
+          child = children(c);
+
+          if (isempty(attr))
+            child_values{c} = child.Data;
+          elseif (iscell(attr))
+            nattrs = length(attr);
+            tmp_val = cell(1, nattrs);
+
+            for j=1:nattrs
+              tmp_val{j} = get_attribute(child, attr{j});
+            end
+            child_values{c} = tmp_val;
+          else
+            child_values{c} = get_attribute(child, attr);
           end
-        else
-          values{i} = get_attribute(child, attr);
+
+          good_child(c) = good_child(c) || (~isempty(child_values{c}));
         end
+
+        child_values = convert_data(child_values, formats);
       end
 
-      if (~isempty(params))
-        values{i} = [values{i} params];
-      end
+      child_values = child_values(good_child, :);
+      values{i} = child_values;
+
+      has_any = has_any || any(good_child);
     end
   end
 
-  return;
-end
-
-function [channel_index, metadata] = get_channel(channel, metadata)
-
-  is_empty = cellfun('isempty', metadata.channels);
-
-  if (~all(is_empty))
-    is_group = ismember(metadata.channels(~is_empty), channel);
-  else
-    is_group = ~is_empty;
-  end
-
-  if (any(is_group))
-    channel_index = find(is_group, 1);
-  else
-    channel_index = find(is_empty, 1);
-
-    metadata.channels{channel_index} = channel;
+  if (~has_any)
+    values = {};
   end
 
   return;
@@ -172,35 +233,34 @@ end
 
 function metadata = infer_frames(data, keys, metadata)
 
-  nchar = length(keys{1});
-  if (nchar == 0)
+  if (isempty(keys))
     return;
   end
 
   [nchannels, nframes, nslices] = size(metadata.acquisition_time);
 
-  node = get_child(data, keys{1});
+  values = get_values(data, keys);
+
   for i=1:nchannels
-    metadata.exposure_time(i, :, :) = str2double(get_attribute(node.Children(i).Children, keys{2}));
+    metadata.exposure_time(i, :, :) = str2double(values{1}{i});
+    metadata.channels{i} = values{2}{i};
   end
 
-  node = get_child(data, keys{3});
-  for i=1:nchannels
-    metadata.channels{i} = get_attribute(node.Children(i), keys{4});
+  if (numel(values{3}{1}{1}) > 1)
+    start = values{3}{1}{1};
+    ends = values{3}{1}{2};
+  else
+    start = datevec(values{3}{1}{1});
+    ends = datevec(values{3}{1}{2});
   end
-
-  node = get_child(data, keys{5});
-  start = datevec(get_attribute(node, keys{6}{1}), keys{6}{3});
-  ends = datevec(get_attribute(node, keys{6}{2}), keys{6}{3});
-  step = 1000 * etime(ends, start) / (nframes + 1);
+  step = etime(ends, start) / (nframes + 1);
 
   for i=1:nframes
     metadata.acquisition_time(:, i, :) = (i-1)*step;
   end
 
-  node = get_child(data, keys{7});
-  top = str2double(get_attribute(node, keys{8}{1}));
-  bottom = str2double(get_attribute(node, keys{8}{2}));
+  top = str2double(values{4}{1}{1});
+  bottom = str2double(values{4}{1}{2});
   step = (top - bottom) / max(nslices-1, 1);
 
   for i=1:nslices
@@ -212,8 +272,7 @@ end
 
 function opts = infer_resolution(data, keys, opts)
 
-  nchar = length(keys{1});
-  if (nchar == 0)
+  if (isempty(keys))
     return;
   end
 
@@ -227,6 +286,7 @@ function opts = infer_resolution(data, keys, opts)
   else
     pixel_size = str2double(get_attribute(node, keys{2}));
   end
+  pixel_size = mean(pixel_size);
 
   node = get_child(data, keys{3});
   magnification = str2double(get_attribute(node, keys{4}));
@@ -234,8 +294,7 @@ function opts = infer_resolution(data, keys, opts)
   node = get_child(data, keys{5});
   binning = str2double(get_attribute(node, keys{6}));
 
-  if (binning ~= 0 & magnification ~= 0 & pixel_size ~= 0)
-    pixel_size = mean(pixel_size);
+  if (binning ~= 0 && magnification ~= 0 && pixel_size ~= 0)
 
     opts.pixel_size = pixel_size;
     opts.magnification = magnification;
@@ -247,45 +306,93 @@ function opts = infer_resolution(data, keys, opts)
   return;
 end
 
-
 function metadata = parse_frames(data, keys, metadata)
 
-  nchar = length(keys{1});
-  if (nchar == 0)
+  if (isempty(keys))
     return;
   end
 
-  nchild = length(data.Children);
+  tmp_channel = (round(rand(1,10)*57 + 65));
+  tmp_channel(tmp_channel > 90 & tmp_channel < 97) = tmp_channel(tmp_channel > 90 & tmp_channel < 97) - 43;
+  tmp_channel = char(tmp_channel);
 
+  values = get_values(data, keys);
+  nchild = max(cellfun('length', values));
+
+  is_date = false;
+  is_guess = false;
+
+  count = 0;
   for i=1:nchild
-    children = data.Children(i);
-
-    values = get_values(children, keys);
-
-    frame = str2double(values{1});
-    slice = str2double(values{2});
-    channel = values{3};
-
-    if (isnan(frame))
-      frame = 1;
+    if (isempty(values{1}))
+      frame = NaN;
     else
-      frame = frame + 1;
+      frame = str2double(values{1}{i});
     end
-    if (isnan(slice))
+    if (isempty(values{1}))
+      slice = NaN;
+    else
+      slice = str2double(values{2}{i});
+    end
+    if (isempty(values{1}))
+      channel = '';
+    else
+      channel = values{3}{i};
+    end
+
+    if (isnan(frame) && isnan(slice))
+      is_guess = true;
+      count = count + 1;
+      frame = count;
+      slice = 1;
+    elseif (isnan(frame))
+      frame = 1;
+      slice = slice + 1;
+    elseif (isnan(slice))
+      frame = frame + 1;
       slice = 1;
     else
+      frame = frame + 1;
       slice = slice + 1;
     end
 
+    if (isempty(channel))
+      channel = tmp_channel;
+    end
     [channel, metadata] = get_channel(channel, metadata);
 
-    time = str2double(values{4});
-    exposure = str2double(values{5});
-    z_pos = str2double(values{6});
+    if (isempty(values{4}))
+      time = NaN;
+    else
+      time = values{4}{i};
+
+      if (numel(time) > 1)
+        time = datenum(time);
+        is_date = true;
+      end
+    end
+    if (isempty(values{5}))
+      exposure = NaN;
+    else
+      exposure = values{5}{i};
+    end
+    if (isempty(values{6}))
+      z_pos = NaN;
+    else
+      z_pos = values{6}{i};
+    end
 
     metadata.acquisition_time(channel, frame, slice) = time;
     metadata.exposure_time(channel, frame, slice) = exposure;
     metadata.z_position(channel, frame, slice) = z_pos;
+  end
+
+  if (is_guess)
+    [junk, indexes] = sort(metadata.acquisition_time(1,:,1));
+
+    metadata.acquisition_time = metadata.acquisition_time(:,indexes,:);
+    metadata.exposure_time = metadata.exposure_time(:,indexes,:);
+    metadata.z_position = metadata.z_position(:,indexes,:);
   end
 
   [junk, indexes] = sort(metadata.acquisition_time(:,1,1));
@@ -295,6 +402,13 @@ function metadata = parse_frames(data, keys, metadata)
   metadata.exposure_time = metadata.exposure_time(indexes,:,:);
   metadata.z_position = metadata.z_position(indexes,:,:);
 
+  metadata.acquisition_time = metadata.acquisition_time - metadata.acquisition_time(1);
+  if (is_date)
+    for i=1:numel(metadata.acquisition_time)
+      metadata.acquisition_time(i) = etime(datevec(metadata.acquisition_time(i)), datevec(metadata.acquisition_time(1)));
+    end
+  end
+
   return;
 end
 
@@ -302,12 +416,14 @@ function metadata = parse_summary(xml_data, keys)
 
   metadata = get_struct('metadata');
 
-  nchar = length(keys{1});
-  if (nchar == 0)
+  if (isempty(keys))
     return;
   end
 
   values = get_values(xml_data, keys);
+  if (isempty(values))
+    return;
+  end
 
   nframes = str2double(values{1});
   nchannels = str2double(values{2});
