@@ -76,8 +76,16 @@ function [myrecording, opts] = preprocess_movie(myrecording, opts)
     % Try to identify better metadata
     metadata = find_metadata(fname, metadata);
 
+    % This can take a while, so inform the user
+    hInfo = warndlg('Parsing metadata, please wait.', 'Preprocessing movie...');
+
     % Store the resulting metadata
-    myrecording.channels(k).metadata = metadata;
+    [myrecording.channels(k).metadata, opts] = parse_metadata(metadata, opts);
+
+    % Delete the information if need be
+    if (ishandle(hInfo))
+      delete(hInfo);
+    end
 
     % Store the original file name as we will replace it by the rescaled one
     myrecording.channels(k).file = absolutepath(myrecording.channels(k).fname);
@@ -193,6 +201,9 @@ function metadata = find_metadata(filename, metadata)
 % This function tries to identify more suitable metadata. For now
 % on, the following metadata are supported:
 %   - Leica Application Suite ".las"
+%   - uManager "metadata.txt"
+%   - files manually placed in the "Metadata" folder and named
+%     as the recording
 
   % Get the folder in which the file is contained
   [file_path, file_name, file_ext] = fileparts(filename);
@@ -202,6 +213,14 @@ function metadata = find_metadata(filename, metadata)
 
     % Load it !
     metadata = fileread(fullfile(file_path, '.las'));
+
+  % For uManager
+  elseif (exist(fullfile(file_path, 'metadata.txt')))
+    metadata = fileread(fullfile(file_path, 'metadata.txt'));
+
+  % For manually edited files
+  elseif (exist(fullfile(pwd, 'Metadata', [filename '.txt'])))
+    metadata = fileread(fullfile(pwd, 'Metadata', [filename '.txt']));
   end
 
   return;

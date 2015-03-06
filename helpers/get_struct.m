@@ -1,5 +1,6 @@
 function mystruct = get_struct(type, nstruct)
 % GET_STRUCT retrieve custom data structures.
+%
 %   This function is designed as a centralization for the different 
 %   complex structures used throughout the program so that they can
 %   be edited consistently.
@@ -26,7 +27,7 @@ function mystruct = get_struct(type, nstruct)
     case 'channel'
       mystruct = struct('color', 1, ...             % Color of the channel (index of 'colors')
                         'compression', 'none', ...  % Compression used for the temporary file
-                        'cosmics', false, ...        % Remove the cosmic rays in the image (see imcosmics.m)
+                        'cosmics', false, ...       % Remove the cosmic rays in the image (see imcosmics.m)
                         'detrend', false, ...       % Detrend the image (see imdetrend.m)
                         'file', '', ...             % Path to the original file
                         'fname', '', ...            % Name of the corresponding temporary file

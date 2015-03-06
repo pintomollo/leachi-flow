@@ -1,4 +1,23 @@
 function [metadata, opts] = parse_metadata(data, opts)
+% PARSE_METADATA extracts relevant information from the metadata file.
+%
+%   [METADATA, OPTS] = PARSE_METADATA(XML, OPTS) tries to extract the acquisition
+%   time, exposure time, z position and channel names of the recording and
+%   stores them in METADATA. It also tries to extract the spatial resolution of
+%   the image and stores it in OPTS.
+%
+%   [...] = PARSE_METADATA(UMANAGER, OPTS) converts to uManager text file into
+%   XML before parsing it.
+%
+%   The XML formats currently accepted are :
+%     - uManager text file     : 'www.w3.org/uManager'
+%     - uManager metadata      : 'www.openmicroscopy.org/Schemas/OME/2012-06'
+%     - PerkinElmer UltraVIEW  : 'tempuri.org/UltraviewSchm.xsd'
+%     - Leica Application Suite: 'schemas.datacontract.org/2004/07/LeicaMicrosystems.DataEntities.V3_2'
+%
+% Wilson lab, University of Otago
+% Simon Blanchoud
+% 06.03.2015
 
   if (nargin < 2)
     opts = get_struct('options');
@@ -28,14 +47,13 @@ function [metadata, opts] = parse_metadata(data, opts)
     case 'tempuri.org/UltraviewSchm.xsd'
       summary_keys = {'Property', 'T', 'Property', 'C', 'Property', 'Z'};
       frame_keys = {};
-      infer_keys = {'CameraSetting', 'ExposureTime','ChannelSetting', 'ChannelName',  {'AcquiredTime', 'yyyy-mm-ddTHH:MM:SS.FFF'}, {'StartTime', 'FinishTime'}, 'ZSetting', {'TopPosition', 'BottomPosition'}};
-      resol_keys = {'SpatialCalibration', {'XBasePixelSize', 'YBasePixelSize'}, 'SpatialCalibration', 'ObjectiveMagn', 'CameraSetting', 'Binning'};
+      infer_keys = {'CameraSetting', 'ExposureTime','ChannelSetting', 'ChannelName',  {'AcquiredTime', 'yyyy-mm-ddTHH:MM:SS.FFF'}, {'StartTime', 'FinishTime'}, {'ZSetting', 1}, {'TopPosition', 'BottomPosition'}};
+      resol_keys = {{'SpatialCalibration', 1}, {'XBasePixelSize', 'YBasePixelSize'}, {'SpatialCalibration', 1}, 'ObjectiveMagn', {'CameraSetting', 1}, 'Binning'};
     case 'schemas.datacontract.org/2004/07/LeicaMicrosystems.DataEntities.V3_2'
       summary_keys = {};
-      frame_keys = {'', '', '', '', '', '', {'LasImage', 'yyyy-mm-ddTHH:MM:SS.FFF'}, '^AcquiredDate$', '', '', {'^Microscope_Focus_Position$', '%f mm', 1000}, ''};
-      infer_keys = {'Camera', 'Exposure', 'Camera', 'Name', '', '', '', ''};
-      resol_keys = {{'LasImage', 1e6}, {'XMetersPerPixel', 'YMetersPerPixel'}, 'Microscope_Visual_Magnification', '', '', ''};
-      keyboard
+      frame_keys = {'', '', '', '', 'Camera', 'Name', {'LasImage', 'yyyy-mm-ddTHH:MM:SS.FFF'}, '^AcquiredDate$', {'Camera', '%f ms', 1/1000}, '^Exposure$', {'^Microscope_Focus_Position$', '%f mm', 1000}, ''};
+      infer_keys = {};
+      resol_keys = {{'LasImage', 1e6}, {'XMetresPerPixel', 'YMetresPerPixel'}, {'Microscope_Visual_Magnification', 1}, '', '', ''};
     otherwise
       summary_keys = {};
       frame_keys = {};
@@ -242,29 +260,37 @@ function metadata = infer_frames(data, keys, metadata)
   values = get_values(data, keys);
 
   for i=1:nchannels
-    metadata.exposure_time(i, :, :) = str2double(values{1}{i});
-    metadata.channels{i} = values{2}{i};
+    if (~isempty(values{1}))
+      metadata.exposure_time(i, :, :) = str2double(values{1}{i});
+    end
+    if (~isempty(values{2}))
+      metadata.channels{i} = values{2}{i};
+    end
   end
 
-  if (numel(values{3}{1}{1}) > 1)
-    start = values{3}{1}{1};
-    ends = values{3}{1}{2};
-  else
-    start = datevec(values{3}{1}{1});
-    ends = datevec(values{3}{1}{2});
+  if (~isempty(values{3}))
+    if (numel(values{3}{1}{1}) > 1)
+      start = values{3}{1}{1};
+      ends = values{3}{1}{2};
+    else
+      start = datevec(values{3}{1}{1});
+      ends = datevec(values{3}{1}{2});
+    end
+    step = etime(ends, start) / (nframes + 1);
+
+    for i=1:nframes
+      metadata.acquisition_time(:, i, :) = (i-1)*step;
+    end
   end
-  step = etime(ends, start) / (nframes + 1);
 
-  for i=1:nframes
-    metadata.acquisition_time(:, i, :) = (i-1)*step;
-  end
+  if (~isempty(values{4}))
+    top = values{4}{1}{1};
+    bottom = values{4}{1}{2};
+    step = (top - bottom) / max(nslices-1, 1);
 
-  top = str2double(values{4}{1}{1});
-  bottom = str2double(values{4}{1}{2});
-  step = (top - bottom) / max(nslices-1, 1);
-
-  for i=1:nslices
-    metadata.z_position(:, :, i) = top + (i-1)*step;
+    for i=1:nslices
+      metadata.z_position(:, :, i) = top + (i-1)*step;
+    end
   end
 
   return;
@@ -276,25 +302,35 @@ function opts = infer_resolution(data, keys, opts)
     return;
   end
 
-  node = get_child(data, keys{1});
-  if (iscell(keys{2}))
-    nres = length(keys{2});
+  values = get_values(data, keys);
+
+  if (isempty(values{1}))
+    return;
+  else
+    nres = length(values{1}{1});
     pixel_size = NaN(1, nres);
     for i=1:nres
-      pixel_size(i) = str2double(get_attribute(node, keys{2}{i}));
+      pixel_size(i) = values{1}{1}{i};
     end
-  else
-    pixel_size = str2double(get_attribute(node, keys{2}));
   end
-  pixel_size = mean(pixel_size);
 
-  node = get_child(data, keys{3});
-  magnification = str2double(get_attribute(node, keys{4}));
+  if (numel(pixel_size > 1) && all((pixel_size - pixel_size(1)) == 0))
+    pixel_size = pixel_size(1);
+  end
 
-  node = get_child(data, keys{5});
-  binning = str2double(get_attribute(node, keys{6}));
+  if (isempty(values{2}))
+    magnification = 1;
+  else
+    magnification = values{2}{1};
+  end
 
-  if (binning ~= 0 && magnification ~= 0 && pixel_size ~= 0)
+  if (isempty(values{3}))
+    binning = 1;
+  else
+    binning = values{3}{1};
+  end
+
+  if (binning > 0 && magnification > 0 && all(pixel_size > 0))
 
     opts.pixel_size = pixel_size;
     opts.magnification = magnification;
@@ -329,12 +365,12 @@ function metadata = parse_frames(data, keys, metadata)
     else
       frame = str2double(values{1}{i});
     end
-    if (isempty(values{1}))
+    if (isempty(values{2}))
       slice = NaN;
     else
       slice = str2double(values{2}{i});
     end
-    if (isempty(values{1}))
+    if (isempty(values{3}))
       channel = '';
     else
       channel = values{3}{i};
