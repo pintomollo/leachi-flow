@@ -1,4 +1,4 @@
-function cells = quadratic_movement(cells, curr_time, opts)
+function dvect = quadratic_movement(cells, curr_time, opts)
 
   dm = opts.cell_speed * opts.dt;
   ncells = size(cells, 1);
@@ -13,10 +13,7 @@ function cells = quadratic_movement(cells, curr_time, opts)
               sin((cells(:,2) - opts.movement_params(3)) / opts.movement_params(4))];
   end
 
-  cells(:, 1:2) = cells(:, 1:2) + bsxfun(@times, intens * dm, 1 + (randn(ncells, 2)*opts.cell_variation));
-
-  %cells(:, 1:2) = cells(:, 1:2) + bsxfun(@plus, intens * dm, randn(size(cells, 1), 2) * opts.cell_variation);
-  %cells(:, 1:2) = cells(:, 1:2) + bsxfun(@plus, intens * dm, ones(ncells, 2));
+  dvect = bsxfun(@times, intens * dm, 1 + (randn(ncells, opts.ndims)*opts.cell_variation));
 
   return;
 end

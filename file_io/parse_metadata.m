@@ -53,7 +53,7 @@ function [metadata, opts] = parse_metadata(data, opts)
       summary_keys = {};
       frame_keys = {'', '', '', '', 'Camera', 'Name', {'LasImage', 'yyyy-mm-ddTHH:MM:SS.FFF'}, '^AcquiredDate$', {'Camera', '%f ms', 1/1000}, '^Exposure$', {'^Microscope_Focus_Position$', '%f mm', 1000}, ''};
       infer_keys = {};
-      resol_keys = {{'LasImage', 1e6}, {'XMetresPerPixel', 'YMetresPerPixel'}, {'Microscope_Visual_Magnification', 1}, '', '', ''};
+      resol_keys = {{'LasImage', 1e6}, {'XMetresPerPixel', 'YMetresPerPixel'}, {'Microscope_Video_Magnification', 1}, '', '', ''};
     otherwise
       summary_keys = {};
       frame_keys = {};
