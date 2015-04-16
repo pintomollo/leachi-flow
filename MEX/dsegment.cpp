@@ -1,7 +1,8 @@
 // Copyright (C) 2004-2012 Per-Olof Persson. See COPYRIGHT.TXT for details.
 
 #include "mex.h"
-#include <cmath>
+//#include <cmath>
+#include <math.h>
 
 #define p(i,j) p[(i)+np*(j)]
 #define pv(i,j) pv[(i)+nvs*(j)]

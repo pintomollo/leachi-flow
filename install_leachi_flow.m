@@ -117,6 +117,18 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
+  if (exist('dsegment') ~= 3)
+    try
+      if (~did_setup)
+        mex -setup;
+      end
+      eval(['mex' mexopts ' dsegment.cpp']);
+      did_setup = true;
+    catch ME
+      cd(root_dir);
+      error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
+    end
+  end
   cd(root_dir);
 
   % These folders are required as well

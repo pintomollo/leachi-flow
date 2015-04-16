@@ -81,14 +81,14 @@ N=size(p,1);                                         % Number of points N
 
 count=0;
 pold=inf;                                            % For first iteration
-clf,view(2),axis equal,axis off
+%clf,view(2),axis equal,axis off
 while 1
   count=count+1;
   % 3. Retriangulation by the Delaunay algorithm
   if max(sqrt(sum((p-pold).^2,2))/h0)>ttol           % Any large movement?
     pold=p;                                          % Save current positions
     t=delaunayn(p);                                  % List of triangles
-    cla,patch('vertices',p,'faces',t,'edgecol','k','facecol',[.8,.8,0.8]);
+    %cla,patch('vertices',p,'faces',t,'edgecol','k','facecol',[.8,.8,0.8]);
 
     pmid=(p(t(:,1),:)+p(t(:,2),:)+p(t(:,3),:))/3;    % Compute centroids
     %t=t(feval(fd,pmid,varargin{:})<-geps,:);         % Keep interior triangles
@@ -97,8 +97,8 @@ while 1
     bars=[t(:,[1,2]);t(:,[1,3]);t(:,[2,3])];         % Interior bars duplicated
     bars=unique(sort(bars,2),'rows');                % Bars as node pairs
     % 5. Graphical output of the current mesh
-    hold on,patch('vertices',p,'faces',t,'edgecol','k','facecol',[.8,.9,1]);
-    drawnow
+    %hold on,patch('vertices',p,'faces',t,'edgecol','k','facecol',[.8,.9,1]);
+    %drawnow
   end
 
   % 6. Move mesh points based on bar lengths L and forces F

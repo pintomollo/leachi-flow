@@ -12,14 +12,15 @@ function opts = create_vessel(opts)
 
   precision = min(opts.image_size)/20;
 
-  vessels = NaN(2,1);
+  vessels = NaN(2, 1);
+  middles = NaN(2, 1);
   for i=1:opts.init_params(1)
     %[centery, centerx] = ind2sub(opts.image_size, vessel_centers(i));
     %vessels(i, :) = [rand(1)*(2*pi) vessel_widths(i) centerx centery];
 
     %get_vessel(bounding_box, vessels(i, 1), vessels(i, 2), vessels(i,3:4), opts.init_params(2));
     for j=1:max_trials
-      [new_vessel, new_precision] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
+      [new_vessel, new_middle, new_precision] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
 
       if (~isempty(new_vessel))
         [x,y] = polybool('&', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
@@ -46,6 +47,7 @@ function opts = create_vessel(opts)
 
     [x,y] = polybool('|', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
     vessels = [x;y];
+    middles = [middles NaN(2,1) new_middle];
 
     precision = min(precision, new_precision);
 
@@ -55,10 +57,14 @@ function opts = create_vessel(opts)
     %plot(x, y, 'b');
   end
 
-  figure;
-  [p,t]=distmesh_poly(vessels.', precision,bounding_box([1 3; 2 4]));
+  %figure;
+  [p,t] = distmesh_poly(vessels.', precision,bounding_box([1 3; 2 4]));
 
-  sort_mesh(p, t);
+  mesh = get_struct('meshing');
+  mesh.nodes = p;
+  mesh.edges = t;
+
+  mesh = sort_mesh(mesh);
 
   %opts.creation_params = vessels(1, 1:2);
   %opts.movement_params = [cos(vessels(1,1)) sin(vessels(1, 1))];
@@ -66,7 +72,7 @@ function opts = create_vessel(opts)
   return;
 end
 
-function [vessel, precision] = get_vessel(bounding_box, checks, props, nbranching)
+function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, nbranching)
 
   precision = [];
 
@@ -122,6 +128,7 @@ function [vessel, precision] = get_vessel(bounding_box, checks, props, nbranchin
         [x1,y1] = polybool('&', checks(1,:), checks(2,:), new_vessel1(1,:), new_vessel1(2,:));
         [x2,y2] = polybool('&', checks(1,:), checks(2,:), new_vessel2(1,:), new_vessel2(2,:));
 
+        %{
         hold off;
         plot(corners(1,:), corners(2,:), 'k');
         hold on;
@@ -133,6 +140,7 @@ function [vessel, precision] = get_vessel(bounding_box, checks, props, nbranchin
 
         drawnow
         %keyboard
+        %}
 
         if (isempty(x1) && isempty(x2))
           break;
@@ -160,12 +168,12 @@ function [vessel, precision] = get_vessel(bounding_box, checks, props, nbranchin
       [x,y] = polybool('|', vessel(1,:), vessel(2,:), new_vessel2(1,:), new_vessel2(2,:));
       vessel = [x;y];
 
-      plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i-1)/(2*nbranching))
+      %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i-1)/(2*nbranching))
 
       vessel = fix_branching(vessel, center, [orig_width curr_width.'], [orig_angle angles]);
 
-      plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i)/(2*nbranching))
-      scatter(center(1), center(2), 'r');
+      %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i)/(2*nbranching))
+      %scatter(center(1), center(2), 'r');
 
       if (i < nbranching)
         orig_width = curr_width(ind);
@@ -180,12 +188,12 @@ function [vessel, precision] = get_vessel(bounding_box, checks, props, nbranchin
 
   precision = min(widths(:)) * 0.75;
 
+  %{
   plot(middle(1,:), middle(2,:), 'g')
   plot(vessel(1,:), vessel(2,:), 'b')
   scatter(vessel(1, 1), vessel(2, 1), 'b')
   scatter(vessel(1, 2), vessel(2, 2), 'k')
 
-  %{
   corners = [img_size(1)+rim(1) 1-rim(1) 1-rim(1) img_size(1)+rim(1); ...
              img_size(2)+rim(2) img_size(2)+rim(2) 1-rim(2) 1-rim(2)];
   corners = corners(:, [1:end 1]);

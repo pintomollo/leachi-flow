@@ -120,6 +120,11 @@ function mystruct = get_struct(type, nstruct)
                         'estimate_weight', 0.1, ...        % Convergence weight for the estiamtion procedure, see estimate_spots.m
                         'estimate_fit_position', false);   % Fit also the subpixel position of the spot (slower) ?
 
+    case 'meshing'
+      mystruct = struct('nodes', [], ...
+                        'sorted', [], ...
+                        'bounding_box', [], ...
+                        'edges', []);
 
     % Structure used to handle the metadata provided by the microscope
     case 'metadata'
