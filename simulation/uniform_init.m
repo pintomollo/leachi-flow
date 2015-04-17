@@ -1,6 +1,6 @@
 function cells = uniform_init(opts)
 
-  density = opts.n_cells / prod(opts.image_size-1);
+  density = opts.cell_density * opts.pixel_size^2;
 
   curr_size = (opts.image_size-1) * (1 + 2*opts.outside_ridge);
   curr_n = ceil(density * prod(curr_size));

@@ -4,7 +4,7 @@ function cells = ribbon_init(opts)
   center = img_size / 2;
   angle = opts.creation_params(1);
 
-  density = opts.n_cells / (min(img_size)*opts.creation_params(2));
+  density = opts.cell_density * opts.pixel_size^2;
   curr_size = [sqrt(sum(img_size.^2)) * (1 + 2*opts.outside_ridge) opts.creation_params(2)];
   curr_n = ceil(density * prod(curr_size));
 

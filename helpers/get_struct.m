@@ -191,7 +191,7 @@ function mystruct = get_struct(type, nstruct)
                         'cell_speed', 2, ...
                         'cell_size', 2, ...
                         'cell_variation', 0.1, ...
-                        'n_cells', 50);
+                        'cell_density', 1);
 
     % Structure containing the different parameters required for tracking spots
     case 'spot_tracking'
@@ -222,6 +222,11 @@ function mystruct = get_struct(type, nstruct)
       mystruct = struct('interpolate', true, ...        % Interpolate the position of cells to fill gaps ?
                         'max_zip_length', 3, ...        % A "zip" is defined as a cell splitting and merging back together. This defines the maximum number of frames this separation can last to be closed
                         'min_path_length', 10);         % The minimum number of frames a path should last to be kept
+
+    case 'vessel'
+      mystruct = struct('center', [], ...
+                        'border', [], ...
+                        'mesh', []);
 
     % If the required type of structure has not been implemented, return an empty one
     otherwise

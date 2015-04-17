@@ -64,7 +64,6 @@ function mesh = sort_mesh(mesh)
   props = props(indxs, :);
 
   mesh.edges = mesh.edges(indxs, :);
-  mesh.nodes = mesh.nodes(indxs, :);
   mesh.sorted = [cumsum(props(:,2)) props params(indxs, :)];
   mesh.bounding_box = [vals(1, 1), mesh.sorted(end, 1)];
 
