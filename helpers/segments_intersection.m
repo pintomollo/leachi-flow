@@ -21,7 +21,7 @@ function [valids, pos] = segments_intersection(segm, tests)
 
   pos = NaN(length(valids), 2);
 
-  if (any(valids))
+  if (any(valids) && nargout > 1)
     pos(valids, :) = bsxfun(@plus, bsxfun(@times, dists(valids), angles), origin);
   end
 

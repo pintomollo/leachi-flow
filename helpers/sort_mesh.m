@@ -7,8 +7,9 @@ function mesh = sort_mesh(mesh)
   links = mesh.edges;
 
   ntri = size(links, 1);
-  props = NaN(ntri, 2);
-  params = NaN(ntri, 5);
+  props = NaN(ntri, 4);
+  params = NaN(ntri, 4);
+  registr = NaN(ntri, 4);
 
   for i=1:ntri
     triang = nodes(links(i,:),:);
@@ -33,19 +34,30 @@ function mesh = sort_mesh(mesh)
     new_trig = (rot * new_trig.').';
     new_trig(mod(rot_indx, 3) + 1, 2) = 0;
 
-    base = [new_trig(indx, 1), 0];
-    halfs = [base(1) lens(rot_indx)-base(1)];
+    %base = [new_trig(indx, 1), 0];
+    %halfs = [base(1) lens(rot_indx)-base(1)];
+    base = new_trig(indx, 1);
+    conv = (base < 0);
+
+    if (conv)
+      halfs = [lens(rot_indx)-base -base];
+    else
+      halfs = [base lens(rot_indx)-base];
+    end
+
     [width, side_indx] = max(halfs);
 
     %tmp_shift = nansum(props(:,1));
 
-    props(i,:) = [height, width];
+    props(i,:) = [height, width, abs(halfs)];
 
     if (side_indx == 1)
-      params(i, :) = [height 0 abs(height./halfs) (halfs(2)<0)];
+      params(i, :) = [height 0 abs(height./halfs)];
     else
-      params(i, :) = [0 width abs(height./halfs) (halfs(2)<0)];
+      params(i, :) = [0 width abs(height./halfs)];
     end
+
+    registr(i,:) = [links(i, rot_indx) rot_angle conv (halfs(2)<0)];
 
     %if (any(params(i,:) < 0))
 
@@ -64,8 +76,10 @@ function mesh = sort_mesh(mesh)
   props = props(indxs, :);
 
   mesh.edges = mesh.edges(indxs, :);
-  mesh.sorted = [cumsum(props(:,2)) props params(indxs, :)];
-  mesh.bounding_box = [vals(1, 1), mesh.sorted(end, 1)];
+  mesh.sorted = [cumsum(props(:,2)) params(indxs, :)];
+  mesh.proportions = props;
+  mesh.registration = registr(indxs, :);
+  mesh.bounding_box = [mesh.sorted(end, 1) vals(1, 1)];
 
   return;
 end

@@ -79,6 +79,10 @@ function opts = create_vessel(opts)
   %opts.creation_params = vessels(1, 1:2);
   %opts.movement_params = [cos(vessels(1,1)) sin(vessels(1, 1))];
 
+  %figure;hold on;
+  %plot(vessel.center(:,1), vessel.center(:,2), 'r');
+  %plot(vessel.border(:,1), vessel.border(:,2), 'b');
+
   return;
 end
 
@@ -156,8 +160,8 @@ function centers = trim_centers(centers, bbox)
   %plot(corners(:,1), corners(:,2), 'k')
   %scatter(centers(goods, 1), centers(goods, 2), 'b')
 
-  xs = [corners(1:end-1,1) corners(2:end,1)];
-  ys = [corners(1:end-1,2) corners(2:end,2)];
+  %xs = [corners(1:end-1,1) corners(2:end,1)];
+  %ys = [corners(1:end-1,2) corners(2:end,2)];
 
   for i=nsegments:-1:1
     indxs = [1:3]+(i-1)*3;
@@ -170,6 +174,7 @@ function centers = trim_centers(centers, bbox)
 
     %scatter(segm(:,1), segm(:,2), 'g');
 
+    %{
     origin = segm(1,:);
 
     segm = segm(2,:) - origin;
@@ -185,14 +190,17 @@ function centers = trim_centers(centers, bbox)
 
     dists = rot_x(:,2) + (rot_x(:,1) - rot_x(:,2)) .* rot_y(:,2) ./ (diff(rot_y, [], 2));
     valids = (dists > 0 & dists < len & xor(rot_y(:,1) > 0, rot_y(:,2) > 0));
+    %}
+    [valids, pos] = segments_intersection(segm, corners);
 
     if (any(valids))
-      pos = bsxfun(@plus, bsxfun(@times, dists(valids), angles), origin);
+      %pos = bsxfun(@plus, bsxfun(@times, dists(valids), angles), origin);
       rep_indx = indxs(~goods(indxs(1:2)));
+      pos = pos(valids, :);
       %scatter(pos(:,1), pos(:,2), 'k');
 
       if (size(pos, 1) > 1)
-        dists = sum(bsxfun(@minus, origin, pos).^2, 2);
+        dists = sum(bsxfun(@minus, segm(1,:), pos).^2, 2);
         if (dists(2) < dists(1))
           rep_indx = rep_indx([2 1]);
         end
@@ -309,12 +317,12 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
       %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i-1)/(2*nbranching))
 
       better_vessel = fix_branching(vessel, center, [orig_width curr_width.'], [orig_angle angles]);
-      if (~ispolycw(better_vessel(1,:), better_vessel(2,:)))
-        figure;hold on;
-        plot(better_vessel(1,:), better_vessel(2,:), 'r')
-        plot(vessel(1,:), vessel(2,:))
-        keyboard
-      end
+      %if (~ispolycw(better_vessel(1,:), better_vessel(2,:)))
+      %  figure;hold on;
+      %  plot(better_vessel(1,:), better_vessel(2,:), 'r')
+      %  plot(vessel(1,:), vessel(2,:))
+      %  keyboard
+      %end
       vessel = better_vessel;
 
       %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i)/(2*nbranching))
@@ -358,11 +366,11 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
   return;
 end
 
-function vessel = fix_branching(vessel, center, widths, angles, show)
+function vessel = fix_branching(vessel, center, widths, angles)
 
-  if (nargin < 5)
-    show = false;
-  end
+  %if (nargin < 5)
+  %  show = false;
+  %end
 
   ranges = [min(vessel, [], 2) max(vessel, [], 2)];
   vals = [ranges(1, 1):ranges(1, 2)];
@@ -373,11 +381,11 @@ function vessel = fix_branching(vessel, center, widths, angles, show)
   lens = NaN(1, 3);
   bkg = NaN(1,3);
 
-  if (show)
-    hfig=figure;hold on;
-    plot(vessel(1,:), vessel(2,:), 'k')
-    scatter(center(1), center(2), 'r');
-  end
+  %if (show)
+  %  hfig=figure;hold on;
+  %  plot(vessel(1,:), vessel(2,:), 'k')
+  %  scatter(center(1), center(2), 'r');
+  %end
 
   for i=1:length(angles)
     angle = angles(i);
@@ -399,9 +407,9 @@ function vessel = fix_branching(vessel, center, widths, angles, show)
     lens(i) = len;
     bkg(i) = center(2) - (center(1) - len)*tans(i);
 
-    if (show)
-      plot(vals, vals*tans(i) + bkg(i), 'g');
-    end
+    %if (show)
+    %  plot(vals, vals*tans(i) + bkg(i), 'g');
+    %end
   end
 
   ptsx = [-(lens(1)*tans(1) + lens(2)*tans(2))/(tans(1) - tans(2)), ...
@@ -418,11 +426,11 @@ function vessel = fix_branching(vessel, center, widths, angles, show)
   angles(angles < 0) = angles(angles < 0) + 2*pi;
   angles(angles > 2*pi) = angles(angles > 2*pi) - 2*pi;
 
-  if (show)
-    scatter(ptsx, ptsy, 'b');
-    scatter(ptsx(bads), ptsy(bads), 'm');
-    scatter(ptsx(in), ptsy(in), 'g');
-  end
+  %if (show)
+  %  scatter(ptsx, ptsy, 'b');
+  %  scatter(ptsx(bads), ptsy(bads), 'm');
+  %  scatter(ptsx(in), ptsy(in), 'g');
+  %end
 
   if (any(bads))
     new_vessel = vessel;
@@ -443,40 +451,59 @@ function vessel = fix_branching(vessel, center, widths, angles, show)
       dist(~aligned) = Inf;
       [junk, index] = min(dist);
 
-      if (show)
-        if (index == 1)
-          scatter(new_vessel(1, [1 end-1]), new_vessel(2, [1 end-1]), 'y')
-        else
-          scatter(new_vessel(1, [index index-1]), new_vessel(2, [index index-1]), 'y')
-        end
-      end
+      %if (show)
+      %  if (index == 1)
+      %    scatter(new_vessel(1, [1 end-1]), new_vessel(2, [1 end-1]), 'y')
+      %  else
+      %    scatter(new_vessel(1, [index index-1]), new_vessel(2, [index index-1]), 'y')
+      %  end
+      %end
 
       if (index == 1)
         prev = new_vessel(:,end-2);
         next = new_vessel(:,2);
         others = new_vessel(:,2:end-2);
+        avg = 0.5*sum(new_vessel(:, end-1:end), 2);
       elseif (index == 2)
         prev = new_vessel(:,end-1);
         next = new_vessel(:,3);
         others = new_vessel(:,3:end-1);
+        avg = 0.5*sum(new_vessel(:, index-1:index), 2);
       elseif (index == size(new_vessel, 2)-1)
         prev = new_vessel(:,index-2);
         next = new_vessel(:,index+1);
         others = new_vessel(:,1:index-2);
+        avg = 0.5*sum(new_vessel(:, index-1:index), 2);
       else
         prev = new_vessel(:,index-2);
         next = new_vessel(:,index+1);
         others = new_vessel(:,[index+1:end 1:index-2]);
+        avg = 0.5*sum(new_vessel(:, index-1:index), 2);
       end
-      if (show)
-        plot(others(1,:), others(2,:), 'm')
-        plot([prev(1) ptsx(i) next(1)], [prev(2) ptsy(i) next(2)], 'c')
-        [v1, p1] = segments_intersection([prev.'; ptsx(i) ptsy(i)], others.');
-        [v2, p2] = segments_intersection([ptsx(i) ptsy(i); next.'], others.');
+      intersect = segments_intersection([prev.'; ptsx(i) ptsy(i)], others.');
+      if (any(intersect))
+        ptsx(i) = avg(1);
+        ptsy(i) = avg(2);
+      else
+        intersect = segments_intersection([ptsx(i) ptsy(i); next.'], others.');
+
+        if (any(intersect))
+          ptsx(i) = avg(1);
+          ptsy(i) = avg(2);
+        end
+      end
+      %if (show)
+      %  plot(others(1,:), others(2,:), 'm')
+      %  plot([prev(1) ptsx(i) next(1)], [prev(2) ptsy(i) next(2)], 'c')
+      %  [v1, p1] = segments_intersection([prev.'; ptsx(i) ptsy(i)], others.');
+      %  [v2, p2] = segments_intersection([ptsx(i) ptsy(i); next.'], others.');
 
       %%%%%%%%% EMERGENCY ISSUE ::: IF CROSS SOMETHING, JUST DROP THE SECOND PTS AND BASTA !!
-        keyboard
-      end
+      %  if (any(v1) || any(v2))
+      %    ptsx(i) = avg(1);
+      %    ptsy(i) = avg(2);
+      %  end
+      %end
 
       new_vessel(:, index) = [ptsx(i); ptsy(i)];
       if (index == 1)
@@ -491,9 +518,9 @@ function vessel = fix_branching(vessel, center, widths, angles, show)
     vessel = new_vessel;
   end
 
-  if (show)
-    plot(new_vessel(1,:), new_vessel(2,:), 'r')
-  end
+  %if (show)
+  %  plot(new_vessel(1,:), new_vessel(2,:), 'r')
+  %end
 
   return;
 end

@@ -14,9 +14,10 @@ function data = simulate_flow(opts)
   end
 
   cells = opts.create_cells(opts);
+  [junk, opts] = opts.move_cells(cells, 0, opts);
 
-  frames = [0:opts.dt:opts.duration];
-  nframes = length(frames);
+  nframes = ceil(opts.duration/opts.dt) + 1;
+  frames = [0:nframes]*opts.dt;
 
   if (store_data)
     data = zeros([opts.image_size nframes]);
