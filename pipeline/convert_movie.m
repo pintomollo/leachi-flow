@@ -95,8 +95,44 @@ function [newfile] = bftools_convert(fname)
     error('Tracking:BadFile', ['File ' fname ' does not exist']);
   end
 
+  if (ispc)
+    cmd_name = ['"' fname '"'];
+  else
+    cmd_name = strrep(fname,' ','\ ');
+  end
+
   % Split the filename
   [file_path, filename, ext] = fileparts(fname);
+
+  if (strncmpi(ext, '.avi', 4))
+    if (ispref('ffmpeg', 'exepath'))
+      if (ispc)
+        cmd_name_new = [cmd_name(1:end-1) ext '"'];
+      else
+        cmd_name_new = [cmd_name ext];
+      end
+      % This can take a while, so inform the user
+      hInfo = warndlg('Converting AVI using FFMPEG, please wait.', 'Converting movie...');
+
+      [res, info] = system([getpref('ffmpeg', 'exepath') ' -i ' cmd_name ' -qscale:v 1 -c:v mjpeg ' cmd_name_new]);
+
+      if (ishandle(hInfo))
+        delete(hInfo);
+      end
+
+      if (res~=0)
+        error(info);
+      end
+
+      filename = [filename ext];
+      fname = [fname ext];
+      cmd_name = cmd_name_new;
+    else
+      warndlg({'Converting AVI files works best using FFMPEG.', ...
+        'Consider installing this library if the current conversion does not work.', ...
+        'Follow the instructions from install_leachi_flow.m to do so.'}, 'Converting movie...');
+    end
+  end
 
   % Remove the extension
   name = fullfile(file_path, filename);
@@ -128,10 +164,8 @@ function [newfile] = bftools_convert(fname)
 
   % And call the LOCI utility to extract the metadata
   if (ispc)
-    cmd_name = ['"' fname '"'];
     [res, metadata] = system(['showinf.bat -stitch -nopix -nometa ' cmd_name]);
   else
-    cmd_name = strrep(fname,' ','\ ');
     [res, metadata] = system(['./showinf -stitch -nopix -nometa ' cmd_name]);
   end
 

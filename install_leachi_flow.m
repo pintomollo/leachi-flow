@@ -26,7 +26,7 @@ function install_leachi_flow
   savepath;
 
   % And for the LOCI as well
-  if (exist('bftools', 'dir'))
+  if (exist(fullfile(current_dir, 'bftools'), 'dir'))
     addpath(fullfile(current_dir, 'bftools'));
     savepath;
   end
@@ -63,6 +63,22 @@ function install_leachi_flow
         disp('Failed... try to get the Bio-Formats command-line tools from http://www.loci.wisc.edu/bio-formats/downloads and place it in the cell-tracking folder');
         disp(' ');
       end
+    end
+  end
+
+  % Otherwise, try to insall it !
+  if (~ispref('ffmpeg', 'exepath'))
+    button = questdlg({'Should we try to locate the FFMPEG command line tools ?', ...
+                      '(You need to have the library installed already)'});
+
+    % Ask for the user to confirm this foolness
+    if (strncmpi(button, 'yes', 3))
+      ffmpegsetup();
+
+      if (~ispref('ffmpeg', 'exepath'))
+          disp('If you want to install the FFMPEG library, please visit www.ffmpeg.org');
+      end
+      disp(' ');
     end
   end
 
