@@ -209,17 +209,20 @@ function metadata = find_metadata(filename, metadata)
   [file_path, file_name, file_ext] = fileparts(filename);
 
   % Check if the file exists
-  if (exist(fullfile(file_path, '.las')))
+  if (exist(fullfile(file_path, '.las'), 'file'))
 
     % Load it !
     metadata = fileread(fullfile(file_path, '.las'));
 
+  elseif (exist(fullfile(file_path, '.Metadata'), 'dir') && exist(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']), 'dir'))
+    metadata = fileread(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']));
+
   % For uManager
-  elseif (exist(fullfile(file_path, 'metadata.txt')))
+  elseif (exist(fullfile(file_path, 'metadata.txt'), 'file'))
     metadata = fileread(fullfile(file_path, 'metadata.txt'));
 
   % For manually edited files
-  elseif (exist(fullfile(pwd, 'Metadata', [filename '.txt'])))
+  elseif (exist(fullfile(pwd, 'Metadata', [filename '.txt']), 'file'))
     metadata = fileread(fullfile(pwd, 'Metadata', [filename '.txt']));
   end
 

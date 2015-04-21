@@ -46,11 +46,8 @@ function install_leachi_flow
       % This looks like a permanent link... up to now at least
       try
         disp('Downloading Bio-Formats tools...')
-        unzip('http://loci.wisc.edu/files/software/bftools.zip', 'bftools');
-        cd('bftools');
-        disp('Downloading LOCI library...')
-        urlwrite('http://loci.wisc.edu/files/software/loci_tools.jar', 'loci_tools.jar');
-        cd ..
+
+        unzip('http://downloads.openmicroscopy.org/bio-formats/5.1.0/artifacts/bftools.zip');
         addpath(fullfile(current_dir, 'bftools'));
         savepath;
       catch

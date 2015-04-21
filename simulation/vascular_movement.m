@@ -61,7 +61,7 @@ function [dvect, opts] = vascular_movement(cells, curr_time, opts)
   %}
 
   dm = opts.cell_speed.scaling  * opts.dt * sin(2*pi*curr_time/opts.movement_params(1));
-  dvect = bsxfun(@plus, opts.cell_speed.speeds(indx,:) * dm, randn(size(cells, 1), opts.ndims) * opts.cell_variation);
+  dvect = bsxfun(@times, opts.cell_speed.speeds(indx,:) * dm, 1 + randn(size(cells, 1), opts.ndims) * opts.cell_variation);
 
   return;
 end

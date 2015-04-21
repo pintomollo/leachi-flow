@@ -1,4 +1,4 @@
-function data = simulate_flow(opts)
+function [data, opts] = simulate_flow(opts)
 
   if (nargin == 0)
     opts = get_struct('simulation');
@@ -9,7 +9,7 @@ function data = simulate_flow(opts)
     store_data = true;
   end
 
-  if (~isempty(opts.init_simulation))
+  if (~isempty(opts.init_simulation) && isempty(opts.creation_params))
     opts = opts.init_simulation(opts);
   end
 
@@ -20,9 +20,12 @@ function data = simulate_flow(opts)
   frames = [0:nframes]*opts.dt;
 
   if (store_data)
-    data = zeros([opts.image_size nframes]);
+    data = absolutepath(get_new_name('flow(\d+)\.ome\.tiff?', 'TmpData'));
+    hwait = waitbar(0,'Simulating flow...','Name','B. leachi blood flow');
+    img_params = [];
   else
     figure;
+    colormap(gray);
   end
 
   thresh = 0;
@@ -33,9 +36,12 @@ function data = simulate_flow(opts)
     [cells, thresh] = opts.remesh_cells(cells, dmov, thresh, opts);
 
     if (store_data)
-      data(:,:,nimg) = img;
+      [img, img_params] = all2uint16(img, img_params);
+
+      save_data(data, img);
+      waitbar(nimg/nframes,hwait);
     else
-      imagesc(img);
+      imagesc(1024-img, [0 1024]);
       if (thresh==0)
         title('remesh')
       else
@@ -43,6 +49,10 @@ function data = simulate_flow(opts)
       end
       drawnow;
     end
+  end
+
+  if (store_data)
+    close(hwait);
   end
 
   return;

@@ -18,31 +18,31 @@ function leachi_flow(myrecording, opts)
   diff_thresh = 5;
   min_length = 1;
   min_branch = 10;
-  prop_thresh = 0.75;
+  prop_thresh = 0.5;
 
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
 
-  prev_img = double(load_data(myrecording.channels(1), 1));
-  prev_noise = estimate_noise(prev_img);
+  orig_img = double(load_data(myrecording.channels(1), 1));
+  %prev_noise = estimate_noise(prev_img);
 
   vessel_width = ceil(15 / opts.pixel_size);
   disk1 = strel('disk', 2*vessel_width);
   disk2 = strel('disk', vessel_width);
 
-  noise = estimate_noise(prev_img);
-  prev_img = padarray(prev_img, [3 3]*vessel_width);
+  noise = estimate_noise(orig_img);
+  prev_img = padarray(orig_img, [3 3]*vessel_width);
   prev_mask = imdilate(imopen(prev_img < noise(1) + diff_thresh*noise(2), disk1), disk2);
 
   indexes = NaN(nframes, 2);
   masks = cell(nframes, 1);
   indx = 1;
 
-  figure;
+  %figure;
   mask = zeros(img_size+6*vessel_width);
   for nimg=2:nframes
-    img = double(load_data(myrecording.channels(1), nimg));
-    img = padarray(img, [3 3]*vessel_width);
+    orig_img = double(load_data(myrecording.channels(1), nimg));
+    img = padarray(orig_img, [3 3]*vessel_width);
     curr_mask = imdilate(imopen(img < noise(1) + diff_thresh*noise(2), disk1), disk2);
 
     %bkg_diff = abs(prev_noise(1) - noise(1));
@@ -86,21 +86,29 @@ function leachi_flow(myrecording, opts)
       %title(props)
 
     else
-      noise = estimate_noise(prev_img);
+      masks{indx} = mask;
+      mask = zeros(img_size+6*vessel_width);
+
+      noise = estimate_noise(orig_img);
       indx = nimg - 1;
     end
 
     prev_img = img;
-    prev_noise = noise;
+    %prev_noise = noise;
     prev_mask = curr_mask;
 
+    
     %drawnow
-    %keyboard
   end
   masks{indx} = mask;
 
+  %keyboard
+
   [sorted, coords, inverse] = unique(indexes(:,1));
-  goods = [diff(coords)>min_length; false] & isfinite(sorted);
+  [tmp_coords, tmp_indx] = sort(coords);
+  lens = diff([tmp_coords; nframes]);
+  [junk,rev_indx] = sort(tmp_indx);
+  goods = (lens(rev_indx)>min_length) & isfinite(sorted);
   groups = sorted(goods);
 
   ngroups = length(groups);
@@ -116,20 +124,34 @@ function leachi_flow(myrecording, opts)
 
   for i=1:ngroups
     mask = masks{i};
-    mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
+    %mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
     mask = imnorm(mask);
 
-    %figure;imagesc(mask)
+    figure;subplot(2,2,1)
+    imagesc(mask)
 
     mask = (mask > prop_thresh);
+
+    subplot(2,2,2)
+    imagesc(mask)
+
     mask = bwareaopen(mask, vessel_width^2);
+
+    subplot(2,2,3)
+    imagesc(mask)
 
     mask = bwmorph(mask, 'thin', Inf);
     [icoord, jcoord] = find(mask);
     centers{i} = [jcoord, icoord];
-    masks{i} = imdilate(mask, disk2);
+    tmp_mask = imdilate(mask, disk2);
+    masks{i} = tmp_mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
+
+    subplot(2,2,4)
+    imagesc(tmp_mask+mask)
   end
   prev_indx = -1;
+
+  keyboard
 
   %windows = [32 32; 16 16; 8 8; 8 8];
   %threshs = [Inf; Inf; 10; 5];
