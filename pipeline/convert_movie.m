@@ -104,17 +104,29 @@ function [newfile] = bftools_convert(fname)
   % Split the filename
   [file_path, filename, ext] = fileparts(fname);
 
+  use_tmp_folder = false;
   if (strncmpi(ext, '.avi', 4))
     if (ispref('ffmpeg', 'exepath'))
-      if (ispc)
-        cmd_name_new = [cmd_name(1:end-1) ext '"'];
-      else
-        cmd_name_new = [cmd_name ext];
-      end
-      % This can take a while, so inform the user
-      hInfo = warndlg('Converting AVI using FFMPEG, please wait.', 'Converting movie...');
 
-      [res, info] = system([getpref('ffmpeg', 'exepath') ' -i ' cmd_name ' -qscale:v 1 -c:v mjpeg ' cmd_name_new]);
+      use_tmp_folder = true;
+      orig_name = filename;
+      orig_path = file_path;
+      orig_cmd_name = cmd_name;
+
+      tmp_folder = absolutepath(get_new_name('tmp_folder(\d+)', file_path));
+      mkdir(tmp_folder);
+
+      new_fname = fullfile(tmp_folder, 'tmp_img%d.jpg');
+      if (ispc)
+        cmd_name_new = ['"' new_fname '"'];
+      else
+        cmd_name_new = strrep(new_fname,' ','\ ');
+      end
+
+      % This can take a while, so inform the user
+      hInfo = warndlg('Converting AVI using FFMPEG, please wait...', 'Converting movie...');
+
+      [res, info] = system([getpref('ffmpeg', 'exepath') ' -i ' cmd_name ' -y -vf select="eq(pict_type\,PICT_TYPE_I)" -vsync 2 -qscale:v 2 -f image2 ' cmd_name_new]);
 
       if (ishandle(hInfo))
         delete(hInfo);
@@ -124,9 +136,13 @@ function [newfile] = bftools_convert(fname)
         error(info);
       end
 
-      filename = [filename ext];
-      fname = [fname ext];
-      cmd_name = cmd_name_new;
+      fname = fullfile(tmp_folder, 'tmp_img1.jpg');
+      [file_path, filename, ext] = fileparts(fname);
+      if (ispc)
+        cmd_name = ['"' fname '"'];
+      else
+        cmd_name = strrep(fname,' ','\ ');
+      end
     else
       warndlg({'Converting AVI files works best using FFMPEG.', ...
         'Consider installing this library if the current conversion does not work.', ...
@@ -137,17 +153,6 @@ function [newfile] = bftools_convert(fname)
   % Remove the extension
   name = fullfile(file_path, filename);
 
-  % Identify the filename VS the path
-  [slash] = findstr(name, filesep);
-  if(length(slash)>0)
-    slash = slash(end) + 1;
-  else
-    slash = 1;
-  end
-
-  % Creat the fancy name for display (otherwise it thinks they are LaTeX commands)
-  printname = strrep(name(slash:end),'_','\_');
-
   % Look for the LOCI command line tool
   curdir = pwd;
   cmd_path = which('bfconvert.bat');
@@ -157,16 +162,24 @@ function [newfile] = bftools_convert(fname)
   [mypath, junk] = fileparts(cmd_path);
 
   % This can take a while, so inform the user
-  hInfo = warndlg('Parsing metadata, please wait.', 'Converting movie...');
+  hInfo = warndlg('Parsing metadata, please wait...', 'Converting movie...');
 
   % Move to the correct folder
   cd(mypath);
 
   % And call the LOCI utility to extract the metadata
-  if (ispc)
-    [res, metadata] = system(['showinf.bat -stitch -nopix -nometa ' cmd_name]);
+  if (use_tmp_folder)
+    if (ispc)
+      [res, metadata] = system(['showinf.bat -nopix -nometa ' orig_cmd_name]);
+    else
+      [res, metadata] = system(['./showinf -nopix -nometa ' orig_cmd_name]);
+    end
   else
-    [res, metadata] = system(['./showinf -stitch -nopix -nometa ' cmd_name]);
+    if (ispc)
+      [res, metadata] = system(['showinf.bat -stitch -nopix -nometa ' cmd_name]);
+    else
+      [res, metadata] = system(['./showinf -stitch -nopix -nometa ' cmd_name]);
+    end
   end
 
   % Delete the information if need be
@@ -187,8 +200,8 @@ function [newfile] = bftools_convert(fname)
 
   % In case of multiple files, regroup them into one single file
   merge_cmd = '-stitch ';
-  do_merge = false;
-  if (~isempty(file_pattern))
+  do_merge = use_tmp_folder;
+  if (~isempty(file_pattern) && ~use_tmp_folder)
     orig_pattern = file_pattern{1};
     file_pattern = regexprep(orig_pattern, '<\d+-\d+>', '');
 
@@ -233,7 +246,9 @@ function [newfile] = bftools_convert(fname)
   end
 
   % We create an OME-TIFF file
-  if (isempty(file_pattern))
+  if (use_tmp_folder)
+    newname = fullfile(orig_path, [orig_name '.ome.tiff']);
+  elseif (isempty(file_pattern))
     newname = [name '.ome.tiff'];
   else
     [file_path, file_name, file_ext] = fileparts(file_pattern{1});
@@ -251,6 +266,10 @@ function [newfile] = bftools_convert(fname)
 
     % We initially do not know what to do
     answer = 0;
+
+    % Creat the fancy name for display (otherwise it thinks they are LaTeX commands)
+    [junk, tmp_name, junk] = fileparts(newname);
+    printname = strrep(tmp_name(1:end-4),'_','\_');
 
     % We do not accept "empty" answers
     while (answer == 0)
@@ -276,15 +295,20 @@ function [newfile] = bftools_convert(fname)
   end
 
   % This also takes quite some time, so warn the user
-  hInfo = warndlg('Converting to OME-TIFF, please wait.', 'Converting movie...');
+  hInfo = warndlg('Converting to OME-TIFF, please wait...', 'Converting movie...');
 
   % Call directly the command line tool to do the job
   if (ispc)
     cmd_newname = ['"' newname '"'];
-    [res, infos] = system(['bfconvert.bat ' merge_cmd '-separate ' cmd_name ' ' cmd_newname]);
+    [res, infos] = system(['bfconvert.bat ' merge_cmd '-separate -channel 0 ' cmd_name ' ' cmd_newname]);
   else
     cmd_newname = strrep(newname,' ','\ ');
-    [res, infos] = system(['./bfconvert ' merge_cmd '-separate ' cmd_name ' ' cmd_newname]);
+    [res, infos] = system(['./bfconvert ' merge_cmd '-separate -channel 0 ' cmd_name ' ' cmd_newname]);
+  end
+
+  if (use_tmp_folder)
+    delete(fullfile(tmp_folder, '*'));
+    rmdir(tmp_folder);
   end
 
   % Delete the window if need be

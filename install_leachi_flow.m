@@ -47,7 +47,7 @@ function install_leachi_flow
       try
         disp('Downloading Bio-Formats tools...')
 
-        unzip('http://downloads.openmicroscopy.org/bio-formats/5.1.0/artifacts/bftools.zip');
+        unzip('http://downloads.openmicroscopy.org/latest/bio-formats/artifacts/bftools.zip');
         addpath(fullfile(current_dir, 'bftools'));
         savepath;
       catch
