@@ -16,13 +16,15 @@ function opts = create_vessel(opts)
 
   vessels = NaN(2, 1);
   middles = NaN(2, 0);
+  junctions = NaN(2, 0);
+  widths = NaN(1,0);
   for i=1:opts.init_params(1)
     %[centery, centerx] = ind2sub(opts.image_size, vessel_centers(i));
     %vessels(i, :) = [rand(1)*(2*pi) vessel_widths(i) centerx centery];
 
     %get_vessel(bounding_box, vessels(i, 1), vessels(i, 2), vessels(i,3:4), opts.init_params(2));
     for j=1:max_trials
-      [new_vessel, new_middle, new_precision] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
+      [new_vessel, new_middle, new_junctions, new_widths] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
 
       if (~isempty(new_vessel))
         [x,y] = polybool('&', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
@@ -50,8 +52,8 @@ function opts = create_vessel(opts)
     [x,y] = polybool('|', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
     vessels = [x;y];
     middles = [middles new_middle NaN(2, 1)];
-
-    precision = min(precision, new_precision);
+    junctions = [junctions new_junctions];
+    widths = [widths; new_widths];
 
     %p1 = get_bounding_box(vessels(i,:), opts);
     %p2 = get_bounding_box(vessels(i,:)+[pi 0 0 0], opts);
@@ -60,6 +62,14 @@ function opts = create_vessel(opts)
   end
 
   %figure;
+  middles = polarize_flow(middles.');
+
+  [vessel.center, vessel.property] = trim_centers(middles, widths, bounding_box);
+  vessel.border = vessels.';
+  vessel.junction = refine_junctions(junctions, middles, bounding_box);
+
+  precision = min(vessel.property(:)) * 0.75;
+
   [p,t] = distmesh_poly(vessels.', precision, bounding_box([1 3; 2 4]));
 
   mesh = get_struct('meshing');
@@ -68,10 +78,6 @@ function opts = create_vessel(opts)
 
   mesh = sort_mesh(mesh);
 
-  middles = polarize_flow(middles.');
-
-  vessel.center = trim_centers(middles, bounding_box);
-  vessel.border = vessels.';
   vessel.mesh = mesh;
 
   opts.creation_params = vessel;
@@ -79,9 +85,96 @@ function opts = create_vessel(opts)
   %opts.creation_params = vessels(1, 1:2);
   %opts.movement_params = [cos(vessels(1,1)) sin(vessels(1, 1))];
 
-  %figure;hold on;
-  %plot(vessel.center(:,1), vessel.center(:,2), 'r');
-  %plot(vessel.border(:,1), vessel.border(:,2), 'b');
+  figure;hold on;
+  plot(vessel.center(:,1), vessel.center(:,2), 'r');
+  plot(vessel.border(:,1), vessel.border(:,2), 'b');
+  plot(vessel.junction.polygon(:,1), vessel.junction.polygon(:,2), 'k')
+
+  return;
+end
+
+function junct = refine_junctions(junctions, centers, bbox)
+
+  junctions = junctions.';
+  njuncs = size(junctions, 1) / 5;
+  goods = all(bsxfun(@ge, junctions, bbox([1 3])) & bsxfun(@le, junctions, bbox([2 4])), 2);
+
+  rads = NaN(1, njuncs);
+  vects = NaN(2, njuncs);
+
+  for i=njuncs:-1:1
+    indxs = [1:5]+(i-1)*5;
+
+    if (~any(goods(indxs(1:4))))
+      junctions(indxs, :) = [];
+      rads(i) = [];
+      vects(:,i) = [];
+      continue;
+    end
+
+    node = junctions(indxs(1),:);
+    connecting = all(bsxfun(@eq, centers, node), 2);
+    pos = find(connecting);
+    direction = mod(pos, 3);
+    tips = centers(pos + (3-2*direction), :);
+
+    centered = bsxfun(@minus, [tips; junctions(indxs(2:4),:)], node);
+    angles = atan2(centered(:,2), centered(:,1));
+
+    if (direction(1)==direction(2))
+      aim = angles(1:2);
+      away = 3;
+    elseif (direction(1)==direction(3))
+      aim = angles([1 3]);
+      away = 2;
+    else
+      aim = angles(2:3);
+      away = 1;
+    end
+
+    if (aim(2) < aim(1))
+      aim(2) = aim(2) + 2*pi;
+    end
+
+    pts = angles(4:end);
+    pts(pts < aim(1)) = pts(pts < aim(1)) + 2*pi;
+    [pts, sorting] = sort(pts, 'descend');
+    sorting = sorting.' + 1;
+
+    valids = (pts < aim(2));
+    if (sum(valids) > 1)
+      valids = ~valids;
+    end
+
+    pos = find(valids);
+    switch pos
+      case 2
+        polyg = indxs([1 sorting 5]);
+      case 3
+        polyg = indxs([1 sorting([2 3 1]) 5]);
+      otherwise
+        polyg = indxs([1 sorting([3 1 2]) 5]);
+    end
+
+    %{
+    figure;hold on;
+    scatter(0, 0, 'r');
+    scatter(centered(4:end,1), centered(4:end,2), 'b');
+    plot([zeros(3,1) centered(1:3,1)].', [zeros(3,1) centered(1:3,2)].', 'g');
+    scatter(centered(pos+3,1), centered(pos+3,2), 'k');
+    plot([0 centered(away,1)], [0 centered(away,2)], 'k');
+    %}
+
+    rads(i) = max(sum(centered(4:end,:).^2, 2));
+    vects(:,i) = (-1^(direction(away)==1))*centered(pos+3,:) / sqrt(sum(centered(pos+3,:).^2));
+    junctions(indxs, :) = junctions(polyg, :);
+  end
+
+  junct = get_struct('junction');
+
+  junct.polygon = junctions;
+  junct.threshold = rads;
+  junct.vector = vects;
 
   return;
 end
@@ -149,7 +242,7 @@ function centers = polarize_flow(centers)
   return;
 end
 
-function centers = trim_centers(centers, bbox)
+function [centers, widths] = trim_centers(centers, widths, bbox)
 
   nsegments = size(centers, 1) / 3;
   goods = all(bsxfun(@ge, centers, bbox([1 3])) & bsxfun(@le, centers, bbox([2 4])), 2);
@@ -208,6 +301,7 @@ function centers = trim_centers(centers, bbox)
       centers(rep_indx, :) = pos;
     else
       centers(indxs,:) = [];
+      widths(i) = [];
     end
   end
 
@@ -218,9 +312,7 @@ function centers = trim_centers(centers, bbox)
   return;
 end
 
-function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, nbranching)
-
-  precision = [];
+function [vessel, middle, junctions, widths] = get_vessel(bounding_box, checks, props, nbranching)
 
   shifted = bounding_box([2 4]) + bounding_box([1 3]);
   %len = sqrt(2*sum(shifted.^2));
@@ -235,6 +327,7 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
   %figure;
 
   max_trials = 20;
+  junctions = NaN(2,0);
 
   [middle, vessel] = get_bounding_box(len, angle, widths(1), center);
 
@@ -316,14 +409,16 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
 
       %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i-1)/(2*nbranching))
 
-      better_vessel = fix_branching(vessel, center, [orig_width curr_width.'], [orig_angle angles]);
+      [vessel,new_junction] = fix_branching(vessel, center, [orig_width curr_width.'], [orig_angle angles]);
       %if (~ispolycw(better_vessel(1,:), better_vessel(2,:)))
       %  figure;hold on;
       %  plot(better_vessel(1,:), better_vessel(2,:), 'r')
       %  plot(vessel(1,:), vessel(2,:))
       %  keyboard
       %end
-      vessel = better_vessel;
+      %vessel = better_vessel;
+
+      junctions = [junctions new_junction NaN(2,1)];
 
       %plot(vessel(1,:), vessel(2,:), 'Color', [1 0 0]*(2*i)/(2*nbranching))
       %scatter(center(1), center(2), 'r');
@@ -338,8 +433,6 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
   end
   [x,y] = polybool('&', vessel(1,:), vessel(2,:), corners(1,:), corners(2,:));
   vessel = [x;y];
-
-  precision = min(widths(:)) * 0.75;
 
   %{
   plot(middle(1,:), middle(2,:), 'g')
@@ -366,7 +459,7 @@ function [vessel, middle, precision] = get_vessel(bounding_box, checks, props, n
   return;
 end
 
-function vessel = fix_branching(vessel, center, widths, angles)
+function [vessel, junction] = fix_branching(vessel, center, widths, angles)
 
   %if (nargin < 5)
   %  show = false;
@@ -431,6 +524,8 @@ function vessel = fix_branching(vessel, center, widths, angles)
   %  scatter(ptsx(bads), ptsy(bads), 'm');
   %  scatter(ptsx(in), ptsy(in), 'g');
   %end
+
+  junction = [ptsx; ptsy];
 
   if (any(bads))
     new_vessel = vessel;
@@ -516,10 +611,15 @@ function vessel = fix_branching(vessel, center, widths, angles)
     end
 
     vessel = new_vessel;
+
+    junction(:, bads) = [ptsx; ptsy];
   end
 
+  junction = [center junction];
+
   %if (show)
-  %  plot(new_vessel(1,:), new_vessel(2,:), 'r')
+  %  plot(vessel(1,:), vessel(2,:), 'r')
+  %  scatter(all_pts(1,:), all_pts(2,:), 'k');
   %end
 
   return;
