@@ -14,7 +14,7 @@ function [data, opts] = simulate_flow(opts)
   end
 
   cells = opts.create_cells(opts);
-  [junk, opts] = opts.move_cells(cells, 0, opts);
+  opts = opts.move_cells(cells, 0, opts);
 
   nframes = ceil(opts.duration/opts.dt) + 1;
   frames = [0:nframes]*opts.dt;
@@ -32,8 +32,15 @@ function [data, opts] = simulate_flow(opts)
   for nimg = 1:nframes
     img = draw_cells(opts.image_size, cells, opts) + randn(opts.image_size)*opts.image_noise;
 
-    [dmov] = opts.move_cells(cells, frames(nimg), opts);
-    [cells, thresh] = opts.remesh_cells(cells, dmov, thresh, opts);
+    curr_t = frames(nimg);
+    c = 0;
+    while (curr_t < frames(nimg+1))
+      [dmov, dt] = opts.move_cells(cells, frames(nimg), opts);
+      [cells, thresh] = opts.remesh_cells(cells, dmov, thresh, opts);
+
+      curr_t = curr_t + dt;
+      c = c + 1;
+    end
 
     if (store_data)
       [img, img_params] = all2uint16(img, img_params);
@@ -43,9 +50,9 @@ function [data, opts] = simulate_flow(opts)
     else
       imagesc(1024-img, [0 1024]);
       if (thresh==0)
-        title('remesh')
+        title(['remesh ' num2str(c)])
       else
-        title('')
+        title(num2str(c))
       end
       drawnow;
     end

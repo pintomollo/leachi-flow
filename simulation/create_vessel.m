@@ -65,6 +65,9 @@ function opts = create_vessel(opts)
   middles = polarize_flow(middles.');
 
   [vessel.center, vessel.property] = trim_centers(middles, widths, bounding_box);
+  %vessel.center = middles;
+  %vessel.property = widths;
+
   vessel.border = vessels.';
   vessel.junction = refine_junctions(junctions, middles, bounding_box);
 
@@ -166,7 +169,10 @@ function junct = refine_junctions(junctions, centers, bbox)
     %}
 
     rads(i) = max(sum(centered(4:end,:).^2, 2));
-    vects(:,i) = (-1^(direction(away)==1))*centered(pos+3,:) / sqrt(sum(centered(pos+3,:).^2));
+
+
+    %% ERROR here !!!
+    vects(:,i) = (-1^(direction(away)==1))*centered(sorting(pos)-1,:) / sqrt(sum(centered(sorting(pos)-1,:).^2));
     junctions(indxs, :) = junctions(polyg, :);
   end
 
@@ -286,6 +292,7 @@ function [centers, widths] = trim_centers(centers, widths, bbox)
     %}
     [valids, pos] = segments_intersection(segm, corners);
 
+    %{
     if (any(valids))
       %pos = bsxfun(@plus, bsxfun(@times, dists(valids), angles), origin);
       rep_indx = indxs(~goods(indxs(1:2)));
@@ -300,6 +307,11 @@ function [centers, widths] = trim_centers(centers, widths, bbox)
       end
       centers(rep_indx, :) = pos;
     else
+      centers(indxs,:) = [];
+      widths(i) = [];
+    end
+    %}
+    if (~any(valids))
       centers(indxs,:) = [];
       widths(i) = [];
     end
