@@ -30,7 +30,7 @@ function [data, opts] = simulate_flow(opts)
 
   thresh = 0;
   for nimg = 1:nframes
-    img = draw_cells(opts.image_size, cells, opts) + randn(opts.image_size)*opts.image_noise;
+    img = draw_gaussians_mex(opts.image_size, cells) + randn(opts.image_size)*opts.image_noise;
 
     curr_t = frames(nimg);
     c = 0;
@@ -60,34 +60,6 @@ function [data, opts] = simulate_flow(opts)
 
   if (store_data)
     close(hwait);
-  end
-
-  return;
-end
-
-function new_img = draw_cells(img_size, cells, opts)
-
-  if (opts.ndims == 2)
-    new_img = zeros(img_size);
-
-    X = repmat([1:img_size(2)], img_size(1), 1);
-    Y = repmat([1:img_size(1)].', 1, img_size(2));
-
-    isigma = -1 ./ (2 * cells(:,3).^2);
-
-    if (opts.nprops == 1)
-      for i = 1:size(cells, 1)
-        new_img = new_img + exp(isigma(i) * ((X - cells(i,1)).^2 + (Y - cells(i,2)).^2));
-      end
-    elseif (opts.nprops == 2)
-      for i = 1:size(cells, 1)
-        new_img = new_img + cells(i, 4) * exp(isigma(i) * ((X - cells(i,1)).^2 + (Y - cells(i,2)).^2));
-      end
-    else
-      error('Not implemented yet !')
-    end
-  else
-    error('Not implemented yet !')
   end
 
   return;
