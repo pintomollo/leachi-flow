@@ -88,7 +88,10 @@ function opts = create_vessel(opts)
   %opts.creation_params = vessels(1, 1:2);
   %opts.movement_params = [cos(vessels(1,1)) sin(vessels(1, 1))];
 
-  %show_vessels(opts)
+  %if (length(vessel.junction.threshold)>opts.init_params(2))
+    show_vessels(opts)
+  %  keyboard
+  %end
 
   %figure;hold on;
   %plot(vessel.center(:,1), vessel.center(:,2), 'r');
@@ -164,6 +167,8 @@ function junct = refine_junctions(junctions, centers, bbox)
     junctions(indxs, :) = junctions(polyg, :);
     if (~in_triangle([0 0], centered([4 10 5 11 6 12])))
 
+      centered(4:6, :) = centered(sorting+2,:);
+
       outside = [segments_intersection([0 0; centered(1,:)], centered([4:6 4],:)), ...
                  segments_intersection([0 0; centered(2,:)], centered([4:6 4],:)), ...
                  segments_intersection([0 0; centered(3,:)], centered([4:6 4],:))];
@@ -171,15 +176,40 @@ function junct = refine_junctions(junctions, centers, bbox)
       oindx = find(~any(outside));
       output = centered(oindx,:);
 
-      goods = [output(1)*centered(4,1) + output(2)*centered(4,2), ...
-               output(1)*centered(5,1) + output(2)*centered(5,2), ...
-               output(1)*centered(6,1) + output(2)*centered(6,2)];
+      len = 1 ./ sqrt(sum(output.^2));
+      new_vect = output * len;
+
+      sides = find(sum(outside, 2) == 2);
+      sides = centered(mod(sides-[1 0], 3)+4, :);
+
+      frac = sides(:,1) * new_vect(1) + ...
+             sides(:,2) * new_vect(2);
+
+      perp = [-new_vect(2) new_vect(1)];
+      perps = sides(:,1) * perp(1) + sides(:,2) * perp(2);
+
+      repla = bsxfun(@times, perp, perps);
+      new_poly = [0 0; repla(2,:); sides([2 1],:); repla(1,:); NaN(1,2)];
+      new_poly = new_poly([true; frac(2)<0; true; true; frac(1)<0; true],:);
+
+      if (size(new_poly, 1) > 5)
+        new_poly = new_poly(2:end,:);
+      end
+      junctions(end+[1:5],:) = bsxfun(@plus, new_poly, node);
+
+      if (direction(oindx)==2)
+        new_vect = -new_vect;
+      end
+      vects(:,end+1) = new_vect(:);
+
+      rads(end+1) = max(sum(bsxfun(@minus,new_poly(1,:),new_poly(2:end-1,:)).^2, 2));
 
       %%% Identify the two side pts using the twice-crossed segment
       %%% Compute the two 90d sideways points for the center
       %%% Check if the actual points are further back on the center (as in vascular_movement)
       %%% Create a rectangle encompassing everything, either with center or not, depending on number of nodes
 
+      %{
       figure;hold on;
       scatter(0, 0, 'r');
       scatter(centered(4:end,1), centered(4:end,2), 'b');
@@ -187,25 +217,22 @@ function junct = refine_junctions(junctions, centers, bbox)
       scatter(centered(sorting(pos)+2,1), centered(sorting(pos)+2,2), 'k');
       plot([0 centered(away,1)], [0 centered(away,2)], 'k');
       plot([0 centered(find(~any(outside)),1)], [0 centered(find(~any(outside)),2)], 'r');
+      scatter(sides(1,1), sides(1,2), 'c');
+      scatter(sides(2,1), sides(2,2), 'y');
+      scatter(repla(:,1), repla(:,2), 'k');
+      plot(new_poly(:,1), new_poly(:,2), 'k');
+      quiver(new_poly(1,1), new_poly(1,2), new_vect(1), new_vect(2), 'b');
+      %}
 
       junctions(indxs(1), :) = 0.5*(junctions(indxs(2), :) + junctions(indxs(4), :));
-      centered = bsxfun(@minus, [tips; junctions(indxs(2:4),:)], junctions(indxs(1), :));
-      sorting(pos) = 3;
+      centered_new = bsxfun(@minus, junctions(indxs(2:4),:), junctions(indxs(1), :));
 
-      scatter(junctions(indxs(1),1)-node(1), junctions(indxs(1),2)-node(2), 'm');
-      tmp = centered(sorting(pos)+2,:) / sqrt(sum(centered(sorting(pos)+2,:).^2));
-
-      quiver(junctions(indxs(1),1)-node(1), junctions(indxs(1),2)-node(2), tmp(1), tmp(2), 'm');
-
-      keyboard
+      rads(i) = max(sum(centered_new.^2, 2));
+      vects(:,i) = centered_new(2,:) / sqrt(sum(centered_new(2,:).^2));
+    else
+      rads(i) = max(sum(centered(4:end,:).^2, 2));
+      vects(:,i) = centered(sorting(pos)+2,:) / sqrt(sum(centered(sorting(pos)+2,:).^2));
     end
-    if (~ispolycw(junctions(polyg([1:end 1]), 1), junctions(polyg([1:end 1]), 2)))
-      keyboard
-    end
-
-    rads(i) = max(sum(centered(4:end,:).^2, 2));
-
-    vects(:,i) = centered(sorting(pos)+2,:) / sqrt(sum(centered(sorting(pos)+2,:).^2));
   end
 
   junct = get_struct('junction');

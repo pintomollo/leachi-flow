@@ -1,5 +1,5 @@
 function [nframes, ssize] = size_data(fname)
-% SIZE_DATA extracts the number of frames as well as the size of a frame from a file.
+% SIZE_DATA extracts the number of frames as well as the size of a frame from a TIFF file.
 %
 %   [NFRAMES, IMG_SIZE] = SIZE_DATA(FNAME) returns the NFRAMES and the IMG_SIZE from
 %   FNAME. It requires a file format readable by imformats. SIZE_DATA returns -1 in
@@ -47,45 +47,35 @@ function [nframes, ssize] = size_data(fname)
     warning('Tracking:SizeData', 'Unable to open file "%s" for reading.', fname);
     return
 
-  % Now we can work ! Most of this part was extracted from the code of imfinfo
-  % for a maximal speedup (I got rid of quite some checking)
+  % Now we can work !
   else
+
     % Get the full filename just in case
     filename = fopen(fid);
     fclose(fid);
 
-    % Get ready to extract the image format
-    format = '';
+    % Use the Tiff library libtiff using the gateaway provided by Matlab
+    try
+      tif = Tiff(filename, 'r');
 
-    % Look for the extension
-    idx = find(filename == '.');
-    if (~isempty(idx))
-
-      % Extract the extension
-      extension = lower(filename(idx(end)+1:end));
-
-      % Look up the extension in the file format registry.
-      fmt_s = imformats(extension);
-      tf = feval(fmt_s.isa, filename);
-
-      % If we retrieve something, extract the actual full extension
-      if (tf)
-        format = fmt_s.ext{1};
-      end
+    % Just in case we try to open something else
+    catch
+      warning('Tracking:SizeData', '%s is not a compatible TIFF file.', filename);
+      return;
     end
 
-    % In case we do not have anything, go for the slow version
-    if (isempty(format))
-      infos = imfinfo(fname);
-
-    % Otherwise, we can directly call the adequat parsing function
-    else
-      infos = feval(fmt_s.info, filename);
+    % Count the number of frames by going through them
+    nframes = 1;
+    while (~tif.lastDirectory())
+      nframes = nframes + 1;
+      tif.nextDirectory();
     end
 
-    % Finally we can get the number of frames and the image size
-    nframes = length(infos);
-    ssize = [infos(1).Height infos(1).Width];
+    % Extract the size of the image
+    ssize = [tif.getTag('ImageLength') tif.getTag('ImageWidth')];
+
+    % And close it
+    tif.close();
   end
 
   return;
