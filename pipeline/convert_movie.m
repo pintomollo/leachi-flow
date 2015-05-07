@@ -101,6 +101,8 @@ function [newfile] = bftools_convert(fname)
     cmd_name = strrep(fname,' ','\ ');
   end
 
+  max_jvm = 2^(nextpow2(java.lang.Runtime.getRuntime.maxMemory / 1024^2));
+
   % Split the filename
   [file_path, filename, ext] = fileparts(fname);
 
@@ -168,18 +170,10 @@ function [newfile] = bftools_convert(fname)
   cd(mypath);
 
   % And call the LOCI utility to extract the metadata
-  if (use_tmp_folder)
-    if (ispc)
-      [res, metadata] = system(['showinf.bat -nopix -nometa ' orig_cmd_name]);
-    else
-      [res, metadata] = system(['./showinf -nopix -nometa ' orig_cmd_name]);
-    end
+  if (ispc)
+    [res, metadata] = system(['showinf.bat -stitch -nopix -nometa ' cmd_name]);
   else
-    if (ispc)
-      [res, metadata] = system(['showinf.bat -stitch -nopix -nometa ' cmd_name]);
-    else
-      [res, metadata] = system(['./showinf -stitch -nopix -nometa ' cmd_name]);
-    end
+    [res, metadata] = system(['./showinf -stitch -nopix -nometa ' cmd_name]);
   end
 
   % Delete the information if need be
@@ -240,16 +234,19 @@ function [newfile] = bftools_convert(fname)
     return;
   end
 
-  % RGB will not work
+  % RGB need to be split up
+  split_cmd = '';
+  split_ext = '';
   if (is_rgb)
-    warning('Tracking:RGB','RGB channels will be separated, please make sure that no information is lost !')
+    split_cmd = '-separate ';
+    split_ext = '_%c';
   end
 
   % We create an OME-TIFF file
   if (use_tmp_folder)
-    newname = fullfile(orig_path, [orig_name '.ome.tiff']);
+    newname = fullfile(orig_path, [orig_name split_ext '.ome.tiff']);
   elseif (isempty(file_pattern))
-    newname = [name '.ome.tiff'];
+    newname = [name split_ext '.ome.tiff'];
   else
     [file_path, file_name, file_ext] = fileparts(file_pattern{1});
 
@@ -258,17 +255,17 @@ function [newfile] = bftools_convert(fname)
       [junk, tmp_name, junk] = fileparts(file_path);
       file_name = [tmp_name '_' file_name];
     end
-    newname = fullfile(file_path, [file_name '.ome.tiff']);
+    newname = fullfile(file_path, [file_name split_ext '.ome.tiff']);
   end
 
   % If the file already exists, we ask what to do
-  if(exist(newname,'file'))
+  if(exist(strrep(newname, '%c', '0'),'file'))
 
     % We initially do not know what to do
     answer = 0;
 
     % Creat the fancy name for display (otherwise it thinks they are LaTeX commands)
-    [junk, tmp_name, junk] = fileparts(newname);
+    [junk, tmp_name, junk] = fileparts(strrep(newname, split_ext, ''));
     printname = strrep(tmp_name(1:end-4),'_','\_');
 
     % We do not accept "empty" answers
@@ -281,14 +278,22 @@ function [newfile] = bftools_convert(fname)
 
       % Delete the current files (did not dare overwriting it directly)
       case 1
-        delete(newname);
+        delete(strrep(newname, '%c', '*'));
 
       % Otherwise we can stop here
       case 2
-        % Store the new name
-        newfile = newname;
         cd(curdir);
-        newfile = relativepath(newfile);
+
+        % Store the new name(s)
+        if (is_rgb)
+          newfile = cell(3, 1);
+
+          for c=0:2
+            newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
+          end
+        else
+          newfile = relativepath(newname);
+        end
 
         return;
     end
@@ -300,10 +305,10 @@ function [newfile] = bftools_convert(fname)
   % Call directly the command line tool to do the job
   if (ispc)
     cmd_newname = ['"' newname '"'];
-    [res, infos] = system(['bfconvert.bat ' merge_cmd '-separate -channel 0 ' cmd_name ' ' cmd_newname]);
+    [res, infos] = system(['bfconvert.bat ' merge_cmd split_cmd cmd_name ' ' cmd_newname]);
   else
     cmd_newname = strrep(newname,' ','\ ');
-    [res, infos] = system(['./bfconvert ' merge_cmd '-separate -channel 0 ' cmd_name ' ' cmd_newname]);
+    [res, infos] = system(['BF_FLAGS="-XX:+UseConcMarkSweepGC" BF_MAX_MEM=' max_jvm 'm ./bfconvert ' merge_cmd split_cmd cmd_name ' ' cmd_newname]);
   end
 
   if (use_tmp_folder)
@@ -323,9 +328,18 @@ function [newfile] = bftools_convert(fname)
   end
 
   % Store the new name in relative path and come back to the original folder
-  newfile = newname;
   cd(curdir);
-  newfile = relativepath(newfile);
+
+  % Store the new name(s)
+  if (is_rgb)
+    newfile = cell(3, 1);
+
+    for c=0:2
+      newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
+    end
+  else
+    newfile = relativepath(newname);
+  end
 
   return;
 end
