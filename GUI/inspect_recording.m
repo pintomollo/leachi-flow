@@ -53,7 +53,7 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
       was_tracking = true;
 
       % Retrieve the original file
-      for i=1:length(channels)
+      for i = 1:length(channels)
         if (~isempty(channels(i).file))
           channels(i).fname = channels(i).file;
         end
@@ -303,7 +303,7 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
       handles.current = 1;
 
       % If it was the only one, we need to handle this
-      if (length(channels) == 0)
+      if (isempty(channels))
 
         % Set up the indexes as empty
         handles.current = 0;

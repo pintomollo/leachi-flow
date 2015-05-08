@@ -71,7 +71,7 @@ function [img, noise] = imdenoise(img, rm_bkg, func, varargin)
 
       % Here we follow [1] in case no sigma is provided
       case 'gaussian_mex'
-        if (length(args)==0)
+        if (isempty(args))
           args = {0.6};
         end
 
