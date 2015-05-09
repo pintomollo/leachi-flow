@@ -1,7 +1,7 @@
 function img = imhotpixels(orig_img, varargin)
-% IMHOTPIXELS removes the so-called "hot pixels" in an image. These pixels are defined
-% as having a value larger/smaller than MEAN(pixels) +/- THRESH*STD(pixels). The 
-% pixels detected as such are then replaced by another value which is computed using 
+% IMHOTPIXELS removes the so-called "hot pixels" (i.e. defective) in an image. These pixels
+% are defined as having a value larger/smaller than MEAN(pixels) +/- THRESH*STD(pixels).
+% The pixels detected as such are then replaced by another value which is computed using
 % the neighboring values.
 %
 %   [IMG] = IMHOTPIXELS(IMG) filters IMG using the default parameters i.e. THRESH = 15

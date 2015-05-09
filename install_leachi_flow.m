@@ -60,13 +60,13 @@ function install_leachi_flow
         disp('Done !');
         disp(' ');
       else
-        disp('Failed... try to get the Bio-Formats command-line tools from http://www.loci.wisc.edu/bio-formats/downloads and place it in the cell-tracking folder');
+        disp('Failed... try to get the Bio-Formats command-line tools from http://www.openmicroscopy.org and place it in the "cast" folder');
         disp(' ');
       end
     end
   end
 
-  % Otherwise, try to insall it !
+  % Try to insall it the FFMPEG library !
   if (~ispref('ffmpeg', 'exepath'))
     button = questdlg({'Should we try to locate the FFMPEG command line tools ?', ...
                       '(You need to have the library installed already)'});

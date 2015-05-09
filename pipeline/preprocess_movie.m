@@ -201,6 +201,7 @@ function metadata = find_metadata(filename, metadata)
 % This function tries to identify more suitable metadata. For now
 % on, the following metadata are supported:
 %   - Leica Application Suite ".las"
+%   - Leica Application Suite ".cal.xml"
 %   - uManager "metadata.txt"
 %   - files manually placed in the "Metadata" folder and named
 %     as the recording
@@ -214,6 +215,7 @@ function metadata = find_metadata(filename, metadata)
     % Load it !
     metadata = fileread(fullfile(file_path, '.las'));
 
+  % The other LAS
   elseif (exist(fullfile(file_path, '.Metadata'), 'dir') && exist(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']), 'dir'))
     metadata = fileread(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']));
 

@@ -1,5 +1,5 @@
 function [projection, atrous] = imatrou(img, size_max, coef)
-% IMATROU Implementation of the spot detection algorithm from [1]. This algorithm
+% IMATROU implements the spot detection algorithm from [1]. This algorithm
 %   works by recursively filtering the image with kernels of increasing size. This
 %   has the advantage of detecting objects with any size.
 %

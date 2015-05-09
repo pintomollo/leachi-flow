@@ -1,5 +1,5 @@
 function [img, params] = all2uint16(img, params)
-% ALL2UINT16 converts any type of array to uint16, rescaling it ot fit the new range
+% ALL2UINT16 converts any type of array to uint16, rescaling it to fit the new range
 % of values.
 %
 %   M = ALL2UINT16(M) converts M to UINT16.
@@ -56,13 +56,13 @@ function infos = get_infos(img)
 
         % Warn the user as there is no "range" for double so we will use the
         % range of values
-        warning('Real value arrays will be rescaled');
+        warning('Matlab:all2uint16','Real value arrays will be rescaled');
       case {'uint8', 'uint16', 'uint32', 'uint64'}
         minval = intmin(type);
         maxval = intmax(type);
         is_signed = false;
       otherwise
-        warning(['Unkown image data type:' class(img)]);
+        warning('Matlab:all2uint16',['Unkown image data type:' class(img)]);
 
         infos = struct('is_signed', false, ...
                        'offset', 0, ...
