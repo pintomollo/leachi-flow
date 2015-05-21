@@ -69,7 +69,7 @@ function [mapped] = LKTracker( img1, img2, pts, shift)
       %I1 = interp2(iX,iY,img1(iY,iX),oX,oY);
 
       mat = [Ix(:) Iy(:)];
-      if (rank(mat) < 2)
+      if (any(isnan(mat(:))) || rank(mat) < 2)
         continue;
       end
 
