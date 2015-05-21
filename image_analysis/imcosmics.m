@@ -1,5 +1,5 @@
 function [new_img] = imcosmics(img, block_size, thresh)
-% IMCOSMICS Implementation of the cosmic rays removal from [1]. This algorithm works
+% IMCOSMICS implements the cosmic rays removal from [1]. This algorithm works
 % by removing pixels which values are separated from lower values by a gap larger
 % than a threshold estimated using the median and the mad.
 %

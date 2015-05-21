@@ -35,7 +35,7 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
 
   % The structure containing the parameters for the different filters available to
   % the user
-  if (nargin < 2)
+  if (nargin < 2 || isempty(opts))
     opts = get_struct('options');
   end
 
@@ -53,7 +53,7 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
       was_tracking = true;
 
       % Retrieve the original file
-      for i=1:length(channels)
+      for i = 1:length(channels)
         if (~isempty(channels(i).file))
           channels(i).fname = channels(i).file;
         end
@@ -257,10 +257,10 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
     else
 
       % Otherwise, we create the two images in their respective axes
-      handles.img = image(orig_img,'Parent', handles.axes(1),...
+      handles.img = image(img1,'Parent', handles.axes(1),...
                         'CDataMapping', 'scaled',...
                         'Tag', 'image');
-      handles.img(2) = image(orig_img,'Parent', handles.axes(2), ...
+      handles.img(2) = image(img2,'Parent', handles.axes(2), ...
                         'CDataMapping', 'scaled',...
                         'Tag', 'image');
 
@@ -303,7 +303,7 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
       handles.current = 1;
 
       % If it was the only one, we need to handle this
-      if (length(channels) == 0)
+      if (isempty(channels))
 
         % Set up the indexes as empty
         handles.current = 0;

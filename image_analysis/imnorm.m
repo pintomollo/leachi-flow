@@ -83,7 +83,7 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
 
         % Here we have a problem, so notify it and ignor the provided mode
         otherwise
-          warning('Tracking:IMNORM', ['Normalization mode ' mode ' is unknown. Ignoring it.']);
+          warning('CAST:imnorm', ['Normalization mode ' mode ' is unknown. Ignoring it.']);
           minval = min(img(:));
 
           % And remove the weird mode
@@ -107,7 +107,7 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
 
         % Here we have a problem, so notify it and ignor the provided mode
         otherwise
-          warning('Tracking:IMNORM', ['Normalization mode ' mode ' is unknown. Ignoring it.']);
+          warning('CAST:imnorm', ['Normalization mode ' mode ' is unknown. Ignoring it.']);
           maxval = max(img(:));
       end
     end

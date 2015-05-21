@@ -1,10 +1,13 @@
-function [img, noise] = imdenoise(img, rm_bkg, func, varargin)
+function [img, noise] = imdenoise(img, varargin)
 % IMDENOISE removes noise in a given image using different filtering functions.
 %
 %   IMG = IMDENOISE(IMG) denoises IMG using a median filter of size 3x3. IMG can be
 %   a stack of images, which will then be filtered separately.
 %
-%   IMG = IMDENOISE(IMG, RM_BKG) if RM_BKG, removes in addition the background signal
+%   IMG = IMDENOISE(..., NOISE) provides in addition the NOISE of the IMG as computed
+%   by estimate_noise.m
+%
+%   IMG = IMDENOISE(..., RM_BKG) if RM_BKG, removes in addition the background signal
 %   as estimated (see estimate_noise.m). Default is RM_BKG=false.
 %
 %   IMG = IMDENOISE(..., FUNC, ARGS) denoises IMG using the function handler FUNC and
@@ -24,32 +27,34 @@ function [img, noise] = imdenoise(img, rm_bkg, func, varargin)
 % Simon Blanchoud
 % 19.06.14
 
-  % Default values and input checks
+  % Input checks
   if (nargin == 0)
-    disp('Error: no image provided !')
+    warning('CAST:imdenoise', 'Error: no image provided !');
     img = NaN;
     noise = NaN(0,4);
-  elseif (nargin == 1)
-    rm_bkg = false;
-    func = @median_mex;
-  elseif (nargin == 2)
-    if islogical(rm_bkg)
-      func = @median_mex;
-    else
-      func = rm_bkg;
-      rm_bkg = false;
-    end
+    return;
   end
 
-  % Copy them to alter the list as needed later
-  args = varargin;
+  % Default values
+  noise = [];
+  rm_bkg = false;
+  func = @median_mex;
+  args = {};
 
-  % In this particular case, no rm_bkg was provided, which then means that func is
-  % part of the arguments
-  if (isa(rm_bkg, 'function_handle'))
-    args = [{func}, args];
-    func = rm_bkg;
-    rm_bkg = false;
+  % Parse the inputs
+  for i=1:length(varargin)
+    if (isnumeric(varargin{i}))
+      if (numel(varargin{i}) == 1)
+        rm_bkg = varargin{i};
+      else
+        noise = varargin{i};
+      end
+    elseif (islogical(varargin{i}))
+      rm_bkg = varargin{i};
+    else
+      func = varargin{i};
+      args = varargin(i+1:end);
+    end
   end
 
   % Remove empty cells
@@ -61,7 +66,9 @@ function [img, noise] = imdenoise(img, rm_bkg, func, varargin)
   img = double(img);
 
   % Estimate the noise level in the current image
-  noise = estimate_noise(img);
+  if (isempty(noise))
+    noise = estimate_noise(img);
+  end
 
   % Loop over the stack size
   for i = 1:size(img,3)

@@ -13,8 +13,8 @@ function new_name = get_new_name(pattern, folder)
 % 19.05.2011
 
   % Check whether the pattern is valid
-  if (findstr(pattern, '*') > 0|isempty(findstr(pattern, '(\d+)')))
-    error(['Regular expression ''' pattern ''' cannot be incremented']);
+  if (findstr(pattern, '*') > 0 || isempty(findstr(pattern, '(\d+)')))
+    error('Matlab:get_new_name', ['Regular expression ''' pattern ''' cannot be incremented']);
   end
 
   % Default value for the folder
@@ -51,7 +51,7 @@ function new_name = get_new_name(pattern, folder)
   end
 
   % If we have not found any counter, start at 1
-  if (length(new_tokens) == 0)
+  if (isempty(new_tokens))
     indx = '1';
 
   % Otherwise, we need to figure out which is the first available value
