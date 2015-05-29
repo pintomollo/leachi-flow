@@ -28,11 +28,12 @@ function [edge, direct] = imadm(img, thresh, single)
     thresh = 0;
     single = true;
   elseif (nargin < 3)
-    single = true;
-  end
-
-  if (isempty(thresh))
-    thresh = 0;
+    if (islogical(thresh))
+      single = thresh;
+      thresh = 0;
+    else
+      single = true;
+    end
   end
 
   % Circular Gaussian filtre as defined in [2]
@@ -42,14 +43,14 @@ function [edge, direct] = imadm(img, thresh, single)
              0.5  0.75 1   0.75 0.5; ...
              0.25 0.5  0.5 0.5  0.25] / 16;
 
-  img = imfilter(img, avgfilt, 'symmetric');
+  img = imfilter(double(img), avgfilt, 'symmetric');
 
   % The filters of the ADM as defined in [1]
   hfilt = [-1 -1 0 1 1];
   vfilt = -hfilt';
   pdfilt = -diag(hfilt);
   ndfilt = fliplr(pdfilt);
-  
+
   % Compute the edges along the 4 different directions
   himg = imfilter(img, hfilt, 'symmetric');
   vimg = imfilter(img, vfilt, 'symmetric');
@@ -81,7 +82,7 @@ function [edge, direct] = imadm(img, thresh, single)
         compar = (edge >= frame(1:end-2, 3:end) & edge > frame(3:end, 1:end-2));
       case 4,
         compar = (edge >= frame(1:end-2, 2:end-1) & edge > frame(3:end, 2:end-1));
-    end 
+    end
 
     indx = (indx & compar);
     singleedge(indx) = edge(indx);

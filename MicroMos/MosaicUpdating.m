@@ -282,6 +282,8 @@ end
 
 function [img] = myimtransform(img, modello, GLOBAL, XData, YData)
 
+  is_rgb = (size(img, 3) > 1);
+
   if (nargin < 5)
     XData = modello(1):modello(2);
     YData = GLOBAL(1):GLOBAL(2);
@@ -289,8 +291,13 @@ function [img] = myimtransform(img, modello, GLOBAL, XData, YData)
     goodx = (XData >= 0 & XData < size(img,2));
     goody = (YData >= 0 & YData < size(img,1));
 
-    tmp_img = NaN(length(YData), length(XData));
-    tmp_img(goody, goodx) = img;
+    if (is_rgb)
+      tmp_img = NaN(length(YData), length(XData), 3);
+      tmp_img(goody, goodx, :) = img;
+    else
+      tmp_img = NaN(length(YData), length(XData));
+      tmp_img(goody, goodx) = img;
+    end
     img = tmp_img;
   else
 
@@ -312,9 +319,19 @@ function [img] = myimtransform(img, modello, GLOBAL, XData, YData)
       inv_indxs  = bsxfun(@rdivide, U1(:,1:end-1), U1(:,end));     % Convert homogeneous coordinates to U
     end
 
-    img = bilinear_mex(double(img), inv_indxs);
+    if (is_rgb)
+      img_r = bilinear_mex(double(img(:,:,1)), inv_indxs);
+      img_r = reshape(img_r, size(X));
+      img_g = bilinear_mex(double(img(:,:,2)), inv_indxs);
+      img_g = reshape(img_g, size(X));
+      img_b = bilinear_mex(double(img(:,:,3)), inv_indxs);
+      img_b = reshape(img_b, size(X));
 
-    img = reshape(img, size(X));
+      img = cat(3, img_r, img_g, img_b);
+    else
+      img = bilinear_mex(double(img), inv_indxs);
+      img = reshape(img, size(X));
+    end
   end
 
 

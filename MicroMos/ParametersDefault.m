@@ -25,11 +25,23 @@ function parameters = ParametersDefault(parameters)
 % General Public License for more details.
 
 %% General parameters
-parameters.RegistrationMode                 = uint8(0); % (by default: uint8(2)). To choose the registration model that must be used to register the images. The registration model can be chosen between projective (suggested), affine and translative. Set: uint8(0) = 'projective' or uint8(1) = 'affine' or uint8(2) = 'translative' (computed at sub-pixel accuracy using the Lukas-Kanade feature tracker) or uint8(3) = 'translative' (computed at pixel accuracy using the phase-correlation algorithm only).
+
+%%% According to Piccinini, 2013, projective and affine give the same results, translative slightly worse BUT better if very little overlap
+parameters.RegistrationMode                 = uint8(2); % (by default: uint8(2)). To choose the registration model that must be used to register the images. The registration model can be chosen between projective (suggested), affine and translative. Set: uint8(0) = 'projective' or uint8(1) = 'affine' or uint8(2) = 'translative' (computed at sub-pixel accuracy using the Lukas-Kanade feature tracker) or uint8(3) = 'translative' (computed at pixel accuracy using the phase-correlation algorithm only).
+
+%%% Piccinini, 2013, Blending not required in widefield microscopy
 parameters.flag_Blending                    = 0; % 0 = no blending; 1 = blending using a biquadratic function with the highest value in the image's centre (seams are only attenuated). 2 = linear blending with boundary values to completely avoid seams in the stitching regions (slow computation using pixel-based interpolation). 3 = linear blending with boundary values to completely avoid seams in the stitching regions (fast computation using Delaunay triangulation).
+
+%%% No clue what this is.....
 parameters.flag_WhiteBalancing              = 0; % 1 to perform the white balancing of the output mosaic using the mosaic itself as colour reference. 2 to perform the white balancing of the output mosaic loading an external 3-channel image (a RGB image) that must be copied in the folder called "WHITEBALANCING". 0 otherwise.
+
+%%% Piccinini, 2012-2013, Crucial to get proper mosaic !!
 parameters.flag_FlatField                   = 1; % 1 to flat-field correct the images using an input vignetting function. The vignetting function must be saved as matlab matrix in the folder named: "VIGNETTINGFUNCTION". In the "VIGNETTINGFUNCTION" folder must contain at maximum one vignetting function file.
+
+%%% Piccinini, 2013, F2M clearly better !
 parameters.flag_FrameToMosaic               = 1; % (by default: 1). 0 for registering the images according to the Frame-to-Frame registration approach; 1 (suggested) for registering the images according to the Frame-to-Mosaic registration approach.
+
+%%% No clue what this is.....
 parameters.RANSACerror                      = 2; % maximum subpixel reprojection error used inside RANSAC algorithm. We suggest 2 pixels.
 
 % Registration mode selection
@@ -107,11 +119,12 @@ if ~strcmp(parameters.ImageBaseName(end), '_')
 end
 
 % check on "parameters.ImageFolder":
-if isunix()
-    Slash = '/';
-else
-    Slash = '\';
-end;
+%if isunix()
+%    Slash = '/';
+%else
+%    Slash = '\';
+%end;
+Slash = filesep;
 if ~strcmp(parameters.ImageFolder(end), Slash)
     parameters.ImageFolder = strcat(parameters.ImageFolder,Slash);
 end
