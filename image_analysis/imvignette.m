@@ -1,30 +1,40 @@
-function [estim, stack] = imvignette(img, stack)
+function [estim] = imvignette(img, stack)
 
-  if (size(img, 3) > 1)
-    img = rgb2gray(img);
-  end
+  if (nargin > 1)
+    if (size(img, 3) > 1)
+      img = rgb2gray(img);
+    end
 
-  img = double(img);
-  edges = imadm(img, false);
-  thresh = graythresh(edges);
+    img = double(img);
+    edges = imadm(img, false);
+    thresh = graythresh(edges);
 
-  bw = (edges > 0.5*thresh);
-  bw = imdilate(bw, strel('disk', 21));
-  bw = imerode(bw, strel('disk', 9));
-  bw = bwareaopen(bw, 225);
+    bw = (edges > 0.5*thresh);
+    bw = imdilate(bw, strel('disk', 21));
+    bw = imerode(bw, strel('disk', 9));
+    bw = bwareaopen(bw, 225);
 
-  bkg = img;
-  bkg(bw) = NaN;
+    bkg = img;
+    bkg(bw) = 0;
 
-  if (nargin < 2 || isempty(stack))
-    stack = bkg;
+    if (isempty(stack))
+      stack = cat(3, bkg, double(~bw));
+    else
+      stack(:,:,1) = stack(:,:,1) + bkg;
+      stack(:,:,2) = stack(:,:,2) + double(~bw);
+    end
+
+    estim = stack;
   else
-    stack = cat(3, stack, bkg);
-  end
 
-  estim = nanmean(stack, 3);
-  estim = inpaint_nans(estim);
-  estim = gaussian_mex(estim, 15);
+    estim = img(:,:,1) ./ img(:,:,2);
+    estim = inpaint_nans(estim);
+
+    %% Creates artifacts at the edges, where its most important
+    %estim = gaussian_mex(estim, 15);
+
+    estim = estim / mean(estim(:));
+  end
 
   return;
 end
