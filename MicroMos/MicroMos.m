@@ -41,6 +41,9 @@ function [Mosaic, MaskOverlap, MatricesGLOBAL] = MicroMos(parameters)
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
 % General Public License for more details.
 
+if (nargin == 0 || isempty(parameters))
+  parameters = get_struct('MicroMos');
+end
 
 %% PARAMETERS SETTTING
 GLOBAL = eye(3,3);
@@ -55,22 +58,43 @@ else
     fPixelAccuracy = @single;
 end
 
+if (isempty(parameters.ImageFolder) || isempty(parameters.ImageBaseName))
+  parameters.ImageFolder = uigetdir('Movies','Select the directory containing the mosaic');
+  files = dir(fullfile(parameters.ImageFolder, '*'));
+
+  fname = '';
+  for i=1:length(files)
+    if (files(i).name(1)~='.')
+      if (isempty(fname))
+        fname = files(i).name;
+      else
+        fname = common_substring(fname, files(i).name);
+      end
+    end
+  end
+
+  parameters.ImageBaseName = fname;
+end
+
 %Image format and number of characters for the images' number 
-ImagesList = dir([parameters.ImageFolder parameters.ImageBaseName '*']);
+ImagesList = dir(fullfile(parameters.ImageFolder, [parameters.ImageBaseName '*']));
 if isempty(ImagesList)
     error('In the selected ImageFolder there are not images with the selected ImageBaseName.')
 else
     StringNameImage1 = ImagesList(1,1).name;
-    PositionsUnderScores = strfind(StringNameImage1, '_');
-    PositionLastUnderScores = PositionsUnderScores(end);
+    %PositionsUnderScores = strfind(StringNameImage1, '_');
+    %PositionLastUnderScores = PositionsUnderScores(end);
+    PositionEndCommon = length(parameters.ImageBaseName);
     PositionsPoints = strfind(StringNameImage1, '.');
     PositionLastPoint = PositionsPoints(end);
     ImageFormat = StringNameImage1(PositionLastPoint:end);
     parameters.ImageFormat = ImageFormat;
-    CharactersNumber = StringNameImage1(PositionLastUnderScores+1:PositionLastPoint-1);
+    %CharactersNumber = StringNameImage1(PositionLastUnderScores+1:PositionLastPoint-1);
+    CharactersNumber = StringNameImage1(PositionEndCommon+1:PositionLastPoint-1);
     NumberCharactersNumber = ['%.' num2str(length(CharactersNumber)) 'd'];
     parameters.NumberCharactersNumber = NumberCharactersNumber;
-    clear StringNameImage1 PositionsUnderScores PositionLastUnderScores PositionsPoints
+
+    %clear StringNameImage1 PositionsUnderScores PositionLastUnderScores PositionsPoints
 end 
 if isempty(parameters.ImageIndexs)
     LengthImagesList = length(ImagesList);
@@ -87,6 +111,18 @@ stop_index = length(parameters.ImageIndexs);
 %Vignetting function loading:
 Field = [];
 if parameters.flag_FlatField == 1
+    disp('Computing the vignetting function...');
+    LengthImagesList = length(ImagesList);
+    for i = 1:LengthImagesList
+       tmp_img = imread(fullfile(parameters.ImageFolder, ImagesList(i,1).name));
+       Field = imvignette(tmp_img, Field);
+    end
+    Field = imvignette(Field);
+    Field = fPixelAccuracy(Field);
+    Field = Field./mean(Field(:));
+    Field = Field(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+
+    %{
     DirList = dir(['VIGNETTINGFUNCTION' filesep '*.mat']);
     if isempty(DirList)
         disp('In the folder called VIGNETTINGFUNCTION there is not a file ".mat" related to the vignetting function.')
@@ -96,11 +132,12 @@ if parameters.flag_FlatField == 1
         Struttura = load(['VIGNETTINGFUNCTION' filesep DirList(1).name]);
         copyfile(['VIGNETTINGFUNCTION' filesep DirList(1).name], ['OUTPUT' filesep DirList(1).name]);
         Field = cell2mat(struct2cell(Struttura));
-        Field = feval(fPixelAccuracy, Field);
+        Field = fPixelAccuracy(Field);
         Field = Field./mean(Field(:));
         Field = Field(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
     end
     clear Struttura DirList
+    %}
 end
 
 %GLOBAL registration matrices loading:
@@ -122,15 +159,24 @@ end
 %Reference image loading and pre-processing
 strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(start_index));
 if strcmp(ImageFormat, '.mat')
-    referenceFrame = load([parameters.ImageFolder parameters.ImageBaseName strnum ImageFormat]);
+    referenceFrame = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
     referenceFrame = cell2mat(struct2cell(referenceFrame));
 else
-    referenceFrame = imread([parameters.ImageFolder parameters.ImageBaseName strnum ImageFormat]);
+    referenceFrame = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
 end
 referenceFrame = referenceFrame(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+norm_factor = 1;
+if isa(referenceFrame, 'uint16'); norm_factor = 255/(2^16-1); end
+if isa(referenceFrame, 'uint32'); norm_factor = 255/(2^32-1); end
+if isa(referenceFrame, 'uint64'); norm_factor = 255/(2^64-1); end
+referenceFrame  = norm_factor*double(referenceFrame);
+Field = norm_factor*Field;
+
+%{
 if isa(referenceFrame, 'uint16'); referenceFrame  = 255.*double(referenceFrame)./(2^16-1); end
 if isa(referenceFrame, 'uint32'); referenceFrame  = 255.*double(referenceFrame)./(2^32-1); end
 if isa(referenceFrame, 'uint64'); referenceFrame  = 255.*double(referenceFrame)./(2^64-1); end
+%}
 if parameters.flag_Color==0
     if size(referenceFrame, 3)~=1
         referenceFrame = rgb2gray(referenceFrame);
@@ -141,10 +187,10 @@ else
         parameters.flag_LookUpTable = 0;
     end
 end
-referenceFrame = feval(fPixelAccuracy, referenceFrame);
+referenceFrame = fPixelAccuracy(referenceFrame);
 if parameters.flag_FlatField == 1
     [referenceFrame LookUpTable] = FlatFieldCorrection(referenceFrame, Field, parameters.flag_LookUpTable, LookUpTable);
-    referenceFrame = feval(fPixelAccuracy, referenceFrame);
+    referenceFrame = fPixelAccuracy(referenceFrame);
 end
 
 %Mosaic initialization to referenceFrame 
@@ -195,7 +241,7 @@ while index < stop_index
             stop_index = index;
             Indeces = Indeces(1:end-1);
             ImageIndexs = parameters.ImageIndexs(Indeces);
-            save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+            %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
             break
         end
         if parameters.flag_SeekBestImages == 1
@@ -209,31 +255,34 @@ while index < stop_index
             stop_index = index;
             Indeces = Indeces(1:end-1);
             ImageIndexs = parameters.ImageIndexs(Indeces);
-            save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+            %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
             break
         end
 
         %Image to be stitched loading and pre-processing
         strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(end)));
         if strcmp(parameters.ImageFormat, '.mat')
-            unregistered = load([parameters.ImageFolder parameters.ImageBaseName strnum ImageFormat]);
+            unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
             unregistered = cell2mat(struct2cell(unregistered));
         else
-            unregistered = imread([parameters.ImageFolder parameters.ImageBaseName strnum ImageFormat]);
+            unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
         end
         unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+        unregistered = norm_factor*double(unregistered);
+        %{
         if isa(unregistered, 'uint16'); unregistered  = 255.*double(unregistered)./(2^16-1); end
         if isa(unregistered, 'uint32'); unregistered  = 255.*double(unregistered)./(2^32-1); end
         if isa(unregistered, 'uint64'); unregistered  = 255.*double(unregistered)./(2^64-1); end
+        %}
         if (parameters.flag_Color==0)
             if size(unregistered, 3)~=1
                 unregistered = rgb2gray(unregistered);
             end
         end
-        unregistered = feval(fPixelAccuracy, unregistered);
+        unregistered = fPixelAccuracy(unregistered);
         if parameters.flag_FlatField == 1
             [unregistered LookUpTable] = FlatFieldCorrection(unregistered, Field, parameters.flag_LookUpTable, LookUpTable);
-            unregistered = feval(fPixelAccuracy, unregistered);
+            unregistered = fPixelAccuracy(unregistered);
         end
 
         %Registration estimation or loading
@@ -247,8 +296,8 @@ while index < stop_index
                 else
                     ba = rgb2gray(uint8(base));
                     un = rgb2gray(uint8(unregistered));
-                    ba = feval(fPixelAccuracy, ba);
-                    un = feval(fPixelAccuracy, un);
+                    ba = fPixelAccuracy(ba);
+                    un = fPixelAccuracy(un);
                     HF2F = RegistrationMatrixByPhaseCorrelationOnly(ba, un, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
                     clear ba un
                 end
@@ -264,8 +313,8 @@ while index < stop_index
                 else
                     ba = rgb2gray(uint8(base));
                     un = rgb2gray(uint8(unregistered));
-                    ba = feval(fPixelAccuracy, ba);
-                    un = feval(fPixelAccuracy, un);
+                    ba = fPixelAccuracy(ba);
+                    un = fPixelAccuracy(un);
                     [PointsBase, PointsTracked] = PointsDetectionTracking(ba, un, numberCorners, flag_Harris, flag_PhaseCorrelation, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
                     clear ba un
                 end
@@ -316,7 +365,7 @@ while index < stop_index
                     clear regionOverlapped newunregistered LUT FrameOut
                 end
             end
-            clear base
+            %clear base
             base = unregisteredOld;
             clear unregisteredOld
             
@@ -332,8 +381,8 @@ while index < stop_index
                 else
                     unregisteredGrey    = rgb2gray(uint8(unregistered));      
                     MosaicGrey          = rgb2gray(uint8(Mosaic));
-                    unregisteredGrey    = feval(fPixelAccuracy, unregisteredGrey);
-                    MosaicGrey          = feval(fPixelAccuracy, MosaicGrey);
+                    unregisteredGrey    = fPixelAccuracy(unregisteredGrey);
+                    MosaicGrey          = fPixelAccuracy(MosaicGrey);
                     [newunregistered, regionOverlapped] = ImagesForFTM(MosaicGrey, unregisteredGrey, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);
                     clear unregisteredGrey MosaicGrey
                 end
@@ -409,8 +458,8 @@ while index < stop_index
         %}
             % The most computational expensive function is the following one. Optimization would be necessary.
             [Mosaic, MosaicOrigin, MaskOverlap, Corner_Position] = MosaicUpdating(Mosaic, unregistered, GLOBAL, parameters.flag_Blending, MosaicOrigin, MaskOverlap, parameters.InterpolationMode, parameters.RegistrationMode, NumberOfregisteredImages, Corner_Position);
-            clear MosaicMemory CurrentMemUsedMATLAB
         %{
+            clear MosaicMemory CurrentMemUsedMATLAB
         else
             disp(['STOP mosaic building: MemAvailableAllArrays is not sufficient for registering the image: ' parameters.ImageBaseName strnum]);
             warning('STOP mosaic building: MemAvailableAllArrays is not sufficient. Try to defragment your hard disk.')
@@ -434,7 +483,7 @@ end
 
 ImageIndexs = parameters.ImageIndexs(Indeces);
 parameters.ImageIndexs = ImageIndexs;
-save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+%save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
     
 if parameters.flag_ShowROIsingleImages == 1 || parameters.flag_SlideShow == 1
 %     Corner_Position = n times [Up Left Corner, U. Right C., Low R. C.,
@@ -478,7 +527,7 @@ if parameters.flag_ComputeMetrics == 1
         for i = 1:length(OverlapPercentage); OverlapRMSE(1:2,i) = [OverlapPercentage(i) RegistrationErrors{i}.RMSE]; end;
         OverlapRMSEmean = mean(OverlapRMSE');
         OverlapRMSEstd = std(OverlapRMSE');
-        save(['OUTPUT' filesep 'REGISTRATIONERROR.mat'], 'OverlapPercentage', 'RegistrationErrors', 'OverlapRMSE', 'OverlapRMSEmean', 'OverlapRMSEstd');
+        %save(['OUTPUT' filesep 'REGISTRATIONERROR.mat'], 'OverlapPercentage', 'RegistrationErrors', 'OverlapRMSE', 'OverlapRMSEmean', 'OverlapRMSEstd');
     end
     [MetricsTotal, MetricsSingleFrames] = MosaicAssessment(parameters, Mosaic, MaskOverlap, MatricesGLOBAL, MosaicOrigin, LookUpTable);
     numOfFrame = length(MetricsSingleFrames);
@@ -490,7 +539,7 @@ if parameters.flag_ComputeMetrics == 1
     end
     ValuesMean  = mean(ValuesTable);
     ValuesStd   = std(ValuesTable);
-    save(['OUTPUT' filesep 'METRICS.mat'], 'MetricsTotal', 'MetricsSingleFrames', 'ValuesTable', 'ValuesMean', 'ValuesStd');
+    %save(['OUTPUT' filesep 'METRICS.mat'], 'MetricsTotal', 'MetricsSingleFrames', 'ValuesTable', 'ValuesMean', 'ValuesStd');
 end
 
 %% MOSAIC POST PROCESSING: White Balancing.

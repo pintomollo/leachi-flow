@@ -1,4 +1,5 @@
 function [estim] = imvignette(img, stack)
+% IMVIGNETTE computes the vignette function according to Piccinini et al.
 
   if (nargin > 1)
     if (size(img, 3) > 1)
@@ -32,8 +33,6 @@ function [estim] = imvignette(img, stack)
 
     %% Creates artifacts at the edges, where its most important
     %estim = gaussian_mex(estim, 15);
-
-    estim = estim / mean(estim(:));
   end
 
   return;

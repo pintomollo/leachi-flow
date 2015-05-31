@@ -17,6 +17,7 @@ function install_leachi_flow
   addpath(current_dir);
   addpath(fullfile(current_dir, 'GUI'));
   addpath(fullfile(current_dir, 'MEX'));
+  addpath(fullfile(current_dir, 'MicroMos'));
   addpath(fullfile(current_dir, 'file_io'));
   addpath(fullfile(current_dir, 'helpers'));
   addpath(fullfile(current_dir, 'image_analysis'));
