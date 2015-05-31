@@ -62,9 +62,10 @@ function [mapped] = LKTracker( img1, img2, pts, shift)
         continue;
       end % if the window of a point is out of image bound
 
-      Ix = interp2(img1x,oX,oY); % notice the order of X and Y
-      Iy = interp2(img1y,oX,oY);
-      I1 = interp2(img1,oX,oY);
+      Ix = bilinear_mex(img1x,oX,oY); % notice the order of X and Y
+      Iy = bilinear_mex(img1y,oX,oY);
+      I1 = bilinear_mex(img1,oX,oY);
+
       %Ix = interp2(iX,iY,img1x(iY,iX),oX,oY); % notice the order of X and Y
       %Iy = interp2(iX,iY,img1y(iY,iX),oX,oY);
       %I1 = interp2(iX,iY,img1(iY,iX),oX,oY);
@@ -86,7 +87,7 @@ function [mapped] = LKTracker( img1, img2, pts, shift)
           break;
         end
 
-        It = interp2(img2,oX,oY) - I1;
+        It = bilinear_mex(img2,oX,oY) - I1;
 
         vel = mat \ It(:);
         xt = xt+vel(1);

@@ -58,8 +58,11 @@ else
     fPixelAccuracy = @single;
 end
 
-if (isempty(parameters.ImageFolder) || isempty(parameters.ImageBaseName))
+if (isempty(parameters.ImageFolder))
   parameters.ImageFolder = uigetdir('Movies','Select the directory containing the mosaic');
+end
+
+if (isempty(parameters.ImageBaseName))
   files = dir(fullfile(parameters.ImageFolder, '*'));
 
   fname = '';

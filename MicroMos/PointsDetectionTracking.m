@@ -112,7 +112,6 @@ indices = CheckPointsAndNAN(unregistered, detection_points2);
 detection_points = detection_points2(indices,:);
 clear indices detection_points2
 
-
 %% Phase Correlation
 
 if flag_PhaseCorrelation == 1
@@ -123,6 +122,23 @@ if flag_PhaseCorrelation == 1
     shift_yrow = shift_yrow*PCscaleFactor;
     clear base_dec unregistered_dec
 else
+    %{
+    tmp_unregistered = double(unregistered);
+    tmp_unregistered(isnan(unregistered)) = nanmean(tmp_unregistered(:));
+    detection_points1 = corner(tmp_unregistered, method, numberCorners);
+
+    dx = bsxfun(@minus, detection_points(:,1), detection_points1(:,1).');
+    dy = bsxfun(@minus, detection_points(:,2), detection_points1(:,2).');
+
+    dist = dx.^2 + dy.^2;
+
+    [val, indx1, indx2] = unique(dist(:));
+    indxs = find(indx2~=[indx2(2:end); 0]);
+    num = diff([indxs; length(indx2)])+1;
+
+    keyboard
+    %}
+
     shift_xcol = 0;
     shift_yrow = 0;
 end
