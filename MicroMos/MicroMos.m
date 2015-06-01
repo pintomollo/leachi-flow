@@ -68,7 +68,12 @@ if (isempty(parameters.ImageBaseName))
   fname = '';
   for i=1:length(files)
     if (files(i).name(1)~='.')
-      if (isempty(fname))
+      if (files(i).isdir)
+        tmp_params = parameters;
+        tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
+        disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
+        MicroMos(tmp_params);
+      elseif (isempty(fname))
         fname = files(i).name;
       else
         fname = common_substring(fname, files(i).name);
@@ -107,7 +112,9 @@ if isempty(parameters.ImageIndexs)
         parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
     end
 end
-    
+
+disp('MicroMos: START.');
+
 start_index = 1;
 stop_index = length(parameters.ImageIndexs);
 
@@ -207,7 +214,6 @@ base = referenceFrame;
 clear referenceFrame
 index = start_index;
 Indeces = index;
-disp('MicroMos: START.');
 NumberOfregisteredImages = 1;
 while index < stop_index
 
@@ -567,6 +573,28 @@ if parameters.flag_WhiteBalancing > 0
             Mosaic = RGBWhiteBalancing(Mosaic, Mosaic, -3);
         end
     end
+end
+
+if (nargout == 0)
+  if (norm_factor == 255/(2^16-1))
+    Mosaic = uint16(Mosaic);
+  elseif (norm_factor == 255/(2^32-1))
+    Mosaic = uint32(Mosaic);
+  elseif (norm_factor == 255/(2^64-1))
+    Mosaic = uint64(Mosaic);
+  else
+    Mosaic = uint8(Mosaic);
+  end
+
+  Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+
+  fname = parameters.ImageFolder;
+  if (fname(end) == filesep)
+    fname = fname(1:end-1);
+  end
+  fname = [fname ImageFormat];
+
+  imwrite(Mosaic, fname, ImageFormat(2:end));
 end
 
 disp('MicroMos: THE END.');
