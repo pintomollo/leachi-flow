@@ -309,16 +309,15 @@ while index < stop_index
                 %% CORNER POINTS ESTIMATION
                 numberCorners = 150;
                 flag_Harris = 0;
-                flag_PhaseCorrelation = 1;
 
                 if (parameters.flag_Color==0)
-                    [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, flag_PhaseCorrelation, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                    [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
                 else
                     ba = rgb2gray(uint8(base));
                     un = rgb2gray(uint8(unregistered));
                     ba = fPixelAccuracy(ba);
                     un = fPixelAccuracy(un);
-                    [PointsBase, PointsTracked] = PointsDetectionTracking(ba, un, numberCorners, flag_Harris, flag_PhaseCorrelation, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                    [PointsBase, PointsTracked] = PointsDetectionTracking(ba, un, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
                     clear ba un
                 end
 
@@ -330,7 +329,7 @@ while index < stop_index
                     continue
                 end
 
-                clear numberCorners flag_Harris flag_PhaseCorrelation decFactorPC
+                clear numberCorners flag_Harris decFactorPC
 
                 %% FRAME-TO-FRAME REGISTRATION MATRIX ESTIMATION
                 try        
@@ -392,11 +391,10 @@ while index < stop_index
 
                 numberCorners = 150;
                 flag_Harris = 0;
-                flag_PhaseCorrelation = 0;
 
-                [PointsBase, PointsTracked] = PointsDetectionTracking(double(newunregistered), double(regionOverlapped), numberCorners, flag_Harris, flag_PhaseCorrelation, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                [PointsBase, PointsTracked] = PointsDetectionTracking(double(newunregistered), double(regionOverlapped), numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
                 clear newunregistered regionOverlapped
-                clear numberCorners flag_Harris flag_PhaseCorrelation decFactorPC
+                clear numberCorners flag_Harris decFactorPC
 
                 if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
                     % a problem happened. If possible another image to be registered will be defined.

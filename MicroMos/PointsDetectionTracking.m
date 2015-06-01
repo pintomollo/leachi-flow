@@ -1,4 +1,4 @@
-function [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, flag_PhaseCorrelation, flag_PCglobalORlocal, PCscaleFactor) 
+function [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, ShiftEstimationMode, flag_PCglobalORlocal, PCscaleFactor) 
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 29 March 2013
 % NAME: PointsDetectionTracking
@@ -114,31 +114,17 @@ clear indices detection_points2
 
 %% Phase Correlation
 
-if flag_PhaseCorrelation == 1
+if ShiftEstimationMode == 1
     base_dec = base(1:PCscaleFactor:rows,1:PCscaleFactor:columns);
     unregistered_dec = unregistered(1:PCscaleFactor:rows,1:PCscaleFactor:columns);
     [shift_xcol, shift_yrow] = ShiftByPhaseCorrelation(flag_PCglobalORlocal, base_dec(:,:,1), unregistered_dec(:,:,1));
     shift_xcol = shift_xcol*PCscaleFactor;
     shift_yrow = shift_yrow*PCscaleFactor;
     clear base_dec unregistered_dec
+elseif ShiftEstimationMode == 2
+    ClusteringThreshold = 1;
+    [shift_xcol, shift_yrow] = ShiftByCornerClustering(detection_points, unregistered, method, numberCorners, ClusteringThreshold);
 else
-    %{
-    tmp_unregistered = double(unregistered);
-    tmp_unregistered(isnan(unregistered)) = nanmean(tmp_unregistered(:));
-    detection_points1 = corner(tmp_unregistered, method, numberCorners);
-
-    dx = bsxfun(@minus, detection_points(:,1), detection_points1(:,1).');
-    dy = bsxfun(@minus, detection_points(:,2), detection_points1(:,2).');
-
-    dist = dx.^2 + dy.^2;
-
-    [val, indx1, indx2] = unique(dist(:));
-    indxs = find(indx2~=[indx2(2:end); 0]);
-    num = diff([indxs; length(indx2)])+1;
-
-    keyboard
-    %}
-
     shift_xcol = 0;
     shift_yrow = 0;
 end
