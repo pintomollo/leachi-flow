@@ -9,5 +9,7 @@ function sizes = factorize_grid(nelems)
     end
   end
 
+  sizes = unique([sizes; sizes(:,[2 1])],'rows');
+
   return;
 end

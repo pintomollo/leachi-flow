@@ -1,4 +1,4 @@
-function [Mosaic, MaskOverlap, MatricesGLOBAL] = MicroMos(parameters)
+function [Mosaic, MaskOverlap, MatricesGLOBAL] = MicroMos(varargin)
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 03 July 2013
 % NAME: MicroMos
@@ -41,8 +41,31 @@ function [Mosaic, MaskOverlap, MatricesGLOBAL] = MicroMos(parameters)
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
 % General Public License for more details.
 
-if (nargin == 0 || isempty(parameters))
+% Inputs processing
+if (length(varargin) > 0 && isstruct(varargin{1}))
+  parameters = update_structure(varargin{1}, 'MicroMos');
+  varargin(1) = [];
+else
   parameters = get_struct('MicroMos');
+end
+
+% Now we check that the parameters were provided in pairs
+npairs = length(varargin) / 2;
+if (npairs ~= floor(npairs))
+  error 'Properties pairs must come in PAIRS.';
+end
+
+% Loop over the pairs of parameters
+for i = 1:npairs
+  % If the parameter exists in opts we simply assign it the
+  % provided value
+  if (isfield(parameters, varargin{2*i - 1}))
+    parameters.(varargin{2*i - 1}) = varargin{2*i};
+
+  % Or ignore it !
+  else
+    warning(['Property ''' varargin{2*i -1} ''' does not exist. Ignoring']);
+  end
 end
 
 %% PARAMETERS SETTTING
@@ -111,6 +134,11 @@ if isempty(parameters.ImageIndexs)
         CurrentImageIndex = str2num(StringNameImage1(PositionLastPoint-length(CharactersNumber):PositionLastPoint-1));
         parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
     end
+end
+
+% Determine the acquisition grid
+if (parameters.flag_GriddedAcquisition)
+  grid = DefineAcquisitionGrid(parameters);
 end
 
 disp('MicroMos: START.');
