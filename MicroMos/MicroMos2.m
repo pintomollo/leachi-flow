@@ -71,7 +71,6 @@ end
 %% PARAMETERS SETTTING
 GLOBAL = eye(3,3);
 MatricesGLOBAL = GLOBAL;
-MosaicOrigin = [0 0];
 LookUpTable = NaN.*ones(4,256);
 
 if parameters.PixelAccuracy == 0
@@ -370,9 +369,11 @@ end
 % MOSAIC CREATION
 
 %Mosaic initialization to referenceFrame 
-Mosaic = referenceFrame;
+Mosaic = [];
 MaskOverlap = [];
-Corner_Position = [[0,0,1]',[size(Mosaic,2)-1,0,1]',[size(Mosaic,2)-1,size(Mosaic,1)-1,1]',[0,size(Mosaic,1)-1,1]',[MosaicOrigin(1), MosaicOrigin(2),1]'];
+MosaicOrigin = [0 0];
+%Corner_Position = [[0,0,1]',[size(Mosaic,2)-1,0,1]',[size(Mosaic,2)-1,size(Mosaic,1)-1,1]',[0,size(Mosaic,1)-1,1]',[MosaicOrigin(1), MosaicOrigin(2),1]'];
+Corner_Position = NaN(3,0);
 
 for i=1:NumberOfregisteredImages
 
@@ -414,7 +415,7 @@ for i=1:NumberOfregisteredImages
     end
 
     %% FRAME-TO-MOSAIC REGISTRATION MATRIX ESTIMATION
-    if parameters.flag_FrameToMosaic == 1
+    if parameters.flag_FrameToMosaic == 1 && ~isempty(Mosaic)
         if (parameters.flag_Color==0)
             [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);        
         else
@@ -441,15 +442,7 @@ for i=1:NumberOfregisteredImages
             continue
         end
 
-        try        
-            [HF2M, inliersF2M] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
-        catch ME1
-            % a problem happened. If possible another image to be registered will be defined.
-            disp(['Frame-to-mosaic registration: problem in the model parameters estimation. It tryed to register the image: "' parameters.ImageBaseName strnum '" .'])
-            flag_Problem = 1;
-            TestNumber = TestNumber + 1;
-            continue
-        end
+        [HF2M, inliersF2M] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
         clear PointsBase PointsTracked
 
         if isempty(HF2M) | size(HF2M) ~= [3, 3]
@@ -463,7 +456,6 @@ for i=1:NumberOfregisteredImages
         GLOBAL = GLOBAL*HF2M;
         clear HF2M inliersF2M
     end
-
 
     %% Mosaic Updating 
     % The most computational expensive function is the following one. Optimization would be necessary.

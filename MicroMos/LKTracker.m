@@ -7,8 +7,7 @@ function [mapped] = LKTracker( img1, img2, pts, shift)
 % Adapted from http://www.mathworks.com/matlabcentral/fileexchange/30822
 
   winR = 5;
-  th = .5;
-  %th = .01;
+  th = .01;
   maxIter = 20;
   minImgSz = 64; % if pyramid level is too high, corners may be blurred
   maxPyrLevel = floor(log2(min(size(img1))/minImgSz));

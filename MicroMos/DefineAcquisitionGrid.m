@@ -52,10 +52,22 @@ function grid = DefineAcquisitionGrid(parameters)
 
     img1 = load_img(vindx(1));
     img2 = load_img(vindx(2));
-    [v1, v2] = correl_edges(img1.', img2.', thresh);
-    overlap = max(v1, v2);
+    estims = correl_edges(img1.', img2.', thresh)
+
+    if (isnan(estims))
+      continue
+    end
+
+    overlap = max(estims);
     vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
     vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+
+    vpoints2 = LKTracker(img1, img2, vpoints, [0 img_size(1)-mean(estims)]);
+    indices2 = CheckPointsAndNAN(img2, vpoints2);
+    vpoints2 = vpoints2(indices2,:);
+    vpoints = vpoints(indices2,:);
+
+    vshift = mean(vpoints - vpoints2);
 
     horz_dist = data(:,1:end-1) + data(:,2:end);
     [rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
@@ -63,10 +75,23 @@ function grid = DefineAcquisitionGrid(parameters)
 
     img1 = load_img(hindx(1));
     img2 = load_img(hindx(2));
-    [h1, h2] = correl_edges(img1, img2, thresh);
-    overlap = max(h1, h2);
+    estims = correl_edges(img1, img2, thresh)
+
+    if (isnan(estims))
+      continue
+    end
+
+    overlap = max(estims);
     hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
     hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
+
+    hpoints2 = LKTracker(img1, img2, hpoints, [img_size(2)-mean(estims) 0]);
+    indices2 = CheckPointsAndNAN(img2, hpoints2);
+    hpoints2 = hpoints2(indices2,:);
+    hpoints = hpoints(indices2,:);
+
+    hshift = mean(hpoints - hpoints2);
+
 
     keyboard
   end
@@ -91,7 +116,9 @@ function grid = DefineAcquisitionGrid(parameters)
   end
 end
 
-function [max1, max2] = correl_edges(img1, img2, thresh)
+function [maxs] = correl_edges(img1, img2, thresh)
+
+  maxs = [];
 
   img1 = bsxfun(@minus, img1, mean(img1, 1));
   img2 = bsxfun(@minus, img2, mean(img2, 1));
@@ -101,16 +128,18 @@ function [max1, max2] = correl_edges(img1, img2, thresh)
 
   [val, max1] = max(corr1);
 
-  if (val < thresh)
-    max1 = NaN;
+  if (val >= thresh || mean(corr1 > thresh) <= 0.25)
+    maxs = max1;
   end
 
   [val, max2] = max(corr2);
 
-  if (val < thresh)
-    max2 = NaN;
+  if (val < thresh || mean(corr2 > thresh) > 0.25)
+    if (isempty(maxs))
+      maxs = NaN;
+    end
   else
-    max2 = length(corr2) - max2 + 1;
+    maxs = [maxs length(corr2) - max2 + 1];
   end
 
   return;

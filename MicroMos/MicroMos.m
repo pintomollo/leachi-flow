@@ -41,6 +41,10 @@ function [Mosaic, MaskOverlap, MatricesGLOBAL] = MicroMos(varargin)
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
 % General Public License for more details.
 
+mem_log = cell(0, 2);
+mem_log{end+1, 1} = whos();
+mem_log{end, 2} = cputime;
+
 % Inputs processing
 if (length(varargin) > 0 && isstruct(varargin{1}))
   parameters = update_structure(varargin{1}, 'MicroMos');
@@ -142,6 +146,8 @@ if (parameters.flag_GriddedAcquisition)
 end
 
 disp('MicroMos: START.');
+mem_log{end+1} = whos();
+mem_log{end, 2} = cputime;
 
 start_index = 1;
 stop_index = length(parameters.ImageIndexs);
@@ -236,6 +242,8 @@ Mosaic = referenceFrame;
 Corner_Position = [[0,0,1]',[size(Mosaic,2)-1,0,1]',[size(Mosaic,2)-1,size(Mosaic,1)-1,1]',[0,size(Mosaic,1)-1,1]',[MosaicOrigin(1), MosaicOrigin(2),1]'];
 
 %% MOSAIC UPDATING 
+mem_log{end+1} = whos();
+mem_log{end, 2} = cputime;
 
 %Cycle for each image to be stitched
 base = referenceFrame;
@@ -514,6 +522,9 @@ while index < stop_index
     end
     index = Indeces(end);
     NumberOfregisteredImages = NumberOfregisteredImages + 1;
+
+    mem_log{end+1} = whos();
+    mem_log{end, 2} = cputime;
 end
 
 ImageIndexs = parameters.ImageIndexs(Indeces);
@@ -624,5 +635,8 @@ if (nargout == 0)
 
   imwrite(Mosaic, fname, ImageFormat(2:end));
 end
+mem_log{end+1} = whos();
+mem_log{end, 2} = cputime;
+save('mem_usage.mat', 'mem_log');
 
 disp('MicroMos: THE END.');
