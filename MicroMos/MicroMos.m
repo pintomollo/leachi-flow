@@ -634,6 +634,7 @@ if (nargout == 0)
   fname = [fname ImageFormat];
 
   imwrite(Mosaic, fname, ImageFormat(2:end));
+  clear Mosaic
 end
 mem_log{end+1} = whos();
 mem_log{end, 2} = cputime;

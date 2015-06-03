@@ -177,6 +177,15 @@ if parameters.flag_ComputeRegistrations ~= 1
     Indeces = [1:NumberOfregisteredImages];
 
     disp(['Registration of ' num2str(NumberOfregisteredImages) ' frames loaded.']);
+
+    %Reference image loading for RGB info
+    strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(start_index));
+    if strcmp(ImageFormat, '.mat')
+        referenceFrame = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+        referenceFrame = cell2mat(struct2cell(referenceFrame));
+    else
+        referenceFrame = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+    end
 else
 
   %% INITIALIZATION OF THE MOSAIC
@@ -217,7 +226,6 @@ else
 
   %Cycle for each image to be stitched
   base = referenceFrame;
-  clear referenceFrame
   index = start_index;
   Indeces = index;
   NumberOfregisteredImages = 1;
@@ -366,14 +374,20 @@ else
   end
 end
 
+[nrows, ncols, nchannels] = size(referenceFrame);
+is_rgb = (nchannels~=1);
+
 % MOSAIC CREATION
+disp('Building the mosaic...')
 
 %Mosaic initialization to referenceFrame 
-Mosaic = [];
-MaskOverlap = [];
-MosaicOrigin = [0 0];
+[Mosaic, MaskOverlap, MosaicOrigin] = InitMosaic([nrows, ncols, nchannels], MatricesGLOBAL);
+%Mosaic = NaN([0 0 nchannels]);
+%MaskOverlap = [];
+%MosaicOrigin = [0 0];
 %Corner_Position = [[0,0,1]',[size(Mosaic,2)-1,0,1]',[size(Mosaic,2)-1,size(Mosaic,1)-1,1]',[0,size(Mosaic,1)-1,1]',[MosaicOrigin(1), MosaicOrigin(2),1]'];
-Corner_Position = NaN(3,0);
+%Corner_Position = NaN(3,0);
+keyboard
 
 for i=1:NumberOfregisteredImages
 
@@ -382,6 +396,8 @@ for i=1:NumberOfregisteredImages
 
     %Image to be stitched loading and pre-processing
     strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(i)));
+    disp(['Blending in ' parameters.ImageBaseName strnum '...']);
+
     if strcmp(parameters.ImageFormat, '.mat')
         unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
         unregistered = cell2mat(struct2cell(unregistered));
@@ -393,6 +409,7 @@ for i=1:NumberOfregisteredImages
     if (parameters.flag_Color==0)
         if size(unregistered, 3)~=1
             unregistered = rgb2gray(unregistered);
+            is_rgb = true;
         end
     end
     unregistered = fPixelAccuracy(unregistered);
@@ -404,9 +421,9 @@ for i=1:NumberOfregisteredImages
     %% BLEACHING CORRECTION
     %clear base
     %base = unregistered;
-    if parameters.flag_BleachingCorrection == 1
-        for c = 1:size(Mosaic,3)
-            [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic(:,:,c), unregistered(:,:,c), GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);        
+    if parameters.flag_BleachingCorrection == 1 && i>1
+        for c = 1:nchannels
+            [newunregistered, regionOverlapped] = ImagesForFTM2(Mosaic(:,:,c), unregistered(:,:,c), GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);        
             LUT = BleachingLUTbuild(regionOverlapped, newunregistered);
             FrameOut = BleachingLUTuse(unregistered(:,:,c), LUT);
             unregistered(:,:,c) = FrameOut;
@@ -415,15 +432,15 @@ for i=1:NumberOfregisteredImages
     end
 
     %% FRAME-TO-MOSAIC REGISTRATION MATRIX ESTIMATION
-    if parameters.flag_FrameToMosaic == 1 && ~isempty(Mosaic)
+    if parameters.flag_FrameToMosaic == 1 && i>1
         if (parameters.flag_Color==0)
-            [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);        
+            [newunregistered, regionOverlapped] = ImagesForFTM2(Mosaic, unregistered, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);        
         else
             unregisteredGrey    = rgb2gray(uint8(unregistered));      
             MosaicGrey          = rgb2gray(uint8(Mosaic));
             unregisteredGrey    = fPixelAccuracy(unregisteredGrey);
             MosaicGrey          = fPixelAccuracy(MosaicGrey);
-            [newunregistered, regionOverlapped] = ImagesForFTM(MosaicGrey, unregisteredGrey, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);
+            [newunregistered, regionOverlapped] = ImagesForFTM2(MosaicGrey, unregisteredGrey, GLOBAL, MosaicOrigin, parameters.InterpolationMode, parameters.RegistrationMode);
             clear unregisteredGrey MosaicGrey
         end
 
@@ -459,9 +476,8 @@ for i=1:NumberOfregisteredImages
 
     %% Mosaic Updating 
     % The most computational expensive function is the following one. Optimization would be necessary.
-    [Mosaic, MosaicOrigin, MaskOverlap, Corner_Position] = MosaicUpdating(Mosaic, unregistered, GLOBAL, parameters.flag_Blending, MosaicOrigin, MaskOverlap, parameters.InterpolationMode, parameters.RegistrationMode, NumberOfregisteredImages, Corner_Position);
+    [Mosaic, MosaicOrigin, MaskOverlap] = MosaicUpdating2(Mosaic, unregistered, GLOBAL, parameters.flag_Blending, MosaicOrigin, MaskOverlap, parameters.InterpolationMode, parameters.RegistrationMode, NumberOfregisteredImages, NaN(3,0));
 end
-
 
 ImageIndexs = parameters.ImageIndexs(Indeces);
 parameters.ImageIndexs = ImageIndexs;
@@ -513,6 +529,43 @@ if (nargout == 0)
   fname = [fname ImageFormat];
 
   imwrite(Mosaic, fname, ImageFormat(2:end));
+  clear Mosaic
 end
 
 disp('MicroMos: THE END.');
+end
+
+function [Mosaic, MaskOverlap, MosaicOrigin] = InitMosaic(img_size, MatricesGLOBAL)
+
+  nimgs = size(MatricesGLOBAL, 3);
+  height = [0 0];
+  width = [0 0];
+
+  for i=1:nimgs
+    GLOBAL = MatricesGLOBAL(:,:,i);
+
+    ULC=GLOBAL*[0;0;1];
+    ULC=ULC./ULC(3);
+    DLC=GLOBAL*[0;img_size(1)-1;1];
+    DLC=DLC./DLC(3);
+    DRC=GLOBAL*[img_size(2)-1;img_size(1)-1;1];
+    DRC=DRC./DRC(3);
+    URC=GLOBAL*[img_size(2)-1;0;1];
+    URC=URC./URC(3);
+
+    limits = [ULC DLC DRC URC];
+    width(1) = min([limits(1,:), width(1)]);
+    width(2) = max([limits(1,:), width(2)]);
+    height(1) = min([limits(2,:), height(1)]);
+    height(2) = max([limits(2,:), height(2)]);
+  end
+
+  width = width + nimgs*[-1 1];
+  height = height + nimgs*[-1 1];
+
+  Mosaic = NaN([ceil(diff(height)) ceil(diff(width)) img_size(3)]);
+  MaskOverlap = zeros(size(Mosaic, 1), size(Mosaic, 2), 'uint8');
+  MosaicOrigin = -round([width(1) height(1)]);
+
+  return;
+end
