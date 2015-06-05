@@ -510,6 +510,7 @@ if parameters.flag_WhiteBalancing > 0
     end
 end
 
+% Convert back to the proper type, adjust and save if need be
 if (nargout == 0)
   if (norm_factor == 255/(2^16-1))
     Mosaic = uint16(Mosaic);

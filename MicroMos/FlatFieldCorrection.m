@@ -53,37 +53,62 @@ if nargin < 4
     flag_LookUpTable = 0;
 end
 
+% Store the saturated pixels
 satPix = (ImageI==255);
+
+% Compute the actual corrected image
 ImageO = bsxfun(@rdivide, ImageI, Field);
 
-if flag_LookUpTable == 1
+% Some specifics if we are using a lookup table
+if flag_LookUpTable == 1 && c>1
+
+    % We actually use the grayed image to get the index values
     ImageIgrey = rgb2gray(uint8(ImageI));
     ImageOgrey = double(ImageIgrey)./Field;
     ImageOgrey(ImageIgrey==255) = 255; ImageOgrey(ImageIgrey<0) = 0;
     ImageOgrey(ImageOgrey>255)  = 255; ImageOgrey(ImageOgrey<0) = 0;
 
+    % Sort the current gray levels
     ImageOgrey = uint8(ImageOgrey);
     [vals, indx1, indx2] = unique(ImageOgrey(:));
     vindx = vals(indx2);
     clear ImageIgrey ImageOgrey;
 
+    % Are there any new levels ?
     news = isnan(LookUpTable(1,vals+1));
     if (any(news))
+
+      % Isolate the new values
       nvals = vals(news);
+
+      % Get which pixels they correspond to
       new_indxs = ismember(vindx, nvals);
 
+      % Get the RGB channels of the image
       ImageO = reshape(ImageO, [m*n c]);
+
+      % Average the RGB corresponding to new individual gray levels
       [RGBs] = mymean(ImageO(new_indxs,:), 1, indx2(new_indxs));
 
+      % The full Lookup values
       RGBs = [RGBs double(nvals)].';
 
+      % Make sure we don't get too excited
+      RGBs(RGBs>255) = 255;
+      RGBs(RGBs<0) = 0;
+
+      % Store the new ones
       LookUpTable(:,nvals+1) = RGBs;
     end
 
+    % Retrieve the new values from the lookup table
     ImageO = LookUpTable(1:3,vals(indx2)+1).';
     ImageO = reshape(ImageO, [m n c]);
+
+    % Fix the saturated values
     ImageO(satPix) = 255;
 else
+    % Otherwise, just bound the obtained values
     ImageO(satPix | ImageO>255) = 255;
     ImageO(ImageI <0 | ImageO <0) = 0;
 end
