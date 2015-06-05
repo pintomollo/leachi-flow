@@ -131,6 +131,18 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
+  if (exist('imwarp_mex') ~= 3)
+    try
+      if (~did_setup)
+        mex -setup;
+      end
+      eval(['mex' mexopts ' imwarp_mex.c']);
+      did_setup = true;
+    catch ME
+      cd(root_dir);
+      error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
+    end
+  end
   if (exist('cluster_vector_mex') ~= 3)
     try
       if (~did_setup)

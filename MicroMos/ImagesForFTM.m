@@ -1,4 +1,4 @@
-function [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, InterpolationMode, RegistrationMode)
+function [unregistered, Mosaic] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, RegistrationMode)
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 29 March 2013
 % NAME: ImagesForFTM
@@ -23,9 +23,6 @@ function [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered
 %  MosaicOrigin     x-y coordinate (x-y coordinate means the column-row
 %                   coordinate) in the current "Mosaic" of the ULC (Up 
 %                   Left Corner) of the first image stitched.
-%  InterpolationMode    Interpolation used to warp the image to be 
-%                   stitched. It can be: 'bicubic' or 'bilinear'
-%                   (suggested) or 'nearest'.
 %  RegistrationMode     To pre-fix the registration model that must be 
 %                   used to register the image "unregistered". The 
 %                   registration model can be chosen between 0 (projective,
@@ -69,50 +66,14 @@ else
     modello = 'projective';
 end
 
-% U = Up; D = Down; L = Left; R = Right; C = Corner. 
-ULC=GLOBAL*[0;0;1];
-ULC=ULC./ULC(3);
-DLC=GLOBAL*[0;rowsU-1;1];
-DLC=DLC./DLC(3);
-DRC=GLOBAL*[columnsU-1;rowsU-1;1];
-DRC=DRC./DRC(3);
-URC=GLOBAL*[columnsU-1;0;1];
-URC=URC./URC(3);
+% Warping
+unregistered = myimtransform(unregistered, modello, GLOBAL, [columnsMosaic rowsMosaic], MosaicOrigin);
 
-%Maximum Bounding Box
-Xmin = (min([MosaicOrigin(1),ULC(1),DLC(1)])); %ceil
-Xmax = (max([columnsMosaic-1+MosaicOrigin(1),URC(1),DRC(1)])); % floor
-Ymin = (min([MosaicOrigin(2),ULC(2),URC(2)])); % ceil
-Ymax = (max([rowsMosaic-1+MosaicOrigin(2),DLC(2),DRC(2)])); % floor
-XminI = floor(Xmin);
-XmaxI = ceil(Xmax);
-YminI = floor(Ymin);
-YmaxI = ceil(Ymax);
+% Current location of the warped image
+warped = ~isnan(unregistered);
+warpedx = any(warped,1);
+warpedy = any(warped,2);
 
-unregisteredWarped = myimtransform(unregistered, modello, GLOBAL, [XminI XmaxI], [YminI YmaxI]);
-%unregisteredWarped = imtransform(double(unregistered), maketform(modello,GLOBAL'), InterpolationMode, ...
-%    'XData',[XminI XmaxI],'YData',[YminI YmaxI],...
-%    'XYScale',[1],...
-%    'UData',[0 columnsU-1],'VData',[0 rowsU-1],...
-%    'fill', NaN);    
-clear unregistered
-
-dx = XminI - MosaicOrigin(1);
-dy = YminI - MosaicOrigin(2);
-ox = dx;
-oy = dy;
-
-%Mosaic copied in the new Bounding Box. Always "nearest" interpolation.
-newMosaic = myimtransform(Mosaic, [ox XmaxI-XminI+ox], [oy YmaxI-YminI+oy]);
-%newMosaic = imtransform(Mosaic, maketform('affine',eye(3)), 'nearest',...
-%    'XData',[ox XmaxI-XminI+ox],'YData',[oy YmaxI-YminI+oy],...
-%    'XYScale',[1],...
-%    'UData',[0 columnsMosaic-1],'VData',[0 rowsMosaic-1],...
-%    'fill', NaN); 
-
-[ro, co] = find(isnan(unregisteredWarped)==0);
-ULCrc = [min(ro), min(co)];
-DRCrc = [max(ro), max(co)];
-
-newunregistered     = unregisteredWarped(ULCrc(1):DRCrc(1), ULCrc(2):DRCrc(2), :);
-regionOverlapped    = newMosaic(ULCrc(1):DRCrc(1), ULCrc(2):DRCrc(2), :);
+% Sub-image
+unregistered     = unregistered(warpedy,warpedx,:);
+Mosaic    = Mosaic(warpedy,warpedx,:);

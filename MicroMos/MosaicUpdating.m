@@ -1,4 +1,4 @@
-function [Mosaic, MosaicOrigin, MaskOverlap, Corner_Position] = MosaicUpdating(Mosaic, unregistered, GLOBAL, flag_Blending, MosaicOrigin, MaskOverlap, InterpolationMode, RegistrationMode, index, Corner_Position)
+function [Mosaic] = MosaicUpdating(Mosaic, unregistered, GLOBAL, flag_Blending, MosaicOrigin, RegistrationMode)
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 29 March 2013
 % NAME: MosaicUpdating
@@ -92,93 +92,54 @@ else
     modello = 'projective';
 end
 
-% U = Up; D = Down; L = Left; R = Right; C = Corner. 
-ULC=GLOBAL*[0;0;1];
-ULC=ULC./ULC(3);
-DLC=GLOBAL*[0;rowsU-1;1];
-DLC=DLC./DLC(3);
-DRC=GLOBAL*[columnsU-1;rowsU-1;1];
-DRC=DRC./DRC(3);
-URC=GLOBAL*[columnsU-1;0;1];
-URC=URC./URC(3);
+unregisteredWarped = myimtransform(unregistered, modello, GLOBAL, [columnsMosaic rowsMosaic], MosaicOrigin);
 
-%Maximum Bounding Box
-Xmin = (min([MosaicOrigin(1),ULC(1),DLC(1)])); %ceil
-Xmax = (max([columnsMosaic-1+MosaicOrigin(1),URC(1),DRC(1)])); % floor
-Ymin = (min([MosaicOrigin(2),ULC(2),URC(2)])); % ceil
-Ymax = (max([rowsMosaic-1+MosaicOrigin(2),DLC(2),DRC(2)])); % floor
-XminI = floor(Xmin);
-XmaxI = ceil(Xmax);
-YminI = floor(Ymin);
-YmaxI = ceil(Ymax);
-
-unregisteredWarped = myimtransform(unregistered, modello, GLOBAL, [XminI XmaxI], [YminI YmaxI]);
-%unregisteredWarped = imtransform(double(unregistered), maketform(modello,GLOBAL'), InterpolationMode, ...
-%    'XData',[XminI XmaxI],'YData',[YminI YmaxI],...
-%    'XYScale',[1],...
-%    'UData',[0 columnsU-1],'VData',[0 rowsU-1],...
-%    'fill', NaN);    
 clear unregistered
-
-dx = XminI - MosaicOrigin(1);
-dy = YminI - MosaicOrigin(2);
-ox = dx;
-oy = dy;
-
-MosaicOrigin = [XminI YminI];
-
-Mosaic = myimtransform(Mosaic, [ox XmaxI-XminI+ox], [oy YmaxI-YminI+oy]);
-
-%Mosaic copied in the new Bounding Box. Always "nearest" interpolation.
-%Mosaic = imtransform(Mosaic, maketform('affine',eye(3)), 'nearest',...
-%    'XData',[ox XmaxI-XminI+ox],'YData',[oy YmaxI-YminI+oy],...
-%    'XYScale',[1],...
-%    'UData',[0 columnsMosaic-1],'VData',[0 rowsMosaic-1],...
-%    'fill', NaN); 
-
-[rowsMosaic2, columnsMosaic2, channelsMosaic2] = size(Mosaic);
-
 
 %% BLENDING OF THE NEW IMAGE INTO THE OLD MOSAIC
 
-UnregisteredNotNANpos1  = find(isnan(unregisteredWarped(:,:,1))==0); %Not NaN positions
-MosaicOldNotNANpos1     = find(isnan(Mosaic(:,:,1))==0); %Not NaN positions
-OverlappingPositions1   = find(isnan(unregisteredWarped(:,:,1)+Mosaic(:,:,1))==0);
-MosaicNewPositions      = find(~isnan(unregisteredWarped(:,:,1)) & isnan(Mosaic(:,:,1))); 
+UnregisteredNotNAN  = ~isnan(unregisteredWarped); %Not NaN positions
+MosaicOldNotNAN     = ~isnan(Mosaic); %Not NaN positions
+
+no_data = ~any(MosaicOldNotNAN(:));
+
+OverlappingPositions = (UnregisteredNotNAN & MosaicOldNotNAN);
+MosaicNewPositions = (UnregisteredNotNAN & ~MosaicOldNotNAN);
+
+clear UnregisteredNotNAN MosaicOldNotNAN
+
+if (no_data)
+  flag_Blending = 0;
+end
 
 if flag_Blending==0 %Simple stitching without blending
-    for c = 1:channelsMosaic
-        MosaicCh = Mosaic(:,:,c);
-        unregisteredWarpedCh = unregisteredWarped(:,:,c);
-        MosaicCh(MosaicNewPositions) = unregisteredWarpedCh(MosaicNewPositions);
-        Mosaic(:,:,c) = MosaicCh;
-        clear MosaicCh unregisteredWarpedCh MosaicCh
-    end
+  Mosaic(MosaicNewPositions) = unregisteredWarped(MosaicNewPositions);
+
 elseif flag_Blending==1 %Biquadratic blending
-    
+
+    Mosaic(MosaicNewPositions) = unregisteredWarped(MosaicNewPositions);
+    unregisteredWarped = unregisteredWarped(OverlappingPositions);
+
     %Original biquadratic mask
     [X,Y] = meshgrid(0:columnsU-1,0:rowsU-1);
     BlendingOriginalMask = (1-((X-(columnsU-1)/2)./((columnsU-1)/2)).^2).*(1-((Y-(rowsU-1)/2)./((rowsU-1)/2)).^2);
     %Warped biquadratic mask
-    BlendingWarpedMask = myimtransform(BlendingOriginalMask, modello, GLOBAL, [XminI XmaxI], [YminI YmaxI]);
-    %BlendingWarpedMask = imtransform(double(BlendingOriginalMask), maketform(modello,GLOBAL'), InterpolationMode, ...
-    %    'XData',[XminI XmaxI],'YData',[YminI YmaxI],...
-    %    'XYScale',[1],...
-    %    'UData',[0 columnsU-1],'VData',[0 rowsU-1],...
-   %     'fill', NaN);
-    clear BlendingOriginalMask
-    
-    for c = 1:channelsMosaic
-        MosaicCh = Mosaic(:,:,c);
-        unregisteredWarpedCh = unregisteredWarped(:,:,c);
-        OverlappingRegionCh  = (1-BlendingWarpedMask(OverlappingPositions1)).*MosaicCh(OverlappingPositions1) + BlendingWarpedMask(OverlappingPositions1).*unregisteredWarpedCh(OverlappingPositions1);
-        MosaicCh(UnregisteredNotNANpos1) = unregisteredWarpedCh(UnregisteredNotNANpos1);
-        MosaicCh(OverlappingPositions1) = OverlappingRegionCh;
-        Mosaic(:,:,c) = MosaicCh;
-        clear MosaicCh OverlappingRegionCh unregisteredWarpedCh MosaicCh
-    end
-    
+    BlendingWarpedMask = myimtransform(BlendingOriginalMask, modello, GLOBAL, [columnsMosaic rowsMosaic], MosaicOrigin);
+    BlendingWarpedMask = repmat(BlendingWarpedMask, [1 1 channelsU]);
+    BlendingWarpedMask = BlendingWarpedMask(OverlappingPositions);
+    clear BlendingOriginalMask X Y
+
+    Mosaic(OverlappingPositions) = (1-BlendingWarpedMask).*Mosaic(OverlappingPositions) + BlendingWarpedMask.*unregisteredWarped;
+
+% Not optimized at all !!
 elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary values
+
+    UnregisteredNotNANpos1  = find(isnan(unregisteredWarped(:,:,1))==0); %Not NaN positions
+    MosaicOldNotNANpos1     = find(isnan(Mosaic(:,:,1))==0); %Not NaN positions
+
+    OverlappingPositions1   = find((isnan(unregisteredWarped(:,:,1)) | (~no_data & isnan(Mosaic(:,:,1))))==0);
+    MosaicNewPositions      = find(~isnan(unregisteredWarped(:,:,1)) & isnan(Mosaic(:,:,1))); 
+
 
     if flag_Blending==2
         BlendingComputationMode = 2;
@@ -187,7 +148,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
     end
     
     %Original boundary
-    MaskContourValue = zeros(rowsMosaic2, columnsMosaic2);
+    MaskContourValue = zeros(rowsMosaic, columnsMosaic);
     MaskContourValue(OverlappingPositions1) = 1;
     boundaryOriginal = bwboundaries(MaskContourValue,'noholes');
     numberRegions = length(boundaryOriginal);
@@ -195,9 +156,9 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
     if numberRegions>=1
         for r = 1:numberRegions
             BOriginal_yrow_xcol = boundaryOriginal{r};
-            BOriginal_indeces = sub2ind([rowsMosaic2, columnsMosaic2], BOriginal_yrow_xcol(:,1), BOriginal_yrow_xcol(:,2));
+            BOriginal_indeces = sub2ind([rowsMosaic, columnsMosaic], BOriginal_yrow_xcol(:,1), BOriginal_yrow_xcol(:,2));
             clear BOriginal_yrow_xcol
-            MaskContourValue = zeros(rowsMosaic2, columnsMosaic2);
+            MaskContourValue = zeros(rowsMosaic, columnsMosaic);
             MaskContourValue(BOriginal_indeces) = 1;
             MaskContourValue = imfill(MaskContourValue);
             OverlappingPositionsR_indeces = find(MaskContourValue==1);
@@ -207,7 +168,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
             MaskContourValue = imdilate(MaskContourValue,se);
             boundary = bwboundaries(MaskContourValue,'noholes');
             BOriginalDilated_yrow_xcol = boundary{1}; clear boundary
-            BOriginalDilated_indeces = sub2ind([rowsMosaic2, columnsMosaic2], BOriginalDilated_yrow_xcol(:,1), BOriginalDilated_yrow_xcol(:,2));
+            BOriginalDilated_indeces = sub2ind([rowsMosaic, columnsMosaic], BOriginalDilated_yrow_xcol(:,1), BOriginalDilated_yrow_xcol(:,2));
             clear BOriginalDilated_yrow_xcol
 
             %Mosaic external boundary
@@ -216,7 +177,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
             clear BMosaicExternal_indeces_positions
 
             %Original boundary near to mosaic external boundary
-            MaskContourValue = zeros(rowsMosaic2, columnsMosaic2);
+            MaskContourValue = zeros(rowsMosaic, columnsMosaic);
             MaskContourValue(BMosaicExternal_indeces) = 1;
             MaskContourValue = imdilate(MaskContourValue,se);
             BMosaicDilated_indeces = find(MaskContourValue==1);
@@ -226,7 +187,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
             clear BMosaicExternal_indeces BOriginalDilated_indeces
 
             %Mask building
-            MaskContourValue = zeros(rowsMosaic2, columnsMosaic2)-1;
+            MaskContourValue = zeros(rowsMosaic, columnsMosaic)-1;
             VOLD = 0; VNEW = 1; VROI = 2;
             MaskContourValue(OverlappingPositionsR_indeces) = VROI;
             MaskContourValue(BOriginal_indeces) = VNEW;
@@ -241,7 +202,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
             BlendingWarpedMask = BlendingLinearWithContourValues(MaskContourValue, VOLD, VNEW, VROI, BlendingComputationMode);
             clear MaskContourValue
 
-            for c = 1:channelsMosaic
+            for c = 1:channelsU
                 MosaicCh = Mosaic(:,:,c);
                 unregisteredWarpedCh = unregisteredWarped(:,:,c);
                 OverlappingRegionCh  = (1-BlendingWarpedMask(OverlappingPositionsR_indeces)).*MosaicCh(OverlappingPositionsR_indeces) + BlendingWarpedMask(OverlappingPositionsR_indeces).*unregisteredWarpedCh(OverlappingPositionsR_indeces);
@@ -250,7 +211,7 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
                 clear MosaicCh OverlappingRegionCh unregisteredWarpedCh MosaicCh
             end
         end
-        for c = 1:channelsMosaic
+        for c = 1:channelsU
             MosaicCh = Mosaic(:,:,c);
             unregisteredWarpedCh = unregisteredWarped(:,:,c);
             MosaicCh(UnregisteredNotNANpos1_Remaining) = unregisteredWarpedCh(UnregisteredNotNANpos1_Remaining);
@@ -261,21 +222,5 @@ elseif flag_Blending==2 || flag_Blending==3 %Blending linear with boundary value
 
 end
 
-
-%% UPDATING OF THE MaskOverlap
-
-if (isempty(MaskOverlap))
-    MaskOverlap = uint8(zeros(rowsMosaic2, columnsMosaic2, 1));
-else
-    MaskOverlap = myimtransform(MaskOverlap, [ox XmaxI-XminI+ox], [oy YmaxI-YminI+oy]);
-    %MaskOverlap = imtransform(MaskOverlap, maketform(modello,eye(3)), 'nearest', ... %Visto che qui è sempre uno shift intero metto subito 'nearest' per velocizzare
-    %    'XData',[ox XmaxI-XminI+ox],'YData',[oy YmaxI-YminI+oy],...
-    %    'XYScale',[1],...
-    %    'UData',[0 columnsMosaic-1],'VData',[0 rowsMosaic-1],...
-    %    'fill', NaN);
-end
-MaskOverlap(OverlappingPositions1) = index; 
-clear OverlappingPositions1
-
-Corner_Position = [Corner_Position, ULC, URC, DRC, DLC, [XminI YminI 1]'];
+return;
 end

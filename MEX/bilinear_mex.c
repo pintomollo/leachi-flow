@@ -8,9 +8,11 @@
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   // Declare variable
-  int i, xf, yf, xc, yc, boundary_x = 0, boundary_y = 0;
+  int i, j, xf, yf, xc, yc, boundary_x = 0, boundary_y = 0;
+  int offset_img, offset_values;
   double dxf, dyf, dxc, dyc, x, y, nanval;
-  mwSize w, h, m, n, nvals;
+  mwSize w, h, m, n, c, nvals, dims[3];
+  const mwSize *size;
   double *x_indx, *y_indx, *tmp, *img, *values;
   bool free_memory = false;
 
@@ -163,14 +165,25 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         "Input arguments must be of type double.");
   }
 
-  // Prepare the output
-  plhs[0] = mxCreateDoubleMatrix(m, n, mxREAL);
-  values = mxGetPr(plhs[0]);
-
   // The size of the image
-  h = mxGetM(prhs[0]);
-  w = mxGetN(prhs[0]);
+  size = mxGetDimensions(prhs[0]);
+  h = size[0];
+  w = size[1];
+  c = mxGetNumberOfElements(prhs[0]) / (h*w);
   img = mxGetPr(prhs[0]);
+
+  // Prepare the output
+  dims[0] = m;
+  dims[1] = n;
+  dims[2] = c;
+
+  // Some temporary values
+  offset_img = h*w;
+  offset_values = m*n;
+
+  // Create the array
+  plhs[0] = mxCreateNumericArray(3, dims, mxDOUBLE_CLASS, mxREAL);
+  values = mxGetPr(plhs[0]);
 
   // Precompute the value of NaN
   nanval = mxGetNaN();
@@ -289,14 +302,21 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     // Check whether all indexes are valid
     if (xf >= w || yf >= h || xc < 0 || yc < 0 || xc >= w || xf < 0 || yc >= h || yf < 0) {
-      values[i] = nanval;
+      // All channels of the input image
+      for (j=0; j < c; j++) {
+        values[i + j*offset_values] = nanval;
+      }
 
     // Compute the bilinear interpolation
     } else {
-      values[i] = img[xf*h + yf] * dxc * dyc +
-                  img[xc*h + yf] * dxf * dyc +
-                  img[xf*h + yc] * dxc * dyf +
-                  img[xc*h + yc] * dxf * dyf;
+      // All channels of the input image
+      for (j=0; j < c; j++) {
+        values[i + j*offset_values] =
+                    img[xf*h + yf + j*offset_img] * dxc * dyc +
+                    img[xc*h + yf + j*offset_img] * dxf * dyc +
+                    img[xf*h + yc + j*offset_img] * dxc * dyf +
+                    img[xc*h + yc + j*offset_img] * dxf * dyf;
+      }
     }
   }
 
