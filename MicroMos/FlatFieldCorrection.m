@@ -43,7 +43,9 @@ function  [ImageO, LookUpTable] = FlatFieldCorrection(ImageI, Field, flag_LookUp
 % MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU 
 % General Public License for more details.
 
-if size(ImageI,1)~=size(Field,1) || size(ImageI,2)~=size(Field,2)
+[m,n,c] = size(ImageI);
+
+if m~=size(Field,1) || n~=size(Field,2)
     error('The vignetting function must be a matrix of the same x-y dimension of the images to be corrected.');
 end
 
@@ -51,73 +53,37 @@ if nargin < 4
     flag_LookUpTable = 0;
 end
 
-if size(ImageI,3)==1
-    %GREY correction:
-    ImageO = ImageI./Field;
-    ImageO(ImageI==255) = 255; ImageO(ImageI<0) = 0;
-    ImageO(ImageO>255)  = 255; ImageO(ImageO<0) = 0;
-else
-    %RGB correction:
-    % This correction strategy could generate false colours when more RGB
-    % pixels of "ImageI" have the same grey conversion.
-    RI = ImageI(:,:,1);
-    GI = ImageI(:,:,2);
-    BI = ImageI(:,:,3);
+satPix = (ImageI==255);
+ImageO = bsxfun(@rdivide, ImageI, Field);
 
-    RO = RI./Field;
-    GO = GI./Field;
-    BO = BI./Field;
- 
-    % For correcting false colours.
-    if flag_LookUpTable == 1
-        ImageIgrey = rgb2gray(uint8(ImageI));
-        ImageOgrey = double(ImageIgrey)./double(Field);
-        ImageOgrey(ImageIgrey==255) = 255; ImageOgrey(ImageIgrey<0) = 0;
-        ImageOgrey(ImageOgrey>255)  = 255; ImageOgrey(ImageOgrey<0) = 0;
-        ImageOgrey = uint8(ImageOgrey);
-        minIOG = floor(min(ImageOgrey(:))); maxIOG = ceil(max(ImageOgrey(:)));
-        for l = minIOG:maxIOG;
-            positions = find(ImageOgrey==l);
-            if ~isempty(positions)
-                if isnan(LookUpTable(1,l+1))
-                    noSatRI = find(RI(positions)~=255);
-                    noSatGI = find(GI(positions)~=255);
-                    noSatBI = find(BI(positions)~=255);
-                    elements = intersect(intersect(noSatRI, noSatGI), noSatBI);
-                    if ~isempty(elements)
-                        vectorSum = RO(elements)+GO(elements)+BO(elements);
-                        [vectorSumSort, vectorSumSortIndices] = sort(vectorSum);
-                        value = vectorSumSortIndices(ceil(length(vectorSumSortIndices)/2));
-                        position = positions(elements(value));
-                    else
-                        vectorSum = RO(positions)+GO(positions)+BO(positions);
-                        [vectorSumSort, vectorSumSortIndices] = sort(vectorSum);
-                        position = vectorSumSortIndices(ceil(length(vectorSumSortIndices)/2));
-                    end
-                    clear vectorSum vectorSumSort vectorSumSortIndices value elements noSatBI noSatGI noSatRI
-                    LookUpTable(1,l+1) = RO(position);
-                    LookUpTable(2,l+1) = GO(position);
-                    LookUpTable(3,l+1) = BO(position);
-                    LookUpTable(4,l+1) = l;
-                end
-                RO(positions) = LookUpTable(1,l+1); 
-                GO(positions) = LookUpTable(2,l+1); 
-                BO(positions) = LookUpTable(3,l+1); 
-            end
-            clear positions
-        end
-        clear ImageIgrey ImageOgrey minIOG maxIOG
-    else
-        RO(RI==255) = 255; RO(RI<0) = 0;
-        GO(GI==255) = 255; GO(GI<0) = 0;
-        BO(BI==255) = 255; BO(BI<0) = 0;
-        RO(RO>255)  = 255; RO(RO<0) = 0;
-        GO(GO>255)  = 255; GO(GO<0) = 0;
-        BO(BO>255)  = 255; BO(BO<0) = 0;
+if flag_LookUpTable == 1
+    ImageIgrey = rgb2gray(uint8(ImageI));
+    ImageOgrey = double(ImageIgrey)./Field;
+    ImageOgrey(ImageIgrey==255) = 255; ImageOgrey(ImageIgrey<0) = 0;
+    ImageOgrey(ImageOgrey>255)  = 255; ImageOgrey(ImageOgrey<0) = 0;
+
+    ImageOgrey = uint8(ImageOgrey);
+    [vals, indx1, indx2] = unique(ImageOgrey(:));
+    vindx = vals(indx2);
+    clear ImageIgrey ImageOgrey;
+
+    news = isnan(LookUpTable(1,vals+1));
+    if (any(news))
+      nvals = vals(news);
+      new_indxs = ismember(vindx, nvals);
+
+      ImageO = reshape(ImageO, [m*n c]);
+      [RGBs] = mymean(ImageO(new_indxs,:), 1, indx2(new_indxs));
+
+      RGBs = [RGBs double(nvals)].';
+
+      LookUpTable(:,nvals+1) = RGBs;
     end
-    
-    ImageO(:,:,1) = RO; 
-    ImageO(:,:,2) = GO;
-    ImageO(:,:,3) = BO;
-  
+
+    ImageO = LookUpTable(1:3,vals(indx2)+1).';
+    ImageO = reshape(ImageO, [m n c]);
+    ImageO(satPix) = 255;
+else
+    ImageO(satPix | ImageO>255) = 255;
+    ImageO(ImageI <0 | ImageO <0) = 0;
 end

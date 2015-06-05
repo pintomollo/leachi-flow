@@ -222,6 +222,7 @@ else
   referenceFrame = fPixelAccuracy(referenceFrame);
   if parameters.flag_FlatField == 1
       [referenceFrame, LookUpTable] = FlatFieldCorrection(referenceFrame, Field, parameters.flag_LookUpTable, LookUpTable);
+
       referenceFrame = fPixelAccuracy(referenceFrame);
   end
 
@@ -520,7 +521,9 @@ if (nargout == 0)
     Mosaic = uint8(Mosaic);
   end
 
-  Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+  if (parameters.flag_AdjustIntensityValues)
+    Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+  end
 
   fname = parameters.ImageFolder;
   if (fname(end) == filesep)
