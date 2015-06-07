@@ -44,152 +44,133 @@ function [Mosaic, parameters] = MicroMos(varargin)
 % Massive speed, memory and ease of use improvements
 % Simon Blanchoud, Wilson lab, University of Otago, 2015
 
-% Inputs processing
-if (length(varargin) > 0 && isstruct(varargin{1}))
-  parameters = update_structure(varargin{1}, 'MicroMos');
-  varargin(1) = [];
-else
-  parameters = get_struct('MicroMos');
-end
-
-% Now we check that the parameters were provided in pairs
-npairs = length(varargin) / 2;
-if (npairs ~= floor(npairs))
-  error 'Properties pairs must come in PAIRS.';
-end
-
-% Loop over the pairs of parameters
-for i = 1:npairs
-  % If the parameter exists in opts we simply assign it the
-  % provided value
-  if (isfield(parameters, varargin{2*i - 1}))
-    parameters.(varargin{2*i - 1}) = varargin{2*i};
-
-  % Or ignore it !
+  % Inputs processing
+  if (length(varargin) > 0 && isstruct(varargin{1}))
+    parameters = update_structure(varargin{1}, 'MicroMos');
+    varargin(1) = [];
   else
-    warning(['Property ''' varargin{2*i -1} ''' does not exist. Ignoring']);
+    parameters = get_struct('MicroMos');
   end
-end
 
-%% PARAMETERS SETTTING
-GLOBAL = eye(3,3);
-MatricesGLOBAL = GLOBAL;
-LookUpTable = NaN.*ones(4,256);
+  % Now we check that the parameters were provided in pairs
+  npairs = length(varargin) / 2;
+  if (npairs ~= floor(npairs))
+    error 'Properties pairs must come in PAIRS.';
+  end
 
-if parameters.PixelAccuracy == 0
-    fPixelAccuracy = @double;
-else
-    fPixelAccuracy = @single;
-end
+  % Loop over the pairs of parameters
+  for i = 1:npairs
+    % If the parameter exists in opts we simply assign it the
+    % provided value
+    if (isfield(parameters, varargin{2*i - 1}))
+      parameters.(varargin{2*i - 1}) = varargin{2*i};
 
-if (isempty(parameters.ImageFolder))
-  parameters.ImageFolder = uigetdir('Movies','Select the directory containing the mosaic');
-end
+    % Or ignore it !
+    else
+      warning(['Property ''' varargin{2*i -1} ''' does not exist. Ignoring']);
+    end
+  end
 
-if (isempty(parameters.ImageBaseName))
-  files = dir(fullfile(parameters.ImageFolder, '*'));
+  %% PARAMETERS SETTTING
+  GLOBAL = eye(3,3);
+  MatricesGLOBAL = GLOBAL;
+  LookUpTable = NaN.*ones(4,256);
 
-  fname = '';
-  for i=1:length(files)
-    if (files(i).name(1)~='.')
-      if (files(i).isdir)
-        tmp_params = parameters;
-        tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
-        disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
-        MicroMos(tmp_params);
-      elseif (isempty(fname))
-        fname = files(i).name;
-      else
-        fname = common_substring(fname, files(i).name);
+  if parameters.PixelAccuracy == 0
+      fPixelAccuracy = @double;
+  else
+      fPixelAccuracy = @single;
+  end
+
+  if (isempty(parameters.ImageFolder))
+    parameters.ImageFolder = uigetdir('Movies','Select the directory containing the mosaic');
+  end
+
+  if (isempty(parameters.ImageBaseName))
+    files = dir(fullfile(parameters.ImageFolder, '*'));
+
+    fname = '';
+    for i=1:length(files)
+      if (files(i).name(1)~='.')
+        if (files(i).isdir)
+          tmp_params = parameters;
+          tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
+          disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
+          MicroMos(tmp_params);
+        elseif (isempty(fname))
+          fname = files(i).name;
+        else
+          fname = common_substring(fname, files(i).name);
+        end
       end
     end
+
+    parameters.ImageBaseName = fname;
   end
 
-  parameters.ImageBaseName = fname;
-end
+  %Image format and number of characters for the images' number 
+  ImagesList = dir(fullfile(parameters.ImageFolder, [parameters.ImageBaseName '*']));
+  if isempty(ImagesList)
+      error('In the selected ImageFolder there are not images with the selected ImageBaseName.')
+  else
+      StringNameImage1 = ImagesList(1,1).name;
+      %PositionsUnderScores = strfind(StringNameImage1, '_');
+      %PositionLastUnderScores = PositionsUnderScores(end);
+      PositionEndCommon = length(parameters.ImageBaseName);
+      PositionsPoints = strfind(StringNameImage1, '.');
+      PositionLastPoint = PositionsPoints(end);
+      ImageFormat = StringNameImage1(PositionLastPoint:end);
+      parameters.ImageFormat = ImageFormat;
+      %CharactersNumber = StringNameImage1(PositionLastUnderScores+1:PositionLastPoint-1);
+      CharactersNumber = StringNameImage1(PositionEndCommon+1:PositionLastPoint-1);
+      NumberCharactersNumber = ['%.' num2str(length(CharactersNumber)) 'd'];
+      parameters.NumberCharactersNumber = NumberCharactersNumber;
 
-%Image format and number of characters for the images' number 
-ImagesList = dir(fullfile(parameters.ImageFolder, [parameters.ImageBaseName '*']));
-if isempty(ImagesList)
-    error('In the selected ImageFolder there are not images with the selected ImageBaseName.')
-else
-    StringNameImage1 = ImagesList(1,1).name;
-    %PositionsUnderScores = strfind(StringNameImage1, '_');
-    %PositionLastUnderScores = PositionsUnderScores(end);
-    PositionEndCommon = length(parameters.ImageBaseName);
-    PositionsPoints = strfind(StringNameImage1, '.');
-    PositionLastPoint = PositionsPoints(end);
-    ImageFormat = StringNameImage1(PositionLastPoint:end);
-    parameters.ImageFormat = ImageFormat;
-    %CharactersNumber = StringNameImage1(PositionLastUnderScores+1:PositionLastPoint-1);
-    CharactersNumber = StringNameImage1(PositionEndCommon+1:PositionLastPoint-1);
-    NumberCharactersNumber = ['%.' num2str(length(CharactersNumber)) 'd'];
-    parameters.NumberCharactersNumber = NumberCharactersNumber;
+      %clear StringNameImage1 PositionsUnderScores PositionLastUnderScores PositionsPoints
+  end 
+  if isempty(parameters.ImageIndexs)
+      LengthImagesList = length(ImagesList);
+      for i = 1:LengthImagesList
+          StringNameImage1 = ImagesList(i,1).name;
+          CurrentImageIndex = str2num(StringNameImage1(PositionLastPoint-length(CharactersNumber):PositionLastPoint-1));
+          parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
+      end
+  end
 
-    %clear StringNameImage1 PositionsUnderScores PositionLastUnderScores PositionsPoints
-end 
-if isempty(parameters.ImageIndexs)
-    LengthImagesList = length(ImagesList);
-    for i = 1:LengthImagesList
-        StringNameImage1 = ImagesList(i,1).name;
-        CurrentImageIndex = str2num(StringNameImage1(PositionLastPoint-length(CharactersNumber):PositionLastPoint-1));
-        parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
-    end
-end
+  disp('MicroMos: START.');
 
-% Determine the acquisition grid
-if (parameters.flag_GriddedAcquisition)
-  grid = DefineAcquisitionGrid(parameters);
-end
+  % Determine the acquisition grid
+  if (parameters.flag_GriddedAcquisition)
+    disp('Determining the size of the acquisition grid...');
+    [MatricesGLOBAL, mosaic_order] = DefineAcquisitionGrid(parameters);
 
-disp('MicroMos: START.');
-
-start_index = 1;
-stop_index = length(parameters.ImageIndexs);
-
-%Vignetting function loading:
-Field = [];
-if parameters.flag_FlatField == 1
-    disp('Computing the vignetting function...');
-    LengthImagesList = length(ImagesList);
-    for i = 1:LengthImagesList
-       tmp_img = imread(fullfile(parameters.ImageFolder, ImagesList(i,1).name));
-       Field = imvignette(tmp_img, Field);
-    end
-    Field = imvignette(Field);
-    Field = fPixelAccuracy(Field);
-    Field = Field./mean(Field(:));
-    Field = Field(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
-end
-
-%GLOBAL registration matrices loading:
-if parameters.flag_ComputeRegistrations ~= 1
-    DirList = dir(['REGISTRATIONMATRIX' filesep '*.mat']);
-    if isempty(DirList)
-        error('In the folder called REGISTRATIONMATRIX there is not a file ".mat" related to the registration matrices.')
+    if (isempty(mosaic_order))
+      disp('The acquisition grid could not be estimated using the provided data !');
+      parameters.flag_ComputeRegistrations = 1;
     else
-        warning('If external matrices are loaded we suggest to do not use image rescaling to avoid errors.')
-        Struttura = load(['REGISTRATIONMATRIX' filesep DirList(1).name]);
-        copyfile(['REGISTRATIONMATRIX' filesep DirList(1).name], ['OUTPUT' filesep DirList(1).name]);
-        RM = cell2mat(struct2cell(Struttura));
+      parameters.flag_ComputeRegistrations = 0;
+      parameters.ImageIndexs = parameters.ImageIndexs(mosaic_order);
+      MatricesGLOBAL = MatricesGLOBAL(:,:,mosaic_order);
     end
-    clear Struttura DirList
+  end
 
-    MatricesGLOBAL = RM;
-    NumberOfregisteredImages = size(RM, 3);
-    Indeces = [1:NumberOfregisteredImages];
+  start_index = 1;
+  stop_index = length(parameters.ImageIndexs);
 
-    disp(['Registration of ' num2str(NumberOfregisteredImages) ' frames loaded.']);
-
-    %Reference image loading for RGB info
-    strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(start_index));
-    if strcmp(ImageFormat, '.mat')
-        referenceFrame = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-        referenceFrame = cell2mat(struct2cell(referenceFrame));
-    else
-        referenceFrame = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-    end
-else
+  %Vignetting function loading:
+  Field = [];
+  if parameters.flag_FlatField == 1
+      disp('Computing the vignetting function...');
+      LengthImagesList = length(ImagesList);
+      for i = 1:LengthImagesList
+         tmp_img = imread(fullfile(parameters.ImageFolder, ImagesList(i,1).name));
+         Field = imvignette(tmp_img, Field);
+      end
+      Field = imvignette(Field);
+      Field = fPixelAccuracy(Field);
+      Field = Field./mean(Field(:));
+      Field = Field(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+  end
 
   %% INITIALIZATION OF THE MOSAIC
 
@@ -226,317 +207,334 @@ else
       referenceFrame = fPixelAccuracy(referenceFrame);
   end
 
-  %% MOSAIC REGISTRATION
-  disp('Registering frames pairwise...')
-
-  %Cycle for each image to be stitched
-  base = referenceFrame;
-  index = start_index;
-  Indeces = index;
-  NumberOfregisteredImages = 1;
-  while index < stop_index
-
-      if parameters.flag_SeekBestImages == 1
-          % Automatic selection of the images to be registered.
-          if index == start_index
-              if parameters.flag_BleachingCorrection == 1
-                  Vector_Indeces = [start_index+1, start_index+2];
-              else
-                  [Vector_RMSE, Vector_Indeces] = DefineBestImageToBeRegistered(parameters, index, stop_index, base, Field, LookUpTable, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
-              end
-          else
-              [Vector_RMSE, Vector_Indeces] = DefineBestImageToBeRegistered(parameters, index, stop_index, base, Field, LookUpTable, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
-          end
-          if size(Vector_Indeces)==1
-              break
-          end
-          Indeces = [Indeces, Vector_Indeces(end-1)];
-          TestNumber = 1;
-      elseif parameters.flag_SeekBestImages == 0
-          Vector_Indeces = index;
-          Indeces = [Indeces, index+1];
-          TestNumber = 0;
+  %GLOBAL registration matrices loading:
+  if parameters.flag_ComputeRegistrations ~= 1
+      if (~parameters.flag_GriddedAcquisition)
+        DirList = dir(['REGISTRATIONMATRIX' filesep '*.mat']);
+        if isempty(DirList)
+            error('In the folder called REGISTRATIONMATRIX there is not a file ".mat" related to the registration matrices.')
+        else
+            warning('If external matrices are loaded we suggest to do not use image rescaling to avoid errors.')
+            Struttura = load(['REGISTRATIONMATRIX' filesep DirList(1).name]);
+            copyfile(['REGISTRATIONMATRIX' filesep DirList(1).name], ['OUTPUT' filesep DirList(1).name]);
+            RM = cell2mat(struct2cell(Struttura));
+        end
+        clear Struttura DirList
+        MatricesGLOBAL = RM;
       end
 
-      flag_Problem = 1; % if parameters.flag_SeekBestImages == 1 and a problem happens, the image to be registered is computed again when possible.
-      while flag_Problem == 1
+      NumberOfregisteredImages = size(MatricesGLOBAL, 3);
+      Indeces = [1:NumberOfregisteredImages];
 
-          if length(Vector_Indeces)<TestNumber+1
-              % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
-              strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
-              disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
-              warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
-              stop_index = index;
-              Indeces = Indeces(1:end-1);
-              ImageIndexs = parameters.ImageIndexs(Indeces);
-              %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
-              break
-          end
-          if parameters.flag_SeekBestImages == 1
-              Indeces(end) = Vector_Indeces(end-TestNumber);
-          end
-          if index+1 == Indeces(end-1)
-              % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
-              strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
-              disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
-              warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
-              stop_index = index;
-              Indeces = Indeces(1:end-1);
-              ImageIndexs = parameters.ImageIndexs(Indeces);
-              %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
-              break
-          end
-
-          %Image to be stitched loading and pre-processing
-          strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(end)));
-          if strcmp(parameters.ImageFormat, '.mat')
-              unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-              unregistered = cell2mat(struct2cell(unregistered));
-          else
-              unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-          end
-          unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
-          unregistered = norm_factor*double(unregistered);
-          if (parameters.flag_Color==0)
-              if size(unregistered, 3)~=1
-                  unregistered = rgb2gray(unregistered);
-              end
-          end
-          unregistered = fPixelAccuracy(unregistered);
-          if parameters.flag_FlatField == 1
-              [unregistered, LookUpTable] = FlatFieldCorrection(unregistered, Field, parameters.flag_LookUpTable, LookUpTable);
-              unregistered = fPixelAccuracy(unregistered);
-          end
-
-          %Registration estimation
-          if parameters.flag_PhaseCorrelationOnly == 1
-              if (parameters.flag_Color==0)
-                  HF2F = RegistrationMatrixByPhaseCorrelationOnly(base, unregistered, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
-              else
-                  ba = rgb2gray(uint8(base));
-                  un = rgb2gray(uint8(unregistered));
-                  ba = fPixelAccuracy(ba);
-                  un = fPixelAccuracy(un);
-                  HF2F = RegistrationMatrixByPhaseCorrelationOnly(ba, un, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
-                  clear ba un
-              end
-              disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum ' registered using the Phase Correlation Algorithm only. ']);
-          else
-              %% CORNER POINTS ESTIMATION
-              numberCorners = 150;
-              flag_Harris = 0;
-
-              if (parameters.flag_Color==0)
-                  [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
-              else
-                  ba = rgb2gray(uint8(base));
-                  un = rgb2gray(uint8(unregistered));
-                  ba = fPixelAccuracy(ba);
-                  un = fPixelAccuracy(un);
-                  [PointsBase, PointsTracked] = PointsDetectionTracking(ba, un, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
-                  clear ba un
-              end
-
-              if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
-                  % a problem happened. If possible another image to be registered will be defined.
-                  disp(['Frame-to-frame registration: the overlapp between the image "' parameters.ImageBaseName strnum '" and the last one registered is too small.'])
-                  flag_Problem = 1;
-                  TestNumber = TestNumber + 1;
-                  continue
-              end
-
-              clear numberCorners flag_Harris
-
-              %% FRAME-TO-FRAME REGISTRATION MATRIX ESTIMATION
-              [HF2F, inliersF2F] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
-
-              if isempty(HF2F) | size(HF2F) ~= [3, 3]
-                  % a problem happened. If possible another image to be registered will be defined.
-                  disp(['Frame-to-frame registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
-                  flag_Problem = 1;
-                  TestNumber = TestNumber + 1;
-                  continue
-              end
-
-              disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum '. ' 'Number tracked points/total points: ' num2str(length(inliersF2F)) '/' num2str(length(PointsBase))]);
-              clear PointsBase PointsTracked
-          end
-
-          %% GLOBAL matrix updating
-          GLOBAL = GLOBAL*inv(HF2F);
-
-          %% FRAME WARPING AND STITCHING
-          MatricesGLOBAL(:,:,end+1) = GLOBAL;
-
-          % Next step
-          base = unregistered;
-          clear unregistered HF2F inliers2TF
-
-          flag_Problem = 0;
-      end
-      index = Indeces(end);
-      NumberOfregisteredImages = NumberOfregisteredImages + 1;
-  end
-end
-
-[nrows, ncols, nchannels] = size(referenceFrame);
-is_rgb = (nchannels~=1);
-
-% MOSAIC CREATION
-disp('Building the mosaic...')
-
-%Mosaic initialization to referenceFrame 
-[Mosaic, MosaicOrigin] = InitMosaic([nrows, ncols, nchannels], MatricesGLOBAL);
-
-for i=1:NumberOfregisteredImages
-
-    % Get the registration matrix
-    GLOBAL = MatricesGLOBAL(:,:,i);
-
-    %Image to be stitched loading and pre-processing
-    strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(i)));
-    disp(['Blending in ' parameters.ImageBaseName strnum '...']);
-
-    if strcmp(parameters.ImageFormat, '.mat')
-        unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-        unregistered = cell2mat(struct2cell(unregistered));
-    else
-        unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
-    end
-    unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
-    unregistered = norm_factor*double(unregistered);
-    if (parameters.flag_Color==0)
-        if is_rgb
-            unregistered = rgb2gray(unregistered);
-        end
-    end
-    unregistered = fPixelAccuracy(unregistered);
-    if parameters.flag_FlatField == 1
-        [unregistered, LookUpTable] = FlatFieldCorrection(unregistered, Field, parameters.flag_LookUpTable, LookUpTable);
-        unregistered = fPixelAccuracy(unregistered);
-    end
-
-    %% BLEACHING CORRECTION
-    %clear base
-    %base = unregistered;
-    if parameters.flag_BleachingCorrection == 1 && i>1
-        for c = 1:nchannels
-            [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic(:,:,c), unregistered(:,:,c), GLOBAL, MosaicOrigin, parameters.RegistrationMode);
-            LUT = BleachingLUTbuild(regionOverlapped, newunregistered);
-            FrameOut = BleachingLUTuse(unregistered(:,:,c), LUT);
-            unregistered(:,:,c) = FrameOut;
-            clear regionOverlapped newunregistered LUT FrameOut
-        end
-    end
-
-    %% FRAME-TO-MOSAIC REGISTRATION MATRIX ESTIMATION
-    if parameters.flag_FrameToMosaic == 1 && i>1
-        if (parameters.flag_Color==0)
-            [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, parameters.RegistrationMode);
-        else
-            newunregistered    = fPixelAccuracy(rgb2gray(uint8(unregistered)));
-            regionOverlapped   = fPixelAccuracy(rgb2gray(uint8(Mosaic)));
-            [newunregistered, regionOverlapped] = ImagesForFTM(regionOverlapped, newunregistered, GLOBAL, MosaicOrigin, parameters.RegistrationMode);
-        end
-
-        numberCorners = 150;
-        flag_Harris = 0;
-
-        [PointsBase, PointsTracked] = PointsDetectionTracking(double(newunregistered), double(regionOverlapped), numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
-        clear newunregistered regionOverlapped
-
-        if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
-            % a problem happened. If possible another image to be registered will be defined.
-            disp(['Frame-to-mosaic registration: no enought matchings between the image "' parameters.ImageBaseName strnum '" and the mosaic.'])
-            flag_Problem = 1;
-            TestNumber = TestNumber + 1;
-            continue
-        end
-
-        [HF2M, inliersF2M] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
-        clear PointsBase PointsTracked
-
-        if isempty(HF2M) | size(HF2M) ~= [3, 3]
-            % a problem happened. If possible another image to be registered will be defined.
-            disp(['Frame-to-mosaic registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
-            flag_Problem = 1;
-            TestNumber = TestNumber + 1;
-            continue
-        end
-
-        GLOBAL = GLOBAL*HF2M;
-        MatricesGLOBAL(:,:,i) = GLOBAL;
-        clear HF2M inliersF2M
-    end
-
-    %% Mosaic Updating
-    [Mosaic] = MosaicUpdating(Mosaic, unregistered, GLOBAL, parameters.flag_Blending, MosaicOrigin, parameters.RegistrationMode);
-end
-
-goods = any(~isnan(Mosaic), 3);
-goodx = any(goods,1);
-goody = any(goods,2);
-
-Mosaic = Mosaic(goody, goodx, :);
-
-ImageIndexs = parameters.ImageIndexs(Indeces);
-parameters.ImageIndexs = ImageIndexs;
-parameters.Registrations = MatricesGLOBAL;
-%save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
-
-%% MOSAIC POST PROCESSING: White Balancing.
-if parameters.flag_WhiteBalancing > 0
-    if parameters.flag_Color == 1
-        if parameters.flag_WhiteBalancing == 2          
-            % Loading of the external RGB image to be used as colours reference.
-            WB = [];
-            DirList = dir(['WHITEBALANCING' filesep '*.*']);
-            if isempty(DirList)
-                error('In the folder called WHITEBALANCING there is not a 3-channel image to be used as reference for the White Balancing.')
-            else
-                WB = imread(['WHITEBALANCING' filesep DirList(end).name]);
-                copyfile(['WHITEBALANCING' filesep DirList(end).name], ['OUTPUT' filesep DirList(end).name]);
-            end
-            if size(WB,3)==3
-                % White Balancing of the output mosaic using the external RGB image as colours reference.
-                Mosaic = RGBWhiteBalancing(Mosaic, WB, -3);
-            else
-                error('In the folder called WHITEBALANCING there is not a 3-channel image to be used as reference for the White Balancing.')
-            end
-        else
-            % White Balancing of the output mosaic using the output mosaic itself as colours reference.
-            Mosaic = RGBWhiteBalancing(Mosaic, Mosaic, -3);
-        end
-    end
-end
-
-% Convert back to the proper type, adjust and save if need be
-if (nargout == 0)
-  if (norm_factor == 255/(2^16-1))
-    Mosaic = uint16(Mosaic);
-  elseif (norm_factor == 255/(2^32-1))
-    Mosaic = uint32(Mosaic);
-  elseif (norm_factor == 255/(2^64-1))
-    Mosaic = uint64(Mosaic);
+      disp(['Registration of ' num2str(NumberOfregisteredImages) ' frames loaded.']);
   else
-    Mosaic = uint8(Mosaic);
+
+    %% MOSAIC REGISTRATION
+    disp('Registering frames pairwise...')
+
+    %Cycle for each image to be stitched
+    base = referenceFrame;
+    index = start_index;
+    Indeces = index;
+    NumberOfregisteredImages = 1;
+    while index < stop_index
+
+        if parameters.flag_SeekBestImages == 1
+            % Automatic selection of the images to be registered.
+            if index == start_index
+                if parameters.flag_BleachingCorrection == 1
+                    Vector_Indeces = [start_index+1, start_index+2];
+                else
+                    [Vector_RMSE, Vector_Indeces] = DefineBestImageToBeRegistered(parameters, index, stop_index, base, Field, LookUpTable, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                end
+            else
+                [Vector_RMSE, Vector_Indeces] = DefineBestImageToBeRegistered(parameters, index, stop_index, base, Field, LookUpTable, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+            end
+            if size(Vector_Indeces)==1
+                break
+            end
+            Indeces = [Indeces, Vector_Indeces(end-1)];
+            TestNumber = 1;
+        elseif parameters.flag_SeekBestImages == 0
+            Vector_Indeces = index;
+            Indeces = [Indeces, index+1];
+            TestNumber = 0;
+        end
+
+        flag_Problem = 1; % if parameters.flag_SeekBestImages == 1 and a problem happens, the image to be registered is computed again when possible.
+        while flag_Problem == 1
+
+            if length(Vector_Indeces)<TestNumber+1
+                % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
+                strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
+                disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
+                warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
+                stop_index = index;
+                Indeces = Indeces(1:end-1);
+                ImageIndexs = parameters.ImageIndexs(Indeces);
+                %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+                break
+            end
+            if parameters.flag_SeekBestImages == 1
+                Indeces(end) = Vector_Indeces(end-TestNumber);
+            end
+            if index+1 == Indeces(end-1)
+                % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
+                strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
+                disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
+                warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
+                stop_index = index;
+                Indeces = Indeces(1:end-1);
+                ImageIndexs = parameters.ImageIndexs(Indeces);
+                %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+                break
+            end
+
+            %Image to be stitched loading and pre-processing
+            strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(end)));
+            if strcmp(parameters.ImageFormat, '.mat')
+                unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+                unregistered = cell2mat(struct2cell(unregistered));
+            else
+                unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+            end
+            unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+            unregistered = norm_factor*double(unregistered);
+            if (parameters.flag_Color==0)
+                if size(unregistered, 3)~=1
+                    unregistered = rgb2gray(unregistered);
+                end
+            end
+            unregistered = fPixelAccuracy(unregistered);
+            if parameters.flag_FlatField == 1
+                [unregistered, LookUpTable] = FlatFieldCorrection(unregistered, Field, parameters.flag_LookUpTable, LookUpTable);
+                unregistered = fPixelAccuracy(unregistered);
+            end
+
+            %Registration estimation
+            if parameters.flag_PhaseCorrelationOnly == 1
+                if (parameters.flag_Color==0)
+                    HF2F = RegistrationMatrixByPhaseCorrelationOnly(base, unregistered, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
+                else
+                    ba = rgb2gray(uint8(base));
+                    un = rgb2gray(uint8(unregistered));
+                    ba = fPixelAccuracy(ba);
+                    un = fPixelAccuracy(un);
+                    HF2F = RegistrationMatrixByPhaseCorrelationOnly(ba, un, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
+                    clear ba un
+                end
+                disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum ' registered using the Phase Correlation Algorithm only. ']);
+            else
+                %% CORNER POINTS ESTIMATION
+                numberCorners = 150;
+                flag_Harris = 0;
+
+                if (parameters.flag_Color==0)
+                    [PointsBase, PointsTracked] = PointsDetectionTracking(base, unregistered, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                else
+                    ba = rgb2gray(uint8(base));
+                    un = rgb2gray(uint8(unregistered));
+                    ba = fPixelAccuracy(ba);
+                    un = fPixelAccuracy(un);
+                    [PointsBase, PointsTracked] = PointsDetectionTracking(ba, un, numberCorners, flag_Harris, parameters.ShiftEstimationMode, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+                    clear ba un
+                end
+
+                if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
+                    % a problem happened. If possible another image to be registered will be defined.
+                    disp(['Frame-to-frame registration: the overlapp between the image "' parameters.ImageBaseName strnum '" and the last one registered is too small.'])
+                    flag_Problem = 1;
+                    TestNumber = TestNumber + 1;
+                    continue
+                end
+
+                clear numberCorners flag_Harris
+
+                %% FRAME-TO-FRAME REGISTRATION MATRIX ESTIMATION
+                [HF2F, inliersF2F] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
+
+                if isempty(HF2F) | size(HF2F) ~= [3, 3]
+                    % a problem happened. If possible another image to be registered will be defined.
+                    disp(['Frame-to-frame registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
+                    flag_Problem = 1;
+                    TestNumber = TestNumber + 1;
+                    continue
+                end
+
+                disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum '. ' 'Number tracked points/total points: ' num2str(length(inliersF2F)) '/' num2str(length(PointsBase))]);
+                clear PointsBase PointsTracked
+            end
+
+            %% GLOBAL matrix updating
+            GLOBAL = GLOBAL*inv(HF2F);
+
+            %% FRAME WARPING AND STITCHING
+            MatricesGLOBAL(:,:,end+1) = GLOBAL;
+
+            % Next step
+            base = unregistered;
+            clear unregistered HF2F inliers2TF
+
+            flag_Problem = 0;
+        end
+        index = Indeces(end);
+        NumberOfregisteredImages = NumberOfregisteredImages + 1;
+    end
   end
 
-  if (parameters.flag_AdjustIntensityValues)
-    Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+  [nrows, ncols, nchannels] = size(referenceFrame);
+  is_rgb = (nchannels~=1);
+
+  % MOSAIC CREATION
+  disp('Building the mosaic...')
+
+  %Mosaic initialization to referenceFrame 
+  [Mosaic, MosaicOrigin] = InitMosaic([nrows, ncols, nchannels], MatricesGLOBAL);
+
+  for i=1:NumberOfregisteredImages
+
+      % Get the registration matrix
+      GLOBAL = MatricesGLOBAL(:,:,i);
+
+      %Image to be stitched loading and pre-processing
+      strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(i)));
+      disp(['Blending in ' parameters.ImageBaseName strnum '...']);
+
+      if strcmp(parameters.ImageFormat, '.mat')
+          unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+          unregistered = cell2mat(struct2cell(unregistered));
+      else
+          unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+      end
+      unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
+      unregistered = norm_factor*double(unregistered);
+      if (parameters.flag_Color==0)
+          if is_rgb
+              unregistered = rgb2gray(unregistered);
+          end
+      end
+      unregistered = fPixelAccuracy(unregistered);
+      if parameters.flag_FlatField == 1
+          [unregistered, LookUpTable] = FlatFieldCorrection(unregistered, Field, parameters.flag_LookUpTable, LookUpTable);
+          unregistered = fPixelAccuracy(unregistered);
+      end
+
+      %% BLEACHING CORRECTION
+      %clear base
+      %base = unregistered;
+      if parameters.flag_BleachingCorrection == 1 && i>1
+          for c = 1:nchannels
+              [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic(:,:,c), unregistered(:,:,c), GLOBAL, MosaicOrigin, parameters.RegistrationMode);
+              LUT = BleachingLUTbuild(regionOverlapped, newunregistered);
+              FrameOut = BleachingLUTuse(unregistered(:,:,c), LUT);
+              unregistered(:,:,c) = FrameOut;
+              clear regionOverlapped newunregistered LUT FrameOut
+          end
+      end
+
+      %% FRAME-TO-MOSAIC REGISTRATION MATRIX ESTIMATION
+      if parameters.flag_FrameToMosaic == 1 && i>1
+          if (parameters.flag_Color==0)
+              [newunregistered, regionOverlapped] = ImagesForFTM(Mosaic, unregistered, GLOBAL, MosaicOrigin, parameters.RegistrationMode);
+          else
+              newunregistered    = fPixelAccuracy(rgb2gray(uint8(unregistered)));
+              regionOverlapped   = fPixelAccuracy(rgb2gray(uint8(Mosaic)));
+              [newunregistered, regionOverlapped] = ImagesForFTM(regionOverlapped, newunregistered, GLOBAL, MosaicOrigin, parameters.RegistrationMode);
+          end
+
+          numberCorners = 150;
+          flag_Harris = 0;
+
+          [PointsBase, PointsTracked] = PointsDetectionTracking(double(regionOverlapped), double(newunregistered), numberCorners, flag_Harris, 0, parameters.flag_PCglobalORlocal, parameters.PCscaleFactor);
+          clear newunregistered regionOverlapped
+
+          if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
+              % a problem happened. If possible another image to be registered will be defined.
+              disp(['Frame-to-mosaic registration: no enought matchings between the image "' parameters.ImageBaseName strnum '" and the mosaic.'])
+          else
+
+              [HF2M, inliersF2M] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
+              clear PointsBase PointsTracked
+
+              if isempty(HF2M) | size(HF2M) ~= [3, 3]
+                  % a problem happened. If possible another image to be registered will be defined.
+                  disp(['Frame-to-mosaic registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
+              else
+                  GLOBAL = GLOBAL*HF2M;
+                  MatricesGLOBAL(:,:,i) = GLOBAL;
+              end
+              clear HF2M inliersF2M
+          end
+      end
+
+      %% Mosaic Updating
+      [Mosaic] = MosaicUpdating(Mosaic, unregistered, GLOBAL, parameters.flag_Blending, MosaicOrigin, parameters.RegistrationMode);
   end
 
-  fname = parameters.ImageFolder;
-  if (fname(end) == filesep)
-    fname = fname(1:end-1);
+  goods = any(~isnan(Mosaic), 3);
+  goodx = any(goods,1);
+  goody = any(goods,2);
+
+  Mosaic = Mosaic(goody, goodx, :);
+
+  ImageIndexs = parameters.ImageIndexs(Indeces);
+  parameters.ImageIndexs = ImageIndexs;
+  parameters.Registrations = MatricesGLOBAL;
+  %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
+
+  %% MOSAIC POST PROCESSING: White Balancing.
+  if parameters.flag_WhiteBalancing > 0
+      if parameters.flag_Color == 1
+          if parameters.flag_WhiteBalancing == 2          
+              % Loading of the external RGB image to be used as colours reference.
+              WB = [];
+              DirList = dir(['WHITEBALANCING' filesep '*.*']);
+              if isempty(DirList)
+                  error('In the folder called WHITEBALANCING there is not a 3-channel image to be used as reference for the White Balancing.')
+              else
+                  WB = imread(['WHITEBALANCING' filesep DirList(end).name]);
+                  copyfile(['WHITEBALANCING' filesep DirList(end).name], ['OUTPUT' filesep DirList(end).name]);
+              end
+              if size(WB,3)==3
+                  % White Balancing of the output mosaic using the external RGB image as colours reference.
+                  Mosaic = RGBWhiteBalancing(Mosaic, WB, -3);
+              else
+                  error('In the folder called WHITEBALANCING there is not a 3-channel image to be used as reference for the White Balancing.')
+              end
+          else
+              % White Balancing of the output mosaic using the output mosaic itself as colours reference.
+              Mosaic = RGBWhiteBalancing(Mosaic, Mosaic, -3);
+          end
+      end
   end
-  fname = [fname ImageFormat];
 
-  imwrite(Mosaic, fname, ImageFormat(2:end));
-  clear Mosaic
-end
+  % Convert back to the proper type, adjust and save if need be
+  if (nargout == 0)
+    if (norm_factor == 255/(2^16-1))
+      Mosaic = uint16(Mosaic);
+    elseif (norm_factor == 255/(2^32-1))
+      Mosaic = uint32(Mosaic);
+    elseif (norm_factor == 255/(2^64-1))
+      Mosaic = uint64(Mosaic);
+    else
+      Mosaic = uint8(Mosaic);
+    end
 
-disp('MicroMos: THE END.');
+    if (parameters.flag_AdjustIntensityValues)
+      Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+    end
+
+    fname = parameters.ImageFolder;
+    if (fname(end) == filesep)
+      fname = fname(1:end-1);
+    end
+    fname = [fname ImageFormat];
+
+    imwrite(Mosaic, fname, ImageFormat(2:end));
+    clear Mosaic
+  end
+
+  disp('MicroMos: THE END.');
 end
 
 function [Mosaic, MosaicOrigin] = InitMosaic(img_size, MatricesGLOBAL)

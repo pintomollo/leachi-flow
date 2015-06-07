@@ -1,15 +1,25 @@
-function grid = DefineAcquisitionGrid(parameters)
+function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
   numberCorners = 150;
   flag_Harris = 0;
   thresh = 0.5;
+  pix_thresh = 5;
   if (flag_Harris)
     method = 'Harris';
   else
     method = 'MinimumEigenvalue';
   end
 
+  MatricesGLOBAL = eye(3);
+  images_ordering = [];
+
   nelems = length(parameters.ImageIndexs);
+  if (nelems == 1)
+    images_ordering = 1;
+
+    return;
+  end
+
   sizes = factorize_grid(nelems);
 
   nperms = size(sizes, 1);
@@ -19,10 +29,6 @@ function grid = DefineAcquisitionGrid(parameters)
   tmp_indx(2:2:end) = [nperms:-1:ceil(nperms/2)+1];
 
   sizes = sizes(tmp_indx, :);
-
-  if (nelems == 1)
-    trivial
-  end
 
   props = NaN(nelems, 3);
 
@@ -36,8 +42,10 @@ function grid = DefineAcquisitionGrid(parameters)
   img_size = size(edges);
   indexes = [1:nelems];
 
-  best = 1;
-  for i=size(sizes, 1):-1:2
+  all_shifts = NaN(size(sizes, 1), 6);
+
+  best = 0;
+  for i=size(sizes, 1):-1:1
     curr_indx = reshape(indexes, sizes(i,[2 1]));
 
     if (parameters.GridMode==0)
@@ -46,54 +54,90 @@ function grid = DefineAcquisitionGrid(parameters)
 
     data = props(curr_indx);
 
-    vert_dist = data(1:end-1,:) + data(2:end, :);
-    [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
-    vindx = [curr_indx(rindx, cindx) curr_indx(rindx+1, cindx)];
+    if (sizes(i,1) > 1)
+      vert_dist = data(1:end-1,:) + data(2:end, :);
+      [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
+      vindx = [curr_indx(rindx, cindx) curr_indx(rindx+1, cindx)];
 
-    img1 = load_img(vindx(1));
-    img2 = load_img(vindx(2));
-    estims = correl_edges(img1.', img2.', thresh)
+      img1 = load_img(vindx(1));
+      img2 = load_img(vindx(2));
+      [estims, corr1] = correl_edges(img1.', img2.', thresh);
+      overlap = max(estims);
 
-    if (isnan(estims))
-      continue
+      if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
+        continue
+      end
+
+      vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
+      vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+
+      vpoints2 = LKTracker(img1, img2, vpoints, [0 img_size(1)-mean(estims)]);
+      indices2 = CheckPointsAndNAN(img2, vpoints2);
+      vpoints2 = vpoints2(indices2,:);
+      vpoints = vpoints(indices2,:);
+
+      vshift = mean(vpoints - vpoints2);
+      all_shifts(i,1:2) = vshift;
+      all_shifts(i,5) = corr1;
     end
 
-    overlap = max(estims);
-    vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
-    vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+    if (sizes(i,2) > 1)
+      horz_dist = data(:,1:end-1) + data(:,2:end);
+      [rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
+      hindx = [curr_indx(rindx, cindx) curr_indx(rindx, cindx+1)];
 
-    vpoints2 = LKTracker(img1, img2, vpoints, [0 img_size(1)-mean(estims)]);
-    indices2 = CheckPointsAndNAN(img2, vpoints2);
-    vpoints2 = vpoints2(indices2,:);
-    vpoints = vpoints(indices2,:);
+      img1 = load_img(hindx(1));
+      img2 = load_img(hindx(2));
+      [estims, corr2] = correl_edges(img1, img2, thresh);
+      overlap = max(estims);
 
-    vshift = mean(vpoints - vpoints2);
+      if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
+        continue
+      end
 
-    horz_dist = data(:,1:end-1) + data(:,2:end);
-    [rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
-    hindx = [curr_indx(rindx, cindx) curr_indx(rindx, cindx+1)];
+      hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
+      hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
 
-    img1 = load_img(hindx(1));
-    img2 = load_img(hindx(2));
-    estims = correl_edges(img1, img2, thresh)
+      hpoints2 = LKTracker(img1, img2, hpoints, [img_size(2)-mean(estims) 0]);
+      indices2 = CheckPointsAndNAN(img2, hpoints2);
+      hpoints2 = hpoints2(indices2,:);
+      hpoints = hpoints(indices2,:);
 
-    if (isnan(estims))
-      continue
+      hshift = mean(hpoints - hpoints2);
+      all_shifts(i,3:4) = hshift;
+      all_shifts(i,6) = corr2;
     end
 
-    overlap = max(estims);
-    hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
-    hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
+    best = i;
+    break;
+  end
 
-    hpoints2 = LKTracker(img1, img2, hpoints, [img_size(2)-mean(estims) 0]);
-    indices2 = CheckPointsAndNAN(img2, hpoints2);
-    hpoints2 = hpoints2(indices2,:);
-    hpoints = hpoints(indices2,:);
+  if (best > 0)
+    best_size = sizes(best,:);
 
-    hshift = mean(hpoints - hpoints2);
+    gridhx = [0:best_size(2)-1]*all_shifts(best,3);
+    gridhy = [0:best_size(2)-1]*all_shifts(best,4);
 
+    gridvx = [0:best_size(1)-1]*all_shifts(best,1);
+    gridvy = [0:best_size(1)-1]*all_shifts(best,2);
 
-    keyboard
+    gridx = bsxfun(@plus, gridhx, gridvx.');
+    gridy = bsxfun(@plus, gridhy, gridvy.');
+
+    curr_indx = reshape(indexes, best_size([2 1]));
+
+    if (parameters.GridMode==0)
+      curr_indx = permute(curr_indx, [2 1]);
+    end
+
+    MatricesGLOBAL = repmat(eye(3), [1 1 nelems]);
+    MatricesGLOBAL(1,3, curr_indx(:)) = gridx(:);
+    MatricesGLOBAL(2,3, curr_indx(:)) = gridy(:);
+
+    curr_flip = flipud(curr_indx);
+    curr_indx(:,2:2:end) = curr_flip(:,2:2:end);
+
+    images_ordering = curr_indx(:);
   end
 
   return;
@@ -116,7 +160,7 @@ function grid = DefineAcquisitionGrid(parameters)
   end
 end
 
-function [maxs] = correl_edges(img1, img2, thresh)
+function [maxs, max_corr] = correl_edges(img1, img2, thresh)
 
   maxs = [];
 
@@ -126,21 +170,21 @@ function [maxs] = correl_edges(img1, img2, thresh)
   corr1 = sum(bsxfun(@times, img1(:,end), img2), 1) ./ sqrt(sum(img1(:,end).^2, 1) * sum(img2.^2, 1));
   corr2 = sum(bsxfun(@times, img1, img2(:,1)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,1).^2, 1));
 
-  [val, max1] = max(corr1);
+  [val1, max1] = max(corr1);
 
-  if (val >= thresh || mean(corr1 > thresh) <= 0.25)
+  if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
     maxs = max1;
   end
 
-  [val, max2] = max(corr2);
+  [val2, max2] = max(corr2);
 
-  if (val < thresh || mean(corr2 > thresh) > 0.25)
-    if (isempty(maxs))
-      maxs = NaN;
-    end
-  else
+  if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
     maxs = [maxs length(corr2) - max2 + 1];
+  elseif (isempty(maxs))
+    maxs = NaN;
   end
+
+  max_corr = max(val1, val2);
 
   return;
 end

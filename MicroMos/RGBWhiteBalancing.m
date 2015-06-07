@@ -1,4 +1,4 @@
-function IMout = RGBWhiteBalancing(IMinp, EmptyField, WBmode)
+function IMinp = RGBWhiteBalancing(IMinp, EmptyField, WBmode)
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 03 July 2013
 % NAME: RGBWhiteBalancing
@@ -64,7 +64,7 @@ end
 [rowsIMinp, columnsIMinp, channelsIMinp] = size(IMinp);
 [rowsEF, columnsEF, channelsEF] = size(EmptyField);
 
-if channelsIMinp~=channelsEF
+if ~isempty(EmptyField) && channelsIMinp~=channelsEF
     error('The number of channels of the input "IMinp" is different of the number of channels of the input "EmptyField".')
 end
 
@@ -78,7 +78,34 @@ end
 
 if channelsIMinp==3
     %% 3-channel input image
-    
+    IMinp = reshape(IMinp, [rowsIMinp*columnsIMinp channelsIMinp]);
+
+    if (isempty(EmptyField))
+      avgs = nanmean(IMinp, 1);
+    else
+      avgs = nanmean(reshape(EmptyField, [rowsEF*columnsEF channelsEF]), 1);
+    end
+
+    % White Balancing normalizzation factors estimation
+    if WBmode == -4
+        NormFact = max(avgs);
+    elseif WBmode == -3
+        NormFact = median(avgs);
+    elseif WBmode == -2
+        NormFact = mean(avgs);
+    elseif WBmode == -1
+        NormFact = min(avgs);
+    elseif WBmode > 0
+        NormFact = WBmode;
+    else
+        error('ERROR WHITE BALANCING: 3-channel input image. "WBmode" is not an acceptable value.')
+    end
+    FactorR = NormFact./avgs;
+
+    IMinp = bsxfun(@times, IMinp, FactorR);
+    IMinp = reshape(IMinp, [rowsIMinp columnsIMinp channelsIMinp]);
+
+    %{
     % Split the reference image in the 3 channels
     Ref = EmptyField(:,:,1); Gef = EmptyField(:,:,2); Bef = EmptyField(:,:,3);
     clear EmptyField
@@ -109,10 +136,12 @@ if channelsIMinp==3
     clear RinpNoNaNindeces GinpNoNaNindeces BinpNoNaNindeces
     IMout(:,:,1) = Rout; IMout(:,:,2) = Gout; IMout(:,:,3) = Bout;
     clear Rout Gout Bout
+    %}
     
 elseif channels==1    
     %% 1-channel input image
     
+    %{
     Ref = EmptyField;
     clear EmptyField
     RefNoNaNindeces = find(isnan(Ref)==0);
@@ -133,5 +162,18 @@ elseif channels==1
     Rout(RinpNoNaNindeces) = Rout(RinpNoNaNindeces).*FactorR;
     IMout = Rout;
     clear Rout
-   
+   %}
+
+    % White Balancing normalizzation factors estimation
+    if WBmode > 0
+        NormFact = WBmode;
+    else
+        error('ERROR WHITE BALANCING: grey input image. The normalization factor can be a positive value only.')
+    end
+    if (isempty(EmptyField))
+      FactorR = NormFact./nanmean(IMinp(:));
+    else
+      FactorR = NormFact./nanmean(EmptyField(:));
+    end
+    IMinp = IMinp * FactorR;
 end
