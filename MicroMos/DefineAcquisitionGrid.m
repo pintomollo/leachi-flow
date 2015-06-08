@@ -57,6 +57,9 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     end
 
     data = props(curr_indx);
+    if (any(sizes(i,:)==1))
+      data = reshape(data, sizes(i,:));
+    end
 
     if (sizes(i,1) > 1)
       vert_dist = data(1:end-1,:) + data(2:end, :);
@@ -70,8 +73,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       strong2 = all_edges{vindx(2), 1} > avg_edges;
 
       [estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
-      overlap = max(estims);
-
+      overlap = round(mean(estims));
       if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
         continue
       end
@@ -79,7 +81,10 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
       vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
 
-      vpoints2 = LKTracker(img1, img2, vpoints, [0 img_size(1)-mean(estims)]);
+      vpoints2 = corner(img2(1:overlap, :), method, numberCorners);
+      [vshiftx, vshifty] = ShiftByCornerClustering(vpoints, vpoints2, method, numberCorners, 1);
+
+      vpoints2 = LKTracker(img1, img2, vpoints, [vshiftx vshifty]);
       indices2 = CheckPointsAndNAN(img2, vpoints2);
       vpoints2 = vpoints2(indices2,:);
       vpoints = vpoints(indices2,:);
@@ -101,7 +106,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       strong2 = all_edges{hindx(2), 2} > avg_edges;
 
       [estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
-      overlap = max(estims);
+      overlap = round(mean(estims));
 
       if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
         continue
@@ -110,7 +115,10 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
       hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
 
-      hpoints2 = LKTracker(img1, img2, hpoints, [img_size(2)-mean(estims) 0]);
+      hpoints2 = corner(img2(:,1:overlap), method, numberCorners);
+      [hshiftx, hshifty] = ShiftByCornerClustering(hpoints, hpoints2, method, numberCorners, 1);
+
+      hpoints2 = LKTracker(img1, img2, hpoints, [hshiftx hshifty]);
       indices2 = CheckPointsAndNAN(img2, hpoints2);
       hpoints2 = hpoints2(indices2,:);
       hpoints = hpoints(indices2,:);

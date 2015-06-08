@@ -22,7 +22,7 @@ function [xShift, yShift] = ShiftByCornerClustering(I1, I2, method, numberCorner
   dx = bsxfun(@minus, corners1(:,1), corners2(:,1).');
   dy = bsxfun(@minus, corners1(:,2), corners2(:,2).');
 
-  % Clsuter them
+  % Cluster them
   [clusts, nums] = cluster_vector_mex(dx(:), dy(:), threshold);
 
   % Get the biggest cluster

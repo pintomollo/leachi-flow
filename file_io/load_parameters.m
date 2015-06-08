@@ -39,8 +39,8 @@ function opts = load_parameters(opts, fnames)
     % Check if we can save them in the Config folder
     if (exist('Config', 'dir'))
       conf_dir = which('Config.');
-    elseif (exist(['cell-tracking' filesep 'Config'], 'dir'))
-      conf_dir = ['cell-tracking' filesep 'Config'];
+    elseif (exist(['leachi-flow' filesep 'Config'], 'dir'))
+      conf_dir = ['leachi-flow' filesep 'Config'];
     else
       conf_dir = pwd;
     end
@@ -89,12 +89,12 @@ function opts = load_parameters(opts, fnames)
         fname = ['Config' filesep fname '.txt'];
 
       % Maybe it's located in the configuration sub-folder
-      elseif (exist(['cell-tracking' filesep 'Config' filesep fname], 'file'))
-        fname = ['cell-tracking' filesep 'Config' filesep fname];
+      elseif (exist(['leachi-flow' filesep 'Config' filesep fname], 'file'))
+        fname = ['leachi-flow' filesep 'Config' filesep fname];
 
       % Or maybe even both previous cases
-      elseif (exist(['cell-tracking' filesep 'Config' filesep fname '.txt'], 'file'))
-        fname = ['cell-tracking' filesep 'Config' filesep fname '.txt'];
+      elseif (exist(['leachi-flow' filesep 'Config' filesep fname '.txt'], 'file'))
+        fname = ['leachi-flow' filesep 'Config' filesep fname '.txt'];
 
       % Otherwise we ran out of options
       else
