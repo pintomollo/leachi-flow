@@ -164,6 +164,7 @@ function mystruct = get_struct(type, nstruct)
                         'GridMode', 0, ... % 0: Row by row, from left to right
                         'flag_WhiteBalancing', 1, ... % (??) 1 to perform the white balancing of the output mosaic using the mosaic itself as colour reference. 2 to perform the white balancing of the output mosaic loading an external 3-channel image (a RGB image) that must be copied in the folder called "WHITEBALANCING". 0 otherwise.
                         'flag_FlatField', 1, ... % (Piccinini, 2013: crucial) 1 to flat-field correct the images using an input vignetting function. The vignetting function must be saved as matlab matrix in the folder named: "VIGNETTINGFUNCTION". In the "VIGNETTINGFUNCTION" folder must contain at maximum one vignetting function file.
+                        'flag_GroupVignettes', 0, ... % If true, pools all vignettes from the subfolders.
                         'flag_FrameToMosaic', 1, ... % (Piccinini, 2013: F2M clearly better) (by default: 1). 0 for registering the images according to the Frame-to-Frame registration approach; 1 (suggested) for registering the images according to the Frame-to-Mosaic registration approach.
                         'RANSACerror', 2, ... % maximum subpixel reprojection error used inside RANSAC algorithm. We suggest 2 pixels.
                         'flag_PhaseCorrelationOnly', 0, ... % It can assume values 0 or 1. 1 means that the images are registered according to the Phase Correlation ALgorithm only.

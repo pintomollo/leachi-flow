@@ -460,7 +460,7 @@ function [Mosaic, parameters] = MicroMos(varargin)
                   % a problem happened. If possible another image to be registered will be defined.
                   disp(['Frame-to-mosaic registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
               else
-                  GLOBAL = GLOBAL*HF2M;
+                  GLOBAL = GLOBAL*inv(HF2M);
                   MatricesGLOBAL(:,:,i) = GLOBAL;
               end
               clear HF2M inliersF2M

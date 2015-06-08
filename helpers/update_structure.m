@@ -18,10 +18,12 @@ function mystruct = update_structure(mystruct, struct_type)
 
   % Finally, we remove this mention in the configuration files history, as well as
   % duplicates and empty calls
-  files = mystruct.config_files(~cellfun('isempty', mystruct.config_files(1:end-1)));
-  [values, indx, junk] = unique(files);
-  indx = sort(indx);
-  mystruct.config_files = files(indx);
+  if (isfield(mystruct, 'config_files'))
+    files = mystruct.config_files(~cellfun('isempty', mystruct.config_files(1:end-1)));
+    [values, indx, junk] = unique(files);
+    indx = sort(indx);
+    mystruct.config_files = files(indx);
+  end
 
   % And delete the temporary file
   delete(tmp_fname);
