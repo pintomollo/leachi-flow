@@ -2,7 +2,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
   numberCorners = 150;
   flag_Harris = 0;
-  thresh = 0.5;
+  thresh = 0.3;
   pix_thresh = 5;
   if (flag_Harris)
     method = 'Harris';
@@ -78,10 +78,11 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       img1 = load_img(vindx(1));
       img2 = load_img(vindx(2));
 
-      strong1 = all_edges{vindx(1), 1} > avg_edges;
-      strong2 = all_edges{vindx(2), 1} > avg_edges;
+      %strong1 = all_edges{vindx(1), 1} > avg_edges;
+      %strong2 = all_edges{vindx(2), 1} > avg_edges;
 
-      [estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
+      %[estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
+      [estims, corr1] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
       overlap = round(mean(estims));
       if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
         continue
@@ -116,11 +117,12 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       img1 = load_img(hindx(1));
       img2 = load_img(hindx(2));
 
-      strong1 = all_edges{hindx(1), 2} > avg_edges;
-      strong2 = all_edges{hindx(2), 2} > avg_edges;
+      %strong1 = all_edges{hindx(1), 2} > avg_edges;
+      %strong2 = all_edges{hindx(2), 2} > avg_edges;
 
-      [estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
-      overlap = min(estims);
+      %[estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
+      [estims, corr2] = wcorrel_edges(img1, img2, all_edges{hindx(1),2}, all_edges{hindx(2),2}, thresh, avg_edges);
+      overlap = round(mean(estims));
 
       if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
         continue
@@ -194,6 +196,122 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   end
 end
 
+function [maxs, max_corr] = weighted_correl_edges(img1, img2, weight1, weight2, thresh, threshw)
+
+  maxs = [];
+
+  strength1 = (nanmean(weight1, 1));
+  strength2 = (nanmean(weight2, 1));
+
+  goods1 = (strength1 > threshw);
+  goods2 = (strength2 > threshw);
+
+  strength1 = strength1 / max(strength1(:));
+  strength2 = strength2 / max(strength2(:));
+
+  weight1 = bsxfun(@rdivide, weight1, sum(weight1, 1));
+  weight2 = bsxfun(@rdivide, weight2, sum(weight2, 1));
+
+  img1 = bsxfun(@minus, img1, sum(img1.*weight1, 1));
+  img2 = bsxfun(@minus, img2, sum(img2.*weight2, 1));
+
+  img1 = img1 .* weight1;
+  img2 = img2 .* weight2;
+
+  corr1 = strength2.*sum(bsxfun(@times, img1(:,end), img2), 1) ./ sqrt(sum(img1(:,end).^2, 1) * sum(img2.^2, 1));
+  corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,1)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,1).^2, 1));
+
+  [val1, max1] = max(corr1);
+
+  if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
+    maxs = max1;
+  elseif (any(goods1(1:end-1)))
+    good_column = find(goods1(1:end-1), 1, 'last');
+
+    corr1 = strength2.*sum(bsxfun(@times, img1(:,good_column), img2), 1) ./ sqrt(sum(img1(:,good_column).^2, 1) * sum(img2.^2, 1));
+    [val1, max1] = max(corr1);
+
+    if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
+      maxs = (length(corr1)-good_column) + max1;
+    end
+  end
+
+  [val2, max2] = max(corr2);
+
+  if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
+    maxs = [maxs length(corr2) - max2 + 1];
+  elseif (any(goods2(2:end)))
+    good_column = find(goods2(2:end), 1, 'first')+1;
+
+    corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,good_column)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,good_column).^2, 1));
+
+    [val2, max2] = max(corr2);
+
+    if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
+      maxs = [maxs length(corr2) - max2 + good_column];
+    elseif (isempty(maxs))
+      maxs = NaN;
+    end
+  end
+
+  max_corr = max(val1, val2);
+
+  return;
+end
+
+function [maxs, max_corr] = wcorrel_edges(img1, img2, strength1, strength2, thresh, wthresh)
+
+  maxs = [];
+
+  goods1 = (strength1 > wthresh);
+  goods2 = (strength2 > wthresh);
+
+  strength1 = strength1 / max(strength1);
+  strength2 = strength2 / max(strength2);
+
+  img1 = bsxfun(@minus, img1, mean(img1, 1));
+  img2 = bsxfun(@minus, img2, mean(img2, 1));
+
+  corr1 = strength2.*sum(bsxfun(@times, img1(:,end), img2), 1) ./ sqrt(sum(img1(:,end).^2, 1) * sum(img2.^2, 1));
+  corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,1)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,1).^2, 1));
+
+  [val1, max1] = max(corr1);
+
+  if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
+    maxs = max1;
+  elseif (any(goods1(1:end-1)))
+    good_column = find(goods1(1:end-1), 1, 'last');
+
+    corr1 = strength2.*sum(bsxfun(@times, img1(:,good_column), img2), 1) ./ sqrt(sum(img1(:,good_column).^2, 1) * sum(img2.^2, 1));
+    [val1, max1] = max(corr1);
+
+    if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
+      maxs = (length(corr1)-good_column) + max1;
+    end
+  end
+
+  [val2, max2] = max(corr2);
+
+  if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
+    maxs = [maxs length(corr2) - max2 + 1];
+  elseif (any(goods2(2:end)))
+    good_column = find(goods2(2:end), 1, 'first')+1;
+
+    corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,good_column)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,good_column).^2, 1));
+
+    [val2, max2] = max(corr2);
+
+    if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
+      maxs = [maxs length(corr2) - max2 + good_column];
+    elseif (isempty(maxs))
+      maxs = NaN;
+    end
+  end
+
+  max_corr = max(val1, val2);
+
+  return;
+end
 function [maxs, max_corr] = correl_edges(img1, img2, goods1, goods2, thresh)
 
   maxs = [];

@@ -39,7 +39,7 @@ function [metadata, opts] = parse_metadata(data, opts)
       frame_keys = {'FrameKey*', '^Frame$', 'FrameKey*', '^Slice$', 'FrameKey*', '^Channel$', {'FrameKey*', 1/1000}, '^ElapsedTime-ms$', {'FrameKey*', 1/1000}, '^Exposure-ms$', {'FrameKey*', 1}, '^Z-um$'};
       infer_keys = {};
       resol_keys = {};
-    case 'www.openmicroscopy.org/Schemas/OME/2012-06'
+    case {'www.openmicroscopy.org/Schemas/OME/2012-06', 'www.openmicroscopy.org/Schemas/OME/2015-01'}
       summary_keys = {'Pixels', 'SizeT', 'Pixels', 'SizeC', 'Pixels', 'SizeZ'};
       frame_keys = {};
       infer_keys = {};
@@ -55,12 +55,19 @@ function [metadata, opts] = parse_metadata(data, opts)
       infer_keys = {};
       resol_keys = {{'LasImage', 1e6}, {'XMetresPerPixel', 'YMetresPerPixel'}, {'Microscope_Video_Magnification', 1}, '', '', ''};
     otherwise
-      summary_keys = {};
-      frame_keys = {};
-      infer_keys = {};
-      resol_keys = {};
-
-      warning(['Unknown XML schema "' xml_type '", unable to parse it.']);
+      if (strncmp(xml_type, 'www.openmicroscopy.org/Schemas/OME/', 35))
+        summary_keys = {'Pixels', 'SizeT', 'Pixels', 'SizeC', 'Pixels', 'SizeZ'};
+        frame_keys = {};
+        infer_keys = {};
+        resol_keys = {};
+        warning(['Attempting to parse an untested "' xml_type '" OME XML schema.']);
+      else
+        summary_keys = {};
+        frame_keys = {};
+        infer_keys = {};
+        resol_keys = {};
+        warning(['Unknown XML schema "' xml_type '", unable to parse it.']);
+      end
   end
 
   metadata = parse_summary(xml_data, summary_keys);

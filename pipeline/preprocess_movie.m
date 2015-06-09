@@ -222,7 +222,7 @@ function metadata = find_metadata(filename, metadata)
     else
       indx = strfind(file_name, '_');
       if (~isempty(indx))
-        file = regexpdir(fullfile(file_path, '.Metadata'), [file_name(1:indx(end)-1) '\..*\.cal\.xml' ]);
+        file = regexpdir(fullfile(file_path, '.Metadata'), [file_name(1:indx(end)-1) '(\..*)?\.cal\.xml' ]);
         if (length(file)==1)
           metadata = fileread(file{1});
         end
