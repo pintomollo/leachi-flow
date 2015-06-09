@@ -13,7 +13,7 @@ function new_name = get_new_name(pattern, folder)
 % 19.05.2011
 
   % Check whether the pattern is valid
-  if (findstr(pattern, '*') > 0 || isempty(findstr(pattern, '(\d+)')))
+  if (~isempty(strfind(pattern, '*')) || isempty(strfind(pattern, '(\d+)')))
     error('Matlab:get_new_name', ['Regular expression ''' pattern ''' cannot be incremented']);
   end
 

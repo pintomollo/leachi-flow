@@ -85,7 +85,7 @@ function [converted_file] = convert_movie(name)
 end
 
 % Here we'll call the LOCI Bio-formats toolbox to convert anything into our
-% favorit OME-TIFF format
+% favorite OME-TIFF format
 function [newfile] = bftools_convert(fname)
 
   % We need the absolute path for Java to work properly
@@ -100,65 +100,73 @@ function [newfile] = bftools_convert(fname)
     cmd_name = strrep(fname,' ','\ ');
   end
 
-  % Get the current JVM heap space
-  max_jvm = ceil(java.lang.Runtime.getRuntime.maxMemory / 1024^2);
-
   % Split the filename
   [file_path, filename, ext] = fileparts(fname);
 
-  % If we have an AVI recording and FFMPEG, we use it to extract the frames
+  % If we have an AVI recording try using the build-in reader, or FFMPEG to extract the frames
   use_tmp_folder = false;
   if (strncmpi(ext, '.avi', 4))
-    if (ispref('ffmpeg', 'exepath'))
+    % Try using the built-in video reader
+    newfname = movie2tiff(fname);
 
-      % We need to store the original names for later
-      orig_name = filename;
-      orig_path = file_path;
-      orig_cmd_name = cmd_name;
+    % Nothing changed, something went wrong
+    if (length(newfname) == length(fname))
+      if (ispref('ffmpeg', 'exepath'))
 
-      % We will extract everything in a subdirectory
-      use_tmp_folder = true;
-      tmp_folder = absolutepath(get_new_name('tmp_folder(\d+)', file_path));
-      mkdir(tmp_folder);
+        % We need to store the original names for later
+        orig_name = filename;
+        orig_path = file_path;
+        orig_cmd_name = cmd_name;
 
-      % Extract the frames as JPEG
-      new_fname = fullfile(tmp_folder, 'tmp_img%d.jpg');
-      if (ispc)
-        cmd_name_new = ['"' new_fname '"'];
+        % We will extract everything in a subdirectory
+        use_tmp_folder = true;
+        tmp_folder = absolutepath(get_new_name('tmp_folder(\d+)', file_path));
+        mkdir(tmp_folder);
+
+        % Extract the frames as JPEG
+        new_fname = fullfile(tmp_folder, 'tmp_img%d.jpg');
+        if (ispc)
+          cmd_name_new = ['"' new_fname '"'];
+        else
+          cmd_name_new = strrep(new_fname,' ','\ ');
+        end
+
+        % This can take a while, so inform the user
+        hInfo = warndlg('Converting AVI using FFMPEG, please wait...', 'Converting movie...');
+
+        % Get FFMPEG to actually extract the frames
+        [res, info] = system([getpref('ffmpeg', 'exepath') ' -i ' cmd_name ' -y -vf select="eq(pict_type\,PICT_TYPE_I)" -vsync 2 -qscale:v 2 -f image2 ' cmd_name_new]);
+
+        % Close the info
+        if (ishandle(hInfo))
+          delete(hInfo);
+        end
+
+        % Show the error
+        if (res~=0)
+          error('Tracking:FFMPEG', info);
+        end
+
+        % Create the new filename pointing to the frames
+        fname = fullfile(tmp_folder, 'tmp_img1.jpg');
+
+      % Advise the installation of FFMPEG
       else
-        cmd_name_new = strrep(new_fname,' ','\ ');
+        warndlg({'Converting AVI files works best using FFMPEG.', ...
+          'Consider installing this library if the current conversion does not work.', ...
+          'Follow the instructions from install_leachi_flow.m to do so.'}, 'Converting movie...');
       end
-
-      % This can take a while, so inform the user
-      hInfo = warndlg('Converting AVI using FFMPEG, please wait...', 'Converting movie...');
-
-      % Get FFMPEG to actually extract the frames
-      [res, info] = system([getpref('ffmpeg', 'exepath') ' -i ' cmd_name ' -y -vf select="eq(pict_type\,PICT_TYPE_I)" -vsync 2 -qscale:v 2 -f image2 ' cmd_name_new]);
-
-      % Close the info
-      if (ishandle(hInfo))
-        delete(hInfo);
-      end
-
-      % Show the error
-      if (res~=0)
-        error('Tracking:FFMPEG', info);
-      end
-
-      % Create the new filename pointing to the frames
-      fname = fullfile(tmp_folder, 'tmp_img1.jpg');
-      [file_path, filename, ext] = fileparts(fname);
-      if (ispc)
-        cmd_name = ['"' fname '"'];
-      else
-        cmd_name = strrep(fname,' ','\ ');
-      end
-
-    % Advise the installation of FFMPEG
     else
-      warndlg({'Converting AVI files works best using FFMPEG.', ...
-        'Consider installing this library if the current conversion does not work.', ...
-        'Follow the instructions from install_leachi_flow.m to do so.'}, 'Converting movie...');
+      % Use the new file instead
+      fname = newfname;
+    end
+
+    % Update the names
+    [file_path, filename, ext] = fileparts(fname);
+    if (ispc)
+      cmd_name = ['"' fname '"'];
+    else
+      cmd_name = strrep(fname,' ','\ ');
     end
   end
 
@@ -318,7 +326,7 @@ function [newfile] = bftools_convert(fname)
     [res, infos] = system(['bfconvert.bat ' merge_cmd split_cmd cmd_name ' ' cmd_newname]);
   else
     cmd_newname = strrep(newname,' ','\ ');
-    [res, infos] = system(['BF_FLAGS="-XX:+UseConcMarkSweepGC" BF_MAX_MEM=' max_jvm 'm ./bfconvert ' merge_cmd split_cmd cmd_name ' ' cmd_newname]);
+    [res, infos] = system(['./bfconvert ' merge_cmd split_cmd cmd_name ' ' cmd_newname]);
   end
 
   % Delete the temporary folder

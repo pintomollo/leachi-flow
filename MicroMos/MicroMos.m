@@ -96,7 +96,14 @@ function [Mosaic, parameters] = MicroMos(varargin)
           tmp_params = parameters;
           tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
           disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
-          MicroMos(tmp_params);
+
+          try
+            MicroMos(tmp_params);
+          catch
+            err = lasterror();
+            warning(['Error during the analysis:']);
+            print_all(err);
+          end
         elseif (isempty(fname))
           fname = files(i).name;
         else
@@ -565,8 +572,8 @@ function [Mosaic, MosaicOrigin] = InitMosaic(img_size, MatricesGLOBAL)
   end
 
   % Add some spacing for safety
-  width = width + nimgs*[-2 2];
-  height = height + nimgs*[-2 2];
+  width = width + nimgs*[-5 5];
+  height = height + nimgs*[-5 5];
 
   % Create the arrays
   Mosaic = NaN([ceil(diff(height)) ceil(diff(width)) img_size(3)]);

@@ -216,8 +216,18 @@ function metadata = find_metadata(filename, metadata)
     metadata = fileread(fullfile(file_path, '.las'));
 
   % The other LAS
-  elseif (exist(fullfile(file_path, '.Metadata'), 'dir') && exist(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']), 'dir'))
-    metadata = fileread(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']));
+  elseif (exist(fullfile(file_path, '.Metadata'), 'dir'))
+    if (exist(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']), 'file'))
+      metadata = fileread(fullfile(file_path, '.Metadata', [file_name file_ext '.cal.xml']));
+    else
+      indx = strfind(file_name, '_');
+      if (~isempty(indx))
+        file = regexpdir(fullfile(file_path, '.Metadata'), [file_name(1:indx(end)-1) '\..*\.cal\.xml' ]);
+        if (length(file)==1)
+          metadata = fileread(file{1});
+        end
+      end
+    end
 
   % For uManager
   elseif (exist(fullfile(file_path, 'metadata.txt'), 'file'))

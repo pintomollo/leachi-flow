@@ -14,7 +14,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   images_ordering = [];
 
   nelems = length(parameters.ImageIndexs);
-  if (nelems == 1)
+  if (nelems <= 1)
     images_ordering = 1;
 
     return;
@@ -30,20 +30,29 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
   sizes = sizes(tmp_indx, :);
 
-  props = NaN(nelems, 1);
+  props = NaN(nelems, 4);
   all_edges = cell(nelems, 2);
 
+  img_size = [];
+  total_edges = 0;
   for i=1:nelems
     edges = imadm(load_img(i), false);
+    if (isempty(img_size))
+      img_size = size(edges);
+      rim_size = ceil(img_size/4);
+    end
     all_edges{i,1} = nanmean(edges, 2).';
     all_edges{i,2} = nanmean(edges, 1);
 
-    [mval, stdval] = mymean(edges(:));
-    props(i, 1) = mval + stdval;
+    props(i, 1) = mean(all_edges{i,1}(end-rim_size(1)+1:end));
+    props(i, 2) = mean(all_edges{i,1}(1:rim_size(1)));
+    props(i, 3) = mean(all_edges{i,2}(end-rim_size(2)+1:end));
+    props(i, 4) = mean(all_edges{i,2}(1:rim_size(2)));
+
+    total_edges = total_edges + mean(all_edges{i,1});
   end
 
-  avg_edges = mean(props(:));
-  img_size = size(edges);
+  avg_edges = total_edges / nelems;
   indexes = [1:nelems];
 
   all_shifts = NaN(size(sizes, 1), 6);
@@ -56,13 +65,13 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       curr_indx = permute(curr_indx, [2 1]);
     end
 
-    data = props(curr_indx);
-    if (any(sizes(i,:)==1))
-      data = reshape(data, sizes(i,:));
-    end
+    data1 = props(curr_indx,1);
+    data1 = reshape(data1, sizes(i,:));
+    data2 = props(curr_indx,2);
+    data2 = reshape(data2, sizes(i,:));
 
     if (sizes(i,1) > 1)
-      vert_dist = data(1:end-1,:) + data(2:end, :);
+      vert_dist = data1(1:end-1,:) + data2(2:end, :);
       [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
       vindx = [curr_indx(rindx, cindx) curr_indx(rindx+1, cindx)];
 
@@ -94,8 +103,13 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       all_shifts(i,5) = corr1;
     end
 
+    data1 = props(curr_indx,3);
+    data1 = reshape(data1, sizes(i,:));
+    data2 = props(curr_indx,4);
+    data2 = reshape(data2, sizes(i,:));
+
     if (sizes(i,2) > 1)
-      horz_dist = data(:,1:end-1) + data(:,2:end);
+      horz_dist = data1(:,1:end-1) + data2(:,2:end);
       [rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
       hindx = [curr_indx(rindx, cindx) curr_indx(rindx, cindx+1)];
 
@@ -106,7 +120,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       strong2 = all_edges{hindx(2), 2} > avg_edges;
 
       [estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
-      overlap = round(mean(estims));
+      overlap = min(estims);
 
       if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
         continue
