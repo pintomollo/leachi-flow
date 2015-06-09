@@ -4,6 +4,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   flag_Harris = 0;
   thresh = 0.3;
   pix_thresh = 5;
+  prop_thresh = 0.25;
   if (flag_Harris)
     method = 'Harris';
   else
@@ -72,6 +73,9 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
     if (sizes(i,1) > 1)
       vert_dist = data1(1:end-1,:) + data2(2:end, :);
+
+      %% Try to sort instead of max, and run through several to increase number of points
+
       [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
       vindx = [curr_indx(rindx, cindx) curr_indx(rindx+1, cindx)];
 
@@ -100,6 +104,11 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       vpoints = vpoints(indices2,:);
 
       vshift = mean(vpoints - vpoints2);
+
+      if (abs(vshift(1)/vshift(2)) > prop_thresh)
+        continue;
+      end
+
       all_shifts(i,1:2) = vshift;
       all_shifts(i,5) = corr1;
     end
@@ -140,6 +149,11 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       hpoints = hpoints(indices2,:);
 
       hshift = mean(hpoints - hpoints2);
+
+      if (abs(hshift(2)/hshift(1)) > prop_thresh)
+        continue;
+      end
+
       all_shifts(i,3:4) = hshift;
       all_shifts(i,6) = corr2;
     end
@@ -147,6 +161,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     best = i;
     break;
   end
+
+  keyboard
 
   if (best > 0)
     best_size = sizes(best,:);
