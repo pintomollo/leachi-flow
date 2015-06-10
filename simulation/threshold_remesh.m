@@ -3,10 +3,20 @@ function [cells, thresh] = threshold_remesh(cells, dvect, thresh, opts)
   dims = [1:opts.ndims];
   cells(:, dims) = cells(:, dims) + dvect;
 
-  dthresh = max(sum(dvect.^2, 2)) / (opts.outside_ridge * max(opts.image_size));
+  dthresh = sqrt(max(sum(dvect.^2, 2))) / (opts.outside_ridge * max(opts.image_size));
 
   thresh = thresh + dthresh;
   if (thresh > opts.remesh_params)
+
+    %show_vessels(opts)
+    %hold on;
+    %scatter(cells(:,1), cells(:,2), 'k')
+    %keyboard
+
+    %%%% Sort out on the inner rim that must still be populate the proportion of inwards/outwards cells
+    %%%% Adapt the required density accordingly
+
+
     new_cells = opts.create_cells(opts);
 
     rim = (opts.image_size-1) * opts.outside_ridge * (1 - opts.remesh_params);

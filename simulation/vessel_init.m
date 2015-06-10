@@ -129,6 +129,15 @@ function cells = vessel_init(opts)
 
   cells = [pos random(cell_props, curr_n)];
   cells = cells(~any(cells(:,3:4)<=0, 2), :);
+  cells(:,3) = cells(:,3) / opts.pixel_size;
+
+  %{
+  show_vessels(opts)
+  hold on;
+  scatter(cells(:,1), cells(:,2), 'k')
+
+  keyboard
+  %}
 
   return;
 end

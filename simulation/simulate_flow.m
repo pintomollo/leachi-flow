@@ -13,6 +13,8 @@ function [data, opts] = simulate_flow(opts)
     opts = opts.init_simulation(opts);
   end
 
+  img_size = opts.image_size([2 1]);
+
   cells = opts.create_cells(opts);
   opts = opts.move_cells(cells, 0, opts);
 
@@ -30,16 +32,18 @@ function [data, opts] = simulate_flow(opts)
 
   thresh = 0;
   for nimg = 1:nframes
-    img = draw_gaussians_mex(opts.image_size, cells) + randn(opts.image_size)*opts.image_noise;
+    img = draw_gaussians_mex(img_size, cells) + randn(img_size)*opts.image_noise;
 
     curr_t = frames(nimg);
     c = 0;
+    did_remesh = false;
     while (curr_t < frames(nimg+1))
       [dmov, dt] = opts.move_cells(cells, frames(nimg), opts);
       [cells, thresh] = opts.remesh_cells(cells, dmov, thresh, opts);
 
       curr_t = curr_t + dt;
       c = c + 1;
+      did_remesh = (did_remesh || thresh==0);
     end
 
     if (store_data)
@@ -48,8 +52,8 @@ function [data, opts] = simulate_flow(opts)
       save_data(data, img);
       waitbar(nimg/nframes,hwait);
     else
-      imagesc(1024-img, [0 1024]);
-      if (thresh==0)
+      imagesc(1-img, [0 1]);
+      if (did_remesh)
         title(['remesh ' num2str(c)])
       else
         title(num2str(c))

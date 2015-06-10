@@ -42,7 +42,8 @@ function [dvect, dt] = vascular_movement(cells, curr_time, opts)
     return;
   end
 
-  speeds = opts.cell_speed.speeds * opts.cell_speed.scaling;
+  dm = sin(2*pi*curr_time/opts.movement_params(1));
+  speeds = opts.cell_speed.speeds * opts.cell_speed.scaling * dm;
   params = opts.cell_speed.parameters.';
   origin = opts.cell_speed.segments(:,1:2).';
   juncts = opts.cell_speed.joints;
@@ -99,10 +100,10 @@ function [dvect, dt] = vascular_movement(cells, curr_time, opts)
     end
   end
 
-  dm = opts.cell_speed.scaling  * opts.dt * sin(2*pi*curr_time/opts.movement_params(1));
   %dvect = bsxfun(@times, (opts.cell_speed.speeds(abs(indx),:) + centering.') * dm, 1 + randn(size(cells, 1), opts.ndims) * opts.cell_variation);
-  dvect = bsxfun(@times, (opts.cell_speed.speeds(abs(indx),:) - centering.'), 1 + randn(size(cells, 1), opts.ndims) * opts.cell_variation);
+  dvect = bsxfun(@times, (speeds(abs(indx),:) - centering.'), 1 + randn(size(cells, 1), opts.ndims) * opts.cell_variation);
 
+  %{
   figure;hold on;
   ncols = size(opts.cell_speed.speeds, 1);
   colors = jet(4*ncols);
@@ -125,6 +126,7 @@ function [dvect, dt] = vascular_movement(cells, curr_time, opts)
   quiver(cells(:,1), cells(:,2), dvect(:,1), dvect(:,2))
   plot(opts.creation_params.border(:,1), opts.creation_params.border(:,2), 'k');
   keyboard
+  %}
 
   dlen = sum(dvect.^2, 2);
   dt = min(opts.dmax/max(dlen), opts.dt);

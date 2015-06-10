@@ -1,8 +1,20 @@
-function get_vessel_properties(data)
+function get_vessel_properties(data, max_range)
+
+  if (nargin < 2)
+    max_range = 255;
+  end
 
   cells = (data(:, end) == 0);
   vessel = data(~cells, :);
   cells = data(cells, :);
+
+  med_area = median(cells(:,1));
+  is_bkg = (cells(:,1) > 3*med_area);
+
+  cells = normalize_cells(cells, is_bkg);
+  cells(:,2) = cells(:,2) / max_range;
+
+  keyboard
 
   vessel = vessel(:, end);
   cells = [sqrt(cells(:,1) ./ pi) cells(:,2)];
@@ -51,27 +63,60 @@ function get_vessel_properties(data)
   figure;
   subplot(3, 3, 1);hold on
   scatter(cells(:,1), cells(:,2), 'k')
-  ezcontour(@(x,y)pdf(cgm1, [x y]), [crange(:,1).', crange(:,2).']);
+  ezcontour(@(x,y)pdf(cgm1, [x y]), [crange(:,1).', crange(:,2).'], 200);
   subplot(3, 3, 2);hold on
   bar(cedge1, count11, 'stacked')
   subplot(3, 3, 3);hold on
   bar(cedge2, count12, 'stacked')
   subplot(3, 3, 4);hold on
   scatter(cells(:,1), cells(:,2), 'k')
-  ezcontour(@(x,y)pdf(cgm2, [x y]), [crange(:,1).', crange(:,2).']);
+  ezcontour(@(x,y)pdf(cgm2, [x y]), [crange(:,1).', crange(:,2).'], 200);
   subplot(3, 3, 5);hold on
   bar(cedge1, count21, 'stacked')
   subplot(3, 3, 6);hold on
   bar(cedge2, count22, 'stacked')
   subplot(3, 3, 7);hold on
   scatter(cells(:,1), cells(:,2), 'k')
-  ezcontour(@(x,y)pdf(cgm3, [x y]), [crange(:,1).', crange(:,2).']);
+  ezcontour(@(x,y)pdf(cgm3, [x y]), [crange(:,1).', crange(:,2).'], 200);
   subplot(3, 3, 8);hold on
   bar(cedge1, count31, 'stacked')
   subplot(3, 3, 9);hold on
   bar(cedge2, count32, 'stacked')
 
   keyboard
+
+  return;
+end
+
+function new_cells = normalize_cells(cells, is_bkg)
+% Assume bkg comes first
+
+  first = find(is_bkg, 1, 'first');
+  cells = cells(first:end,:);
+  is_bkg = is_bkg(first:end);
+
+  new_cells = NaN(0, size(cells, 2));
+
+  for i=1:sum(is_bkg)
+    first_cell = find(~is_bkg, 1, 'first');
+
+    bkg = mean(cells(1:first_cell-1, 2));
+    cells = cells(first_cell:end,:);
+    is_bkg = is_bkg(first_cell:end);
+
+    first = find(is_bkg, 1, 'first');
+    if (isempty(first))
+      cells(:,2) = bkg - cells(:,2);
+      new_cells = [new_cells; cells];
+      break;
+    else
+      tmp_cells = cells(1:first-1,:);
+      tmp_cells(:,2) = bkg - tmp_cells(:,2);
+      new_cells = [new_cells; tmp_cells];
+      cells = cells(first:end,:);
+      is_bkg = is_bkg(first:end);
+    end
+  end
 
   return;
 end
