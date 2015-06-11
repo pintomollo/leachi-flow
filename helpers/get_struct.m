@@ -100,6 +100,13 @@ function mystruct = get_struct(type, nstruct)
                         'cosmic_rays_window_size', 10, ...  % The size of the overlapping tiles the algorithm works with
                         'detrend_meshpoints', 32);          % The number of positions over the image used for detrending
 
+    % All the infos required to rescale an image
+    case 'image_infos'
+      mystruct = struct('is_signed', false, ...             % Is it a signed data type
+                        'offset', 0, ...                    % The minimal value of the datatype
+                        'scaling', 1);                      % The scaling factor
+
+
     % Structure containing the different parameters required for tracking spots
     case 'image_segmentation'
       mystruct = struct('filter_max_size', 10, ...         % Maximal radius (in um), see filter_spots.m

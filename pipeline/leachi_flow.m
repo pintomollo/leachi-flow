@@ -7,18 +7,24 @@ function leachi_flow(myrecording, opts)
   end
 
   if (~isstruct(myrecording))
-    [myrecording, opts] = inspect_recording();
+    if (ischar(myrecording))
+      [myrecording, opts] = inspect_recording(myrecording);
+    else
+      [myrecording, opts] = inspect_recording();
+    end
 
     if (~isempty(myrecording))
       [myrecording, opts] = preprocess_movie(myrecording, opts);
-      save(myrecording.experiment, 'myrecording', 'opts');
+      save([myrecording.experiment '.mat'], 'myrecording', 'opts');
     end
   end
+
+  b_leachi = get_struct('botrylloides_leachi');
 
   diff_thresh = 5;
   min_length = 1;
   min_branch = 10;
-  prop_thresh = 0.5;
+  prop_thresh = 0.3;
 
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
@@ -26,24 +32,26 @@ function leachi_flow(myrecording, opts)
   orig_img = double(load_data(myrecording.channels(1), 1));
   %prev_noise = estimate_noise(prev_img);
 
-  vessel_width = ceil(15 / opts.pixel_size);
+  vessel_width = ceil(min(b_leachi.vessel_width.mu) / opts.pixel_size);
   disk1 = strel('disk', 2*vessel_width);
   disk2 = strel('disk', vessel_width);
 
-  noise = estimate_noise(orig_img);
-  prev_img = padarray(orig_img, [3 3]*vessel_width);
-  prev_mask = imdilate(imopen(prev_img < noise(1) + diff_thresh*noise(2), disk1), disk2);
+  sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
 
-  indexes = NaN(nframes, 2);
-  masks = cell(nframes, 1);
-  indx = 1;
+  noise = estimate_noise(orig_img);
+  prev_img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
+  prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+
+  %indexes = NaN(nframes, 2);
+  %masks = cell(nframes, 1);
+  %indx = 1;
 
   %figure;
   mask = zeros(img_size+6*vessel_width);
   for nimg=2:nframes
     orig_img = double(load_data(myrecording.channels(1), nimg));
-    img = padarray(orig_img, [3 3]*vessel_width);
-    curr_mask = imdilate(imopen(img < noise(1) + diff_thresh*noise(2), disk1), disk2);
+    img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
+    curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk1), disk2);
 
     %bkg_diff = abs(prev_noise(1) - noise(1));
     %curr_noise = max(prev_noise(2), noise(2));
@@ -57,6 +65,7 @@ function leachi_flow(myrecording, opts)
 
     %if (nimg==5)
     %figure;imagesc(bw)
+    %imagesc(bw)
     %end
 
     bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
@@ -68,62 +77,61 @@ function leachi_flow(myrecording, opts)
 
       props = sum(open(:)) * inelems;
 
-      if (props > 0.5)
-        masks{indx} = mask;
-        mask = zeros(img_size+6*vessel_width);
-        indx = nimg - 1;
-      else
+      %if (props > 0.5)
+      %  masks{indx} = mask;
+      %  mask = zeros(img_size+6*vessel_width);
+      %  indx = nimg - 1;
+      %else
         mask = mask + open;
-      end
-      indexes(nimg - 1, 1) = indx;
+      %end
+      %indexes(nimg - 1, 1) = indx;
       %closed = imclose(bw, disk);
       %open = imopen(closed, disk);
 
-      %subplot(2,2,1);imagesc(prev_img)
-      %subplot(2,2,2);imagesc(closed)
-      %subplot(2,2,3);imagesc(open);
-      %subplot(2,2,4);imagesc(mask)
-      %title(props)
+      subplot(2,2,1);imagesc(prev_img)
+      subplot(2,2,2);imagesc(closed)
+      subplot(2,2,3);imagesc(open);
+      subplot(2,2,4);imagesc(mask)
+      title(props)
 
-    else
-      masks{indx} = mask;
-      mask = zeros(img_size+6*vessel_width);
+    %else
+      %masks{indx} = mask;
+      %mask = zeros(img_size+6*vessel_width);
 
-      noise = estimate_noise(orig_img);
-      indx = nimg - 1;
+      %noise = estimate_noise(orig_img);
+      %indx = nimg - 1;
     end
 
     prev_img = img;
     %prev_noise = noise;
     prev_mask = curr_mask;
 
-    
-    %drawnow
+    drawnow
   end
-  masks{indx} = mask;
+  %masks{indx} = mask;
 
   %keyboard
 
-  [sorted, coords, inverse] = unique(indexes(:,1));
-  [tmp_coords, tmp_indx] = sort(coords);
-  lens = diff([tmp_coords; nframes]);
-  [junk,rev_indx] = sort(tmp_indx);
-  goods = (lens(rev_indx)>min_length) & isfinite(sorted);
-  groups = sorted(goods);
+  %[sorted, coords, inverse] = unique(indexes(:,1));
+  %[tmp_coords, tmp_indx] = sort(coords);
+  %lens = diff([tmp_coords; nframes]);
+  %[junk,rev_indx] = sort(tmp_indx);
+  %goods = (lens(rev_indx)>min_length) & isfinite(sorted);
+  %groups = sorted(goods);
 
-  ngroups = length(groups);
+  %ngroups = length(groups);
 
-  indexes(~ismember(indexes, groups), 1) = NaN;
-  indexes(groups, 2) = [1:ngroups];
-  masks = masks(groups);
-  centers = cell(size(masks));
+  %indexes(~ismember(indexes, groups), 1) = NaN;
+  %indexes(groups, 2) = [1:ngroups];
+  %masks = masks(groups);
+  %centers = cell(size(masks));
   %proj_dist = 8;
   proj_dist = vessel_width / 2;
 
   %keyboard
 
-  for i=1:ngroups
-    mask = masks{i};
+  %for i=1:ngroups
+    %mask = masks{i};
     %mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
     mask = imnorm(mask);
 
@@ -141,17 +149,75 @@ function leachi_flow(myrecording, opts)
     imagesc(mask)
 
     mask = bwmorph(mask, 'thin', Inf);
+    mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
     [icoord, jcoord] = find(mask);
-    centers{i} = [jcoord, icoord];
-    tmp_mask = imdilate(mask, disk2);
-    masks{i} = tmp_mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
+    %centers{i} = [jcoord, icoord];
+    centers = [jcoord, icoord];
+    %tmp_mask = imdilate(mask, disk2);
 
-    subplot(2,2,4)
-    imagesc(tmp_mask+mask)
-  end
+    %subplot(2,2,4)
+    %imagesc(tmp_mask+mask)
+
+  %end
   prev_indx = -1;
 
   keyboard
+
+        dist = [];
+
+  %{
+        branches = sort_shape(centers, min_branch);
+        branches_size = cellfun(@(x)(size(x,1)), branches);
+        goods = (branches_size > min_branch);
+
+        if (~any(goods))
+          error('nothing');
+        end
+
+        branches = branches(goods);
+        branches_size = branches_size(goods);
+        center = cat(1, branches{:});
+
+        colors = jet(length(branches));
+        figure;imagesc(mask);
+        hold on;
+        for i=1:length(branches)
+          scatter(branches{i}(:,1), branches{i}(:,2), 'MarkerEdgeColor', colors(i,:));
+        end
+
+        vectors = cellfun(@(x)(differentiator(carth2linear(x), x, 'replicate', 1, 11)), branches, 'UniformOutput', false);
+        parallels = cat(1,vectors{:});
+        parallels = parallels(:,1:2);
+        parallels = bsxfun(@rdivide, parallels, sqrt(sum(parallels.^2, 2)));
+  %}
+  branches = sort_shape(centers, min_branch);
+  if (isempty(branches))
+    error('nothing');
+  end
+
+    %%%%%%%% FROM VASCULAR MOVEMENT, NEED TO GET RID OF THE JUNCTIONS AS WELL
+    %%%%%%%% ALSO NEED TO RECREATE TEH MASK BY SIMPLY MEASURING THE DISTANCE OF ALL PIXELS TO THE CENTERS
+    centers = opts.creation_params.center;
+    x1 = centers(1:3:end, 1);
+    x2 = centers(2:3:end, 1);
+    y1 = centers(1:3:end, 2);
+    y2 = centers(2:3:end, 2);
+
+    vects = [x2-x1 y2-y1];
+    lens = 1 ./ sum(vects.^2, 2);
+    cross = (x2.*y1 - y2.*x1);
+
+    speeds = bsxfun(@times, vects, sqrt(lens));
+
+    interp = get_struct('interpolation');
+    interp.segments = [x1 y1 x2 y2];
+    interp.speeds = [speeds; opts.creation_params.junction.vector.'];
+    interp.dists = 1 ./ (opts.creation_params.property(:)).^2;
+    interp.parameters = [vects cross lens sqrt(lens .* interp.dists)];
+
+
+  keyboard
+
 
   %windows = [32 32; 16 16; 8 8; 8 8];
   %threshs = [Inf; Inf; 10; 5];
@@ -160,32 +226,14 @@ function leachi_flow(myrecording, opts)
   threshs = [5; 5; 3; 3];
 
   data = cell(nframes, 1);
-
   for nimg=1:nframes-1
-    if (~isnan(indexes(nimg, 1)))
+    %if (~isnan(indexes(nimg, 1)))
       if (prev_indx == nimg)
         img = img_next;
       else
         img = double(load_data(myrecording.channels(1), nimg));
-        mask = masks{indexes(indexes(nimg, 1), 2)};
-        dist = [];
+        %mask = masks{indexes(indexes(nimg, 1), 2)};
 
-        branches = sort_shape(centers{indexes(indexes(nimg, 1), 2)});
-        branches_size = cellfun(@(x)(size(x,1)), branches);
-        goods = (branches_size > min_branch);
-
-        if (~any(goods))
-          continue;
-        end
-
-        branches = branches(goods);
-        branches_size = branches_size(goods);
-        center = cat(1, branches{:});
-
-        vectors = cellfun(@(x)(differentiator(carth2linear(x), x, 'replicate', 1, 11)), branches, 'UniformOutput', false);
-        parallels = cat(1,vectors{:});
-        parallels = parallels(:,1:2);
-        parallels = bsxfun(@rdivide, parallels, sqrt(sum(parallels.^2, 2)));
       end
       img_next = double(load_data(myrecording.channels(1), nimg+1));
 
@@ -222,7 +270,7 @@ function leachi_flow(myrecording, opts)
       %keyboard
 
       prev_indx = nimg;
-    end
+    %end
   end
 
   keyboard

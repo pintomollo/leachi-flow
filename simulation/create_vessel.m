@@ -1,43 +1,33 @@
 function opts = create_vessel(opts)
 
+  % Get the statistical properties of the vessels
   b_leachi = get_struct('botrylloides_leachi');
   vessel_props = gmdistribution(b_leachi.vessel_width.mu / opts.pixel_size, b_leachi.vessel_width.sigma / opts.pixel_size, b_leachi.vessel_width.proportions);
-  %vessel_widths = random(vessel_props, opts.init_params(1));
-  %vessel_centers = randi(prod(opts.image_size), [1 opts.init_params(1)]);
 
+  % The size of the drawing area
   rim = (opts.image_size - 1) * opts.outside_ridge;
   bounding_box = [1-rim(1) opts.image_size(1)+rim(1) 1-rim(2) opts.image_size(2)+rim(2)];
 
-  max_trials = 200;
+  % The maximal number of trials to build the vessel
+  max_trials = 20;
 
-  precision = min(opts.image_size)/20;
-
+  % The storing structures
   vessel = get_struct('vessel');
-
   vessels = NaN(2, 1);
   middles = NaN(2, 0);
   junctions = NaN(2, 0);
   widths = NaN(1,0);
-  for i=1:opts.init_params(1)
-    %[centery, centerx] = ind2sub(opts.image_size, vessel_centers(i));
-    %vessels(i, :) = [rand(1)*(2*pi) vessel_widths(i) centerx centery];
 
-    %get_vessel(bounding_box, vessels(i, 1), vessels(i, 2), vessels(i,3:4), opts.init_params(2));
+  % Loop over the vessels
+  for i=1:opts.init_params(1)
+
+    % And trial a number of times to create it
     for j=1:max_trials
       [new_vessel, new_middle, new_junctions, new_widths] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
 
+      % Nothing got created, something is wrong
       if (~isempty(new_vessel))
         [x,y] = polybool('&', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
-
-        %if (i==1 && j==1)
-        %figure;
-        %end
-        %plot(vessels(1,:), vessels(2,:), 'b')
-        %hold on
-        %plot(new_vessel(1,:), new_vessel(2,:), 'k')
-        %plot(x, y, 'r')
-        %drawnow
-        %hold off
 
         if (isempty(x))
           break;
@@ -45,58 +35,47 @@ function opts = create_vessel(opts)
       end
     end
 
+    % We cannot create a vessel, something is wrong
     if j==max_trials
       break;
     end
 
+    % Merge the new vessel with the previous ones
     [x,y] = polybool('|', vessels(1,:), vessels(2,:), new_vessel(1,:), new_vessel(2,:));
     vessels = [x;y];
     middles = [middles new_middle NaN(2, 1)];
     junctions = [junctions new_junctions];
     widths = [widths; new_widths];
-
-    %p1 = get_bounding_box(vessels(i,:), opts);
-    %p2 = get_bounding_box(vessels(i,:)+[pi 0 0 0], opts);
-    %[x,y] = polybool('|', p1(1,:), p1(2,:), p2(1,:), p2(2,:));
-    %plot(x, y, 'b');
   end
 
-  %figure;
+  % Polarize the vessels, i.e. define an arbitrary in/out pattern
   middles = polarize_flow(middles.');
 
+  % Cut out the outside bits of the vessel
   [vessel.center, vessel.property] = trim_centers(middles, widths, bounding_box);
-  %vessel.center = middles;
-  %vessel.property = widths;
 
+  % Clean the junctions
   vessel.border = vessels.';
   vessel.junction = refine_junctions(junctions, middles, bounding_box);
 
+  % Create a mesh to mal the vessel
   precision = min(vessel.property(:)) * 0.75;
-
   [p,t] = distmesh_poly(vessels.', precision, bounding_box([1 3; 2 4]));
 
+  % Store it
   mesh = get_struct('meshing');
   mesh.nodes = p;
   mesh.edges = t;
 
+  % Sort the mapping
   mesh = sort_mesh(mesh);
 
+  % Store everything
   vessel.mesh = mesh;
-
   opts.creation_params = vessel;
 
-  %opts.creation_params = vessels(1, 1:2);
-  %opts.movement_params = [cos(vessels(1,1)) sin(vessels(1, 1))];
-
-  %if (length(vessel.junction.threshold)>opts.init_params(2))
-    show_vessels(opts)
-  %  keyboard
-  %end
-
-  %figure;hold on;
-  %plot(vessel.center(:,1), vessel.center(:,2), 'r');
-  %plot(vessel.border(:,1), vessel.border(:,2), 'b');
-  %plot(vessel.junction.polygon(:,1), vessel.junction.polygon(:,2), 'k')
+  % Display the result
+  show_vessels(opts)
 
   return;
 end
@@ -240,69 +219,6 @@ function junct = refine_junctions(junctions, centers, bbox)
   junct.polygon = junctions;
   junct.threshold = rads;
   junct.vector = vects;
-
-  return;
-end
-
-function centers = polarize_flow(centers)
-
-  [nodes, indxi, indxj] = unique(centers, 'rows');
-  goods = ~any(isnan(nodes), 2);
-
-  nodes = nodes(goods, :);
-  indxi = indxi(goods, :);
-
-  %figure;hold on
-  %plot(centers(:,1), centers(:,2), 'r')
-  %scatter(nodes(:,1), nodes(:,2), 'k');
-
-  for i=1:length(indxi)
-    connectivity = sum(bsxfun(@eq, indxj(indxi), indxj.'), 2);
-
-    starts = (connectivity == 1);
-    nstarts = sum(starts);
-    if (nstarts == 0)
-      break;
-    end
-
-    start_indx = indxi(starts);
-    start_indx = start_indx(randi(nstarts, 1));
-    nexts = start_indx;
-
-    for j=1:length(indxj)
-      %scatter(centers(nexts, 1), centers(nexts, 2), 'g')
-      pos = mod(nexts, 3);
-
-      flip = (pos == 2);
-
-      if (any(flip))
-        indxs = nexts(flip);
-
-        tmp_pos = centers(indxs, :);
-        centers(indxs, :) = centers(indxs-1, :);
-        centers(indxs-1, :) = tmp_pos;
-
-        indxi = indxi + ismember(indxi, indxs-1) - ismember(indxi, indxs);
-
-        tmp_indx = indxj(indxs, :);
-        indxj(indxs, :) = indxj(indxs-1, :);
-        indxj(indxs-1, :) = tmp_indx;
-
-        nexts(flip) = indxs-1;
-      end
-
-      tmp_nexts = indxj(nexts+1);
-      indxj([nexts nexts+1]) = 0;
-
-      %scatter(nodes(tmp_nexts, 1), nodes(tmp_nexts, 2), 'b')
-
-      nexts = find(ismember(indxj, tmp_nexts));
-
-      if (isempty(nexts))
-        break
-      end
-    end
-  end
 
   return;
 end

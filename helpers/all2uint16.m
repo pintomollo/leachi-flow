@@ -40,6 +40,9 @@ end
 % the available one in UINT16. In addition, we store whether the type is signed or not.
 function infos = get_infos(img)
 
+  % Get the structure
+  infos = get_struct('image_infos');
+
   % Get the type of numerical variable we have
   type = class(img);
 
@@ -63,11 +66,6 @@ function infos = get_infos(img)
         is_signed = false;
       otherwise
         warning('Matlab:all2uint16',['Unkown image data type:' class(img)]);
-
-        infos = struct('is_signed', false, ...
-                       'offset', 0, ...
-                       'scaling', 1);
-
         return;
   end
 
@@ -77,15 +75,15 @@ function infos = get_infos(img)
   % Convert the parameters as Matlab do not combine different types
   minval = double(minval);
   maxval = double(maxval);
-  
+
   % Compute the two values
   offset = -minval;
   scaling = max16 / (maxval - minval);
 
-  % Create the structure
-  infos = struct('is_signed', is_signed, ...
-                 'offset', offset, ...
-                 'scaling', scaling);
+  % Store everything
+  infos.is_signed = is_signed;
+  infos.offset = offset;
+  infos.scaling = scaling;
 
   return;
 end
