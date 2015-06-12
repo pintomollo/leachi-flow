@@ -21,7 +21,7 @@ function leachi_flow(myrecording, opts)
 
   b_leachi = get_struct('botrylloides_leachi');
 
-  diff_thresh = 5;
+  diff_thresh = 2;
   min_length = 1;
   min_branch = 10;
   prop_thresh = 0.3;
@@ -30,9 +30,10 @@ function leachi_flow(myrecording, opts)
   inelems = 1/(prod(img_size));
 
   orig_img = double(load_data(myrecording.channels(1), 1));
-  %prev_noise = estimate_noise(prev_img);
 
   vessel_width = ceil(min(b_leachi.vessel_width.mu) / opts.pixel_size);
+  proj_dist = vessel_width / 2;
+
   disk1 = strel('disk', 2*vessel_width);
   disk2 = strel('disk', vessel_width);
 
@@ -42,10 +43,6 @@ function leachi_flow(myrecording, opts)
   prev_img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
   prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
 
-  %indexes = NaN(nframes, 2);
-  %masks = cell(nframes, 1);
-  %indx = 1;
-
   %figure;
   mask = zeros(img_size+6*vessel_width);
   for nimg=2:nframes
@@ -53,168 +50,103 @@ function leachi_flow(myrecording, opts)
     img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
     curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk1), disk2);
 
-    %bkg_diff = abs(prev_noise(1) - noise(1));
-    %curr_noise = max(prev_noise(2), noise(2));
-
     img_diff = abs(prev_img - img);
-
     img_diff(prev_mask | curr_mask) = false;
 
-    %bw = img_diff > bkg_diff + diff_thresh * curr_noise;
     bw = img_diff > diff_thresh * noise(2);
-
-    %if (nimg==5)
-    %figure;imagesc(bw)
-    %imagesc(bw)
-    %end
-
     bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
     if (any(bw(:)))
 
       closed = imdilate(bw, disk1);
       open = imerode(closed, disk2);
+      mask = mask + open;
 
-      props = sum(open(:)) * inelems;
-
-      %if (props > 0.5)
-      %  masks{indx} = mask;
-      %  mask = zeros(img_size+6*vessel_width);
-      %  indx = nimg - 1;
-      %else
-        mask = mask + open;
-      %end
-      %indexes(nimg - 1, 1) = indx;
-      %closed = imclose(bw, disk);
-      %open = imopen(closed, disk);
-
-      subplot(2,2,1);imagesc(prev_img)
-      subplot(2,2,2);imagesc(closed)
-      subplot(2,2,3);imagesc(open);
-      subplot(2,2,4);imagesc(mask)
-      title(props)
-
-    %else
-      %masks{indx} = mask;
-      %mask = zeros(img_size+6*vessel_width);
-
-      %noise = estimate_noise(orig_img);
-      %indx = nimg - 1;
+      %subplot(2,2,1);imagesc(prev_img)
+      %subplot(2,2,2);imagesc(closed)
+      %subplot(2,2,3);imagesc(open);
+      %subplot(2,2,4);imagesc(mask)
+      %props = sum(open(:)) * inelems;
+      %title(props)
     end
 
     prev_img = img;
-    %prev_noise = noise;
     prev_mask = curr_mask;
-
-    drawnow
+    %drawnow
   end
-  %masks{indx} = mask;
 
-  %keyboard
+  mask = imnorm(mask);
 
-  %[sorted, coords, inverse] = unique(indexes(:,1));
-  %[tmp_coords, tmp_indx] = sort(coords);
-  %lens = diff([tmp_coords; nframes]);
-  %[junk,rev_indx] = sort(tmp_indx);
-  %goods = (lens(rev_indx)>min_length) & isfinite(sorted);
-  %groups = sorted(goods);
+  %figure;subplot(2,2,1)
+  %imagesc(mask)
 
-  %ngroups = length(groups);
+  mask = (mask > prop_thresh);
 
-  %indexes(~ismember(indexes, groups), 1) = NaN;
-  %indexes(groups, 2) = [1:ngroups];
-  %masks = masks(groups);
-  %centers = cell(size(masks));
-  %proj_dist = 8;
-  proj_dist = vessel_width / 2;
+  %subplot(2,2,2)
+  %imagesc(mask)
 
-  %keyboard
+  mask = bwareaopen(mask, vessel_width^2);
 
-  %for i=1:ngroups
-    %mask = masks{i};
-    %mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
-    mask = imnorm(mask);
+  %subplot(2,2,3)
+  %imagesc(mask)
 
-    figure;subplot(2,2,1)
-    imagesc(mask)
+  mask = bwmorph(mask, 'thin', Inf);
+  mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
+  [icoord, jcoord] = find(mask);
+  centers = [jcoord, icoord];
 
-    mask = (mask > prop_thresh);
-
-    subplot(2,2,2)
-    imagesc(mask)
-
-    mask = bwareaopen(mask, vessel_width^2);
-
-    subplot(2,2,3)
-    imagesc(mask)
-
-    mask = bwmorph(mask, 'thin', Inf);
-    mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
-    [icoord, jcoord] = find(mask);
-    %centers{i} = [jcoord, icoord];
-    centers = [jcoord, icoord];
-    %tmp_mask = imdilate(mask, disk2);
-
-    %subplot(2,2,4)
-    %imagesc(tmp_mask+mask)
-
-  %end
-  prev_indx = -1;
-
-  keyboard
-
-        dist = [];
-
-  %{
-        branches = sort_shape(centers, min_branch);
-        branches_size = cellfun(@(x)(size(x,1)), branches);
-        goods = (branches_size > min_branch);
-
-        if (~any(goods))
-          error('nothing');
-        end
-
-        branches = branches(goods);
-        branches_size = branches_size(goods);
-        center = cat(1, branches{:});
-
-        colors = jet(length(branches));
-        figure;imagesc(mask);
-        hold on;
-        for i=1:length(branches)
-          scatter(branches{i}(:,1), branches{i}(:,2), 'MarkerEdgeColor', colors(i,:));
-        end
-
-        vectors = cellfun(@(x)(differentiator(carth2linear(x), x, 'replicate', 1, 11)), branches, 'UniformOutput', false);
-        parallels = cat(1,vectors{:});
-        parallels = parallels(:,1:2);
-        parallels = bsxfun(@rdivide, parallels, sqrt(sum(parallels.^2, 2)));
-  %}
   branches = sort_shape(centers, min_branch);
   if (isempty(branches))
     error('nothing');
   end
 
-    %%%%%%%% FROM VASCULAR MOVEMENT, NEED TO GET RID OF THE JUNCTIONS AS WELL
-    %%%%%%%% ALSO NEED TO RECREATE TEH MASK BY SIMPLY MEASURING THE DISTANCE OF ALL PIXELS TO THE CENTERS
-    centers = opts.creation_params.center;
-    x1 = centers(1:3:end, 1);
-    x2 = centers(2:3:end, 1);
-    y1 = centers(1:3:end, 2);
-    y2 = centers(2:3:end, 2);
+  subplot(2,2,4)
+  imagesc(mask);hold on
+  plot(branches(:,1), branches(:,2), 'k');
 
-    vects = [x2-x1 y2-y1];
-    lens = 1 ./ sum(vects.^2, 2);
-    cross = (x2.*y1 - y2.*x1);
+  prev_indx = -1;
+  dist = [];
 
-    speeds = bsxfun(@times, vects, sqrt(lens));
+  x1 = branches(1:3:end, 1);
+  x2 = branches(2:3:end, 1);
+  y1 = branches(1:3:end, 2);
+  y2 = branches(2:3:end, 2);
 
-    interp = get_struct('interpolation');
-    interp.segments = [x1 y1 x2 y2];
-    interp.speeds = [speeds; opts.creation_params.junction.vector.'];
-    interp.dists = 1 ./ (opts.creation_params.property(:)).^2;
-    interp.parameters = [vects cross lens sqrt(lens .* interp.dists)];
+  vects = [x2-x1 y2-y1];
+  lens = 1 ./ sum(vects.^2, 2);
+  cross = (x2.*y1 - y2.*x1);
+  widths = 1/(proj_dist)^2;
 
+  origin = [x1 y1].';
+  params = [vects cross lens sqrt(lens .* widths)].';
+
+  [X,Y] = meshgrid([1:img_size(2)], [1:img_size(1)]);
+
+  dists = bsxfun(@times, (bsxfun(@plus, ...
+                            bsxfun(@times, X(:), params(2, :)) - ...
+                              bsxfun(@times, Y(:), params(1,:)), ...
+                            params(3,:))).^2, ...
+                         params(4,:) .* widths);
+
+  frac = bsxfun(@times, bsxfun(@minus, X(:), ...
+                                       origin(1,:)), ...
+                        params(1,:) .* params(4,:)) + ...
+         bsxfun(@times, bsxfun(@minus, Y(:), ...
+                                       origin(2,:)), ...
+                        params(2,:) .* params(4,:));
+
+  %{
+  perps = bsxfun(@times, bsxfun(@minus, X(:), ...
+                                       origin(1,:)), ...
+                        -params(2,:) .* params(5,:)) + ...
+         bsxfun(@times, bsxfun(@minus, Y(:), ...
+                                       origin(2,:)), ...
+                        params(1,:) .* params(5,:));
+  %}
+
+  dists(frac < 0 | frac > 1) = Inf;
+  inside = (sum(dists < proj_dist, 2)==1);
+  mask = reshape(inside, size(X));
 
   keyboard
 
@@ -227,50 +159,45 @@ function leachi_flow(myrecording, opts)
 
   data = cell(nframes, 1);
   for nimg=1:nframes-1
-    %if (~isnan(indexes(nimg, 1)))
-      if (prev_indx == nimg)
-        img = img_next;
-      else
-        img = double(load_data(myrecording.channels(1), nimg));
-        %mask = masks{indexes(indexes(nimg, 1), 2)};
+    if (prev_indx == nimg)
+      img = img_next;
+    else
+      img = double(load_data(myrecording.channels(1), nimg));
+    end
+    img_next = double(load_data(myrecording.channels(1), nimg+1));
 
-      end
-      img_next = double(load_data(myrecording.channels(1), nimg+1));
+    [x,y,u,v] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask);
+    empties = (u == 0 & v == 0);
+    u(empties) = NaN;
+    v(empties) = NaN;
 
-      [x,y,u,v] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask);
-      empties = (u == 0 & v == 0);
-      u(empties) = NaN;
-      v(empties) = NaN;
+    if (isempty(dist) && ~isempty(center))
+      dist = sqrt(bsxfun(@minus, center(:,1), x(:).').^2 + ...
+                  bsxfun(@minus, center(:,2), y(:).').^2);
+      dist(dist>3*proj_dist) = Inf;
 
-      if (isempty(dist) && ~isempty(center))
-        dist = sqrt(bsxfun(@minus, center(:,1), x(:).').^2 + ...
-                    bsxfun(@minus, center(:,2), y(:).').^2);
-        dist(dist>3*proj_dist) = Inf;
+      weights = exp(-(dist.^2)/(2*((proj_dist/2)^2)));
 
-        weights = exp(-(dist.^2)/(2*((proj_dist/2)^2)));
+      weights = bsxfun(@rdivide, weights, sum(weights, 2));
+    end
 
-        weights = bsxfun(@rdivide, weights, sum(weights, 2));
-      end
+    %subplot(2,2,1);imagesc(img)
+    %subplot(2,2,2);imagesc(img_next)
+    %subplot(2,2,3);imagesc(mask);
+    %subplot(2,2,4);quiver(x,-y,u,-v)
+    %axis([1 img_size(2) -img_size(1) -1])
 
-      %subplot(2,2,1);imagesc(img)
-      %subplot(2,2,2);imagesc(img_next)
-      %subplot(2,2,3);imagesc(mask);
-      %subplot(2,2,4);quiver(x,-y,u,-v)
-      %axis([1 img_size(2) -img_size(1) -1])
+    if (~isempty(weights))
+      speed_x = nansum(bsxfun(@times, weights, u(:).'), 2);
+      speed_y = nansum(bsxfun(@times, weights, v(:).'), 2);
 
-      if (~isempty(weights))
-        speed_x = nansum(bsxfun(@times, weights, u(:).'), 2);
-        speed_y = nansum(bsxfun(@times, weights, v(:).'), 2);
+      speed = dot(parallels, [speed_x speed_y], 2);
 
-        speed = dot(parallels, [speed_x speed_y], 2);
+      results = mat2cell(speed, branches_size, 1);
+      data{nimg} = results;
+    end
 
-        results = mat2cell(speed, branches_size, 1);
-        data{nimg} = results;
-      end
-      %keyboard
-
-      prev_indx = nimg;
-    %end
+    prev_indx = nimg;
   end
 
   keyboard

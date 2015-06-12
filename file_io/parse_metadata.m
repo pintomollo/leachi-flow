@@ -26,6 +26,7 @@ function [metadata, opts] = parse_metadata(data, opts)
   max_iter = 15;
 
   data = umanager2xml(data, max_iter);
+  data = regexprep(data, '^\*.*\*', '');
 
   xml_data = parse_xml(data);
 

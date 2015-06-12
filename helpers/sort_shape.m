@@ -24,7 +24,15 @@ function centers = sort_shape(pts, min_branch)
   tips_indx = find(tips);
 
   [npts, npos] = size(pts);
+  npts = npts + sum(all_cross(:,end)-1);
   sorted = NaN(2*npts, npos);
+
+  %{
+  figure;hold on;
+  scatter(pts(:,1), pts(:,2), 'b')
+  scatter(all_cross(:,1), all_cross(:,2), 'r');
+  scatter(pts(tips,1), pts(tips,2), 'k');
+  %}
 
   gap = true;
   skip = -1;
@@ -35,11 +43,20 @@ function centers = sort_shape(pts, min_branch)
 
       if (isempty(indx))
         [junk, indx] = min(dist(prev_indx, :), [], 2);
+
+        if (~isfinite(junk))
+          break;
+        end
+
         [junk, indx_link] = min(cross(indx, :), [], 2);
         indx = cross_indx(indx_link);
       end
     else
       [val, indx] = min(dist(prev_indx, :), [], 2);
+      if (val>2)
+        [junk, indx_link] = min(cross(prev_indx, :), [], 2);
+        indx = cross_indx(indx_link);
+      end
     end
     link = pts(indx, :);
 
@@ -52,16 +69,8 @@ function centers = sort_shape(pts, min_branch)
         sorted(i+skip, :) = pts(cross_indx(indx_link), :);
         skip = skip + 1;
       end
-    else
-      if (val > 2)
-        sorted(i+skip, :) = NaN;
-        skip = skip - 1;
-        indx = prev_indx;
-        link = pts(indx, :);
-        gap = true;
-      elseif (link(end)~=2)
-        gap = true;
-      end
+    elseif (link(end)~=2)
+      gap = true;
     end
     sorted(i+skip, :) = link;
 
@@ -69,28 +78,43 @@ function centers = sort_shape(pts, min_branch)
 
     dist(:, prev_indx) = Inf;
     tips(prev_indx) = false;
+
+    %scatter(link(1), link(2), 'm');
+    %drawnow
   end
 
-  if (link(end)==2)
+  if (link(end)==2 && ~gap)
     skip = skip + 1;
     [val_link, indx_link] = min(cross(indx, :), [], 2);
     sorted(i+skip, :) = pts(cross_indx(indx_link), :);
   end
 
-  sorted = sorted(1:npts+skip,:);
+  last = find(~isnan(sorted(:,1)), 1, 'last');
+  sorted = sorted(1:last,:);
   gaps = find(isnan(sorted(:,1)));
   ngaps = length(gaps);
+
+  %colors = jet(ngaps+1);
+  %figure;
+  %hold on;
 
   shapes = cell(ngaps+1, 1);
   indx = 1;
   for i=1:ngaps
     shapes{i} = sorted(indx:gaps(i)-1,:);
     indx=gaps(i)+1;
+    %scatter(shapes{i}(:,1),shapes{i}(:,2), 'MarkerEdgeColor', colors(i,:));
   end
   shapes{end} = sorted(indx:end,:);
+  %scatter(shapes{end}(:,1),shapes{end}(:,2), 'MarkerEdgeColor', colors(end,:));
+  %plot(sorted(:,1), sorted(:,2), 'k');
 
   nbranches = ngaps+1;
-  all_cross(:,end) = NaN;
+  orig_cross = all_cross(:,1:2);
+  all_cross = NaN(size(orig_cross) + [0 nbranches]);
+  all_cross(:,1:2) = orig_cross;
+
+  %scatter(orig_cross(:,1), orig_cross(:,2), 'k');
 
   %colors = jet(nbranches);
   %figure;
@@ -105,76 +129,109 @@ function centers = sort_shape(pts, min_branch)
       continue;
     end
 
+    ranges = myregress(pts);
     %scatter(pts(:,1), pts(:,2), 'MarkerEdgeColor', colors(i,:));
-    lsq_line = [pts(:,1) ones(size(pts,1), 1)] \ pts(:,2);
-    x_range = [min(pts(:,1)) max(pts(:,1))];
-    %plot(x_range, x_range*lsq_line(1) + lsq_line(2), 'Color', colors(i,:)*0.5);
+    %plot(ranges([1 3]), ranges([2 4]), 'Color', colors(i,:)*0.5);
 
     if (pts(1,end)>2)
-      all_cross(all(bsxfun(@eq,all_cross(:,1:2),pts(1,1:2)),2), end) = i;
-      all_cross(end+1,:) = [pts(1,1) pts(1,1)*lsq_line(1) + lsq_line(2) i];
+      cindx = all(bsxfun(@eq,orig_cross,pts(1,1:2)),2);
+      rindx = find(isnan(all_cross(cindx,:)), 1, 'first');
+      all_cross(cindx, rindx) = i;
+      all_cross(cindx, 1:2) = all_cross(cindx, 1:2) + ranges(1:2);
     end
     if (pts(end,end)>2)
-      all_cross(all(bsxfun(@eq,all_cross(:,1:2),pts(end,1:2)),2), end) = i;
-      all_cross(end+1,:) = [pts(end,1) pts(end,1)*lsq_line(1) + lsq_line(2) i];
+      cindx = all(bsxfun(@eq,orig_cross,pts(end,1:2)),2);
+      rindx = find(isnan(all_cross(cindx,:)), 1, 'first');
+      all_cross(cindx, rindx) = i;
+      all_cross(cindx, 1:2) = all_cross(cindx, 1:2) + ranges(3:4);
     end
 
-    all_lines(i,:) = [lsq_line.' x_range];
+    all_lines(i,:) = ranges;
   end
+  %scatter(all_cross(:,1), all_cross(:,2), 'k');
 
-  dist = bsxfun(@minus, all_cross(:,1), all_cross(:,1).').^2 + ...
-         bsxfun(@minus, all_cross(:,2), all_cross(:,2).').^2;
+  ncross = sum(~isnan(all_cross(:,3:end)), 2)+1;
+  all_cross(:,1:2) = bsxfun(@rdivide, all_cross(:,1:2), ncross);
 
-  ncross = size(all_cross, 1);
-  for i=1:ncross
-    goods = (dist(:,i) <= 8);
-
-    if (any(goods))
-
-      links = all_cross(goods, [1 end]);
-      goods = goods | ismember(all_cross(:, [1 end]), links, 'rows');
-
-      new_center = mean(all_cross(goods,1:2), 1);
-      all_cross(goods,1) = new_center(1);
-      all_cross(goods,2) = new_center(2);
-
-      dist(:, goods) = Inf;
-    end
-  end
-
-  all_cross = unique(all_cross(~any(isnan(all_cross),2),:), 'rows');
+  %colors = jet(nbranches);
+  %figure;
+  %hold on;
 
   centers = NaN(0,2);
   for i=1:nbranches
     pts = shapes{i};
 
     if (~isempty(pts))
-      tips = (all_cross(:,end)==i);
+      tips = (any(all_cross(:,3:end)==i, 2));
       switch sum(tips)
         case 0
-          centers = [centers; all_lines(i,3)*[0 all_lines(i,1)] + all_lines(i,2); ...
-                              all_lines(i,4)*[0 all_lines(i,1)] + all_lines(i,2)];
+          centers = [centers; all_lines(i,1:2); all_lines(i,3:4)];
         case 1
           center = all_cross(tips,1:2);
-          pts = bsxfun(@minus, pts(:,1:2), center);
-          lsq_line = pts(:,1) \ pts(:,2);
-
-          x_range = [min(pts(:,1)) max(pts(:,1))];
-          [junk, indx] = max(abs(x_range));
-          x_range = x_range(indx);
-
-          centers = [centers; center; ([x_range lsq_line*x_range]) + center];
+          ranges = myregress(pts, center);
+          centers = [centers; ranges(1:2); ranges(3:4)];
         case 2
           centers = [centers; all_cross(tips,1:2)];
         otherwise
           error('why?')
       end
       centers = [centers; NaN(1,2)];
+
+      %scatter(pts(:,1), pts(:,2), 'MarkerEdgeColor', colors(i,:));
+      %plot(centers(end-2:end-1,1), centers(end-2:end-1,2), 'Color', colors(i,:)*0.5);
     end
   end
   centers = centers(1:end-1,:);
+  %scatter(all_cross(:,1), all_cross(:,2), 'k');
 
   centers = polarize_flow(centers);
+
+  return;
+end
+
+function extrema = myregress(pts, pivot)
+
+  if (nargin < 2)
+    ranges = [min(pts, [], 1); max(pts, [], 1)];
+    rval = diff(ranges, 1, 1);
+
+    if (rval(1) > rval(2))
+      lsq_line = [pts(:,1) ones(size(pts,1), 1)] \ pts(:,2);
+      extrema = [ranges(:,1).'; (ranges(:,1).')*lsq_line(1) + lsq_line(2)];
+      if (pts(1,1)>pts(end,1))
+        extrema = extrema(:,[2 1]);
+      end
+    else
+      lsq_line = [pts(:,2) ones(size(pts,1), 1)] \ pts(:,1);
+      extrema = [(ranges(:,2).')*lsq_line(1) + lsq_line(2); ranges(:,2).'];
+      if (pts(1,2)>pts(end,2))
+        extrema = extrema(:,[2 1]);
+      end
+    end
+  else
+    pts = bsxfun(@minus, pts(:,1:2), pivot);
+    ranges = [min(pts, [], 1); max(pts, [], 1)];
+    [junk, indxs] = min(abs(ranges), [], 1);
+    ranges(indxs(1), 1) = 0;
+    ranges(indxs(2), 2) = 0;
+
+    rval = diff(ranges, 1, 1);
+
+    if (rval(1) > rval(2))
+      lsq_line = pts(:,1) \ pts(:,2);
+      extrema = [ranges(:,1).' + pivot(1); (ranges(:,1).')*lsq_line(1) + pivot(2)];
+      if (pts(1,1)>pts(end,1))
+        extrema = extrema(:,[2 1]);
+      end
+    else
+      lsq_line = pts(:,2) \ pts(:,1);
+      extrema = [(ranges(:,2).')*lsq_line(1) + pivot(1); ranges(:,2).' + pivot(2)];
+      if (pts(1,2)>pts(end,2))
+        extrema = extrema(:,[2 1]);
+      end
+    end
+  end
+  extrema = extrema(:).';
 
   return;
 end

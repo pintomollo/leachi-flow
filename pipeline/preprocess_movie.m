@@ -79,6 +79,7 @@ function [myrecording, opts] = preprocess_movie(myrecording, opts)
     % This can take a while, so inform the user
     hInfo = warndlg('Parsing metadata, please wait.', 'Preprocessing movie...');
 
+    keyboard
     % Store the resulting metadata
     [myrecording.channels(k).metadata, opts] = parse_metadata(metadata, opts);
 
