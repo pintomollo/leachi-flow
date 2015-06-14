@@ -100,9 +100,9 @@ function leachi_flow(myrecording, opts)
     error('nothing');
   end
 
-  subplot(2,2,4)
-  imagesc(mask);hold on
-  plot(branches(:,1), branches(:,2), 'k');
+  %subplot(2,2,4)
+  %imagesc(mask);hold on
+  %plot(branches(:,1), branches(:,2), 'k');
 
   prev_indx = -1;
   dist = [];
@@ -111,6 +111,8 @@ function leachi_flow(myrecording, opts)
   x2 = branches(2:3:end, 1);
   y1 = branches(1:3:end, 2);
   y2 = branches(2:3:end, 2);
+
+  branches_size = length(x1);
 
   vects = [x2-x1 y2-y1];
   lens = 1 ./ sum(vects.^2, 2);
@@ -128,6 +130,9 @@ function leachi_flow(myrecording, opts)
                             params(3,:))).^2, ...
                          params(4,:) .* widths);
 
+  nodes = widths*(bsxfun(@minus, X(:), [x1;x2].').^2 + ...
+                  bsxfun(@minus, Y(:), [y1;y2].').^2);
+
   frac = bsxfun(@times, bsxfun(@minus, X(:), ...
                                        origin(1,:)), ...
                         params(1,:) .* params(4,:)) + ...
@@ -144,16 +149,20 @@ function leachi_flow(myrecording, opts)
                         params(1,:) .* params(5,:));
   %}
 
-  dists(frac < 0 | frac > 1) = Inf;
-  inside = (sum(dists < proj_dist, 2)==1);
+  dists(frac < 0 | frac > 1 | dists > 1) = Inf;
+  crosses = any(nodes < 1.5, 2);
+  dists(crosses,:) = Inf;
+  inside = (sum(isfinite(dists), 2)==1);
   mask = reshape(inside, size(X));
+  [junk, indexes] = min(dists(inside,:), [], 2);
+  mapping = double(mask);
+  mapping(mask) = indexes;
 
-  keyboard
-
+  real_mapping = [];
 
   %windows = [32 32; 16 16; 8 8; 8 8];
   %threshs = [Inf; Inf; 10; 5];
-  windows = 2.^(max(nextpow2(3*vessel_width)-[0 1 2 2], 2));
+  windows = 2.^(max(nextpow2(2*vessel_width)-[0 1 2 2], 2));
   %windows = [64 64; 32 32; 16 16; 16 16];
   threshs = [5; 5; 3; 3];
 
@@ -171,14 +180,17 @@ function leachi_flow(myrecording, opts)
     u(empties) = NaN;
     v(empties) = NaN;
 
-    if (isempty(dist) && ~isempty(center))
-      dist = sqrt(bsxfun(@minus, center(:,1), x(:).').^2 + ...
-                  bsxfun(@minus, center(:,2), y(:).').^2);
-      dist(dist>3*proj_dist) = Inf;
+    if (isempty(real_mapping))
+      tmp_vals = bilinear_mex(mapping, x, y);
+      real_mapping = blockproc(tmp_vals, [1 1], @local_mapping, 'BorderSize', [1 1], 'TrimBorder', false);
 
-      weights = exp(-(dist.^2)/(2*((proj_dist/2)^2)));
+      inside = (real_mapping > 0);
 
-      weights = bsxfun(@rdivide, weights, sum(weights, 2));
+      ngoods = sum(inside(:));
+      subs = sub2ind([ngoods branches_size], [1:ngoods].', real_mapping(inside));
+
+      others = ~ismember([1:ngoods*branches_size], subs);
+      one = ones(1, branches_size);
     end
 
     %subplot(2,2,1);imagesc(img)
@@ -187,15 +199,14 @@ function leachi_flow(myrecording, opts)
     %subplot(2,2,4);quiver(x,-y,u,-v)
     %axis([1 img_size(2) -img_size(1) -1])
 
-    if (~isempty(weights))
-      speed_x = nansum(bsxfun(@times, weights, u(:).'), 2);
-      speed_y = nansum(bsxfun(@times, weights, v(:).'), 2);
+    %% MOST LIKELY WRONG....
+    speed = bsxfun(@times, u(inside), params(1,:) .* sqrt(params(4,:))) + ...
+             bsxfun(@times, v(inside), params(2,:) .* sqrt(params(4,:)));
 
-      speed = dot(parallels, [speed_x speed_y], 2);
+    speed(others) = NaN;
 
-      results = mat2cell(speed, branches_size, 1);
-      data{nimg} = results;
-    end
+    results = mat2cell(speed, ngoods, one);
+    data{nimg} = results;
 
     prev_indx = nimg;
   end
@@ -250,6 +261,31 @@ function leachi_flow(myrecording, opts)
   pos = pos(~bads);
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
+
+  return;
+end
+
+function index = local_mapping(block)
+
+  index = NaN;
+
+  data = block.data(:);
+  center = data(5);
+  data = data(data~=0 & mod(data,1)==0);
+
+  if (~isempty(data) && center~=0)
+    vals = unique(data);
+    if (numel(vals)==1)
+      index = vals;
+    else
+      counts = sum(bsxfun(@eq, vals(:), data(:).'), 2);
+      [indxs] = find(counts==max(counts));
+
+      if (length(indxs)==1)
+        index = vals(indxs);
+      end
+    end
+  end
 
   return;
 end
