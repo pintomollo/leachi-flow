@@ -288,8 +288,15 @@ switch method
     % and solve...
     B=A;
     k=nan_list(:,1);
-    B(k)=fda(k,k)\rhs(k);
-    
+    fda = full(fda(k,k));
+    rval = rcond(fda);
+
+    if (rval < 1024*eps)
+      B = inpaint_nans(reshape(A,n,m),0);
+      return;
+    else
+      B(k)=fda\rhs(k);
+    end
   end
   
  case 3
