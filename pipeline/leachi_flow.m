@@ -32,7 +32,7 @@ function leachi_flow(myrecording, opts)
   orig_img = double(load_data(myrecording.channels(1), 1));
 
   vessel_width = ceil(min(b_leachi.vessel_width.mu) / opts.pixel_size);
-  proj_dist = vessel_width / 2;
+  proj_dist = vessel_width * 0.75;
 
   disk1 = strel('disk', 2*vessel_width);
   disk2 = strel('disk', vessel_width);
@@ -162,11 +162,12 @@ function leachi_flow(myrecording, opts)
 
   %windows = [32 32; 16 16; 8 8; 8 8];
   %threshs = [Inf; Inf; 10; 5];
-  windows = 2.^(max(nextpow2(2*vessel_width)-[0 1 2 2], 2));
+  %windows = 2.^(max(nextpow2(3*vessel_width)-[0 1 2 2], 2));
+  windows = vessel_width * [4 3 2 1 1].';
   %windows = [64 64; 32 32; 16 16; 16 16];
   threshs = [5; 5; 3; 3];
 
-  data = cell(nframes, 1);
+  data = cell(nframes-1, 1);
   for nimg=1:nframes-1
     if (prev_indx == nimg)
       img = img_next;
@@ -198,19 +199,26 @@ function leachi_flow(myrecording, opts)
     %subplot(2,2,3);imagesc(mask);
     %subplot(2,2,4);quiver(x,-y,u,-v)
     %axis([1 img_size(2) -img_size(1) -1])
+    %drawnow
 
-    %% MOST LIKELY WRONG....
     speed = bsxfun(@times, u(inside), params(1,:) .* sqrt(params(4,:))) + ...
              bsxfun(@times, v(inside), params(2,:) .* sqrt(params(4,:)));
 
     speed(others) = NaN;
 
-    results = mat2cell(speed, ngoods, one);
-    data{nimg} = results;
+    data{nimg} = speed;
 
     prev_indx = nimg;
   end
 
+  ndata = length(data);
+  avgs = cellfun(@nanmedian, data, 'UniformOutput', false);
+  avgs = cat(1, avgs{:});
+  corrs = corr(avgs);
+  sames = (corrs(1,:)>0);
+  sames = 2*sames-1;
+
+  %{
   keyboard
 
   for i=1:ngroups
@@ -248,12 +256,14 @@ function leachi_flow(myrecording, opts)
 
     data(indexes(1:nframes,1)==groups(i)) = results;
   end
+  %}
 
   speeds = [];
   group_indxs = [];
-  pos = [1:nframes];
+  pos = [1:ndata];
   for i = pos
-    tmp = data{i};
+    tmp = bsxfun(@times, data{i}, sames);
+    tmp = tmp(isfinite(tmp));
     speeds = [speeds; tmp];
     group_indxs = [group_indxs; ones(size(tmp))*i];
   end
@@ -261,6 +271,8 @@ function leachi_flow(myrecording, opts)
   pos = pos(~bads);
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
+
+  keyboard
 
   return;
 end

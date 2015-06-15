@@ -27,12 +27,10 @@ function centers = sort_shape(pts, min_branch)
   npts = npts + sum(all_cross(:,end)-1);
   sorted = NaN(2*npts, npos);
 
-  %{
-  figure;hold on;
-  scatter(pts(:,1), pts(:,2), 'b')
-  scatter(all_cross(:,1), all_cross(:,2), 'r');
-  scatter(pts(tips,1), pts(tips,2), 'k');
-  %}
+  %figure;hold on;
+  %scatter(pts(:,1), pts(:,2), 'b')
+  %scatter(all_cross(:,1), all_cross(:,2), 'r');
+  %scatter(pts(tips,1), pts(tips,2), 'k');
 
   gap = true;
   skip = -1;
@@ -94,6 +92,25 @@ function centers = sort_shape(pts, min_branch)
   gaps = find(isnan(sorted(:,1)));
   ngaps = length(gaps);
 
+  dist = bsxfun(@minus, all_cross(:,1), all_cross(:,1).').^2 + bsxfun(@minus, all_cross(:,2), all_cross(:,2).').^2;
+  ncross = size(dist, 1);
+  fuse = eye(ncross);
+  for i=1:ncross
+    goods = (dist(i,:) <= 2);
+    grp = goods | fuse(i,:);
+    fuse(grp, grp) = true;
+  end
+  fuse = logical(unique(fuse, 'rows'));
+
+  for i=1:size(fuse,1)
+    vals = all_cross(fuse(i,:),:);
+    replace = ismember(sorted, vals, 'rows');
+    news = mean(vals,1);
+    sorted(replace,1) = news(1);
+    sorted(replace,2) = news(2);
+  end
+  all_cross = unique(sorted(sorted(:,3)>2,:), 'rows');
+
   %colors = jet(ngaps+1);
   %figure;
   %hold on;
@@ -148,10 +165,9 @@ function centers = sort_shape(pts, min_branch)
 
     all_lines(i,:) = ranges;
   end
-  %scatter(all_cross(:,1), all_cross(:,2), 'k');
-
   ncross = sum(~isnan(all_cross(:,3:end)), 2)+1;
   all_cross(:,1:2) = bsxfun(@rdivide, all_cross(:,1:2), ncross);
+  %scatter(all_cross(:,1), all_cross(:,2), 'k');
 
   %colors = jet(nbranches);
   %figure;
@@ -184,6 +200,7 @@ function centers = sort_shape(pts, min_branch)
   centers = centers(1:end-1,:);
   %scatter(all_cross(:,1), all_cross(:,2), 'k');
 
+  %keyboard
   centers = polarize_flow(centers);
 
   return;

@@ -10,7 +10,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // Declare variable
   int i, j, xf, yf, xc, yc, boundary_x = 0, boundary_y = 0;
   int offset_img, offset_values;
-  double dxf, dyf, dxc, dyc, x, y, nanval;
+  double dxf, dyf, dxc, dyc, x, y, nanval, tmp_val, counter, weights;
   mwSize w, h, m, n, c, nvals, dims[3];
   const mwSize *size;
   double *x_indx, *y_indx, *tmp, *img, *values;
@@ -311,11 +311,44 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     } else {
       // All channels of the input image
       for (j=0; j < c; j++) {
-        values[i + j*offset_values] =
-                    img[xf*h + yf + j*offset_img] * dxc * dyc +
-                    img[xc*h + yf + j*offset_img] * dxf * dyc +
-                    img[xf*h + yc + j*offset_img] * dxc * dyf +
-                    img[xc*h + yc + j*offset_img] * dxf * dyf;
+        counter = 0;
+        weights = 0;
+
+        tmp_val = img[xf*h + yf + j*offset_img];
+        if (tmp_val != nanval) {
+          counter += tmp_val * dxc * dyc;
+          weights += dxc * dyc;
+        }
+
+        tmp_val = img[xc*h + yf + j*offset_img];
+        if (tmp_val != nanval) {
+          counter += tmp_val * dxf * dyc;
+          weights += dxf * dyc;
+        }
+
+        tmp_val = img[xf*h + yc + j*offset_img];
+        if (tmp_val != nanval) {
+          counter += tmp_val * dxc * dyf;
+          weights += dxc * dyf;
+        }
+
+        tmp_val = img[xc*h + yc + j*offset_img];
+        if (tmp_val != nanval) {
+          counter += tmp_val * dxf * dyf;
+          weights += dxf * dyf;
+        }
+
+        if (weights == 0) {
+          values[i + j*offset_values] = nanval;
+        } else {
+          values[i + j*offset_values] = counter/weights;
+        }
+
+        //values[i + j*offset_values] =
+        //            img[xf*h + yf + j*offset_img] * dxc * dyc +
+        //            img[xc*h + yf + j*offset_img] * dxf * dyc +
+        //            img[xf*h + yc + j*offset_img] * dxc * dyf +
+        //            img[xc*h + yc + j*offset_img] * dxf * dyf;
       }
     }
   }

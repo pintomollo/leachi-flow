@@ -69,11 +69,11 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
     return;
   end
 
+  if size(wins,2)==1
+    wins=[wins, wins];
+  end
   if size(wins,1)==1
-      if size(wins,2)==1
-          wins=[wins, wins];
-      end
-      wins=[wins; wins/2];
+    wins=[wins; wins/2];
   end
   wins = ceil(wins);
   wins = wins + rem(wins, 2);
@@ -132,26 +132,32 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
   x=[1:((1-ol)*M):imgsize(2)-M+1];
   y=[1:((1-ol)*N):imgsize(1)-N+1];
 
-  nx=length(x);
-  ny=length(y);
+  %nx=length(x);
+  %ny=length(y);
+  new_size = [length(y) length(x)];
 
-  xx=repmat(x+M/2,ny,1);
-  yy=repmat((y+N/2).',1,nx);
+  %xx=repmat(x+M/2,ny,1);
+  %yy=repmat((y+N/2).',1,nx);
+  xx=repmat(x+M/2,new_size(1),1);
+  yy=repmat((y+N/2).',1,new_size(2));
 
   if (isempty(datax) || isempty(datay))
-    datax = zeros(ny,nx);
-    datay = zeros(ny,nx);
+    datax = zeros(new_size);
+    datay = zeros(new_size);
   elseif (numel(prevx) == 1)
-    datax = ones(ny,nx) * datax;
-    datay = ones(ny,nx) * datay;
+    datax = ones(new_size) * datax;
+    datay = ones(new_size) * datay;
   else
-    datax = round(interp2(prevx,prevy,datax,xx,yy));
-    datay = round(interp2(prevx,prevy,datay,xx,yy));
+    %datax = round(interp2(prevx,prevy,datax,xx,yy));
+    %datay = round(interp2(prevx,prevy,datay,xx,yy));
+    datax = round(imnanresize(datax,new_size));
+    datay = round(imnanresize(datay,new_size));
   end
   %datax(isnan(datax)) = 0;
   %datay(isnan(datay)) = 0;
 
-  win_maske=(interp2(double(maske),xx,yy)>=0.5);
+  %win_maske=(interp2(double(maske),xx,yy)>=0.5);
+  win_maske=(imnanresize(double(maske),new_size)>=0.25);
 
   return;
 end
@@ -568,6 +574,8 @@ function [u, v] = localfilt(x, y, u, v, threshold, maske)
   valids(border+1, border+1) = false;
   nans = NaN(1, 2);
 
+  min_n = floor(sum(valids(:))/2);
+
   histou = blockproc(u, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
   histov = blockproc(v, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
 
@@ -589,7 +597,12 @@ function [u, v] = localfilt(x, y, u, v, threshold, maske)
 
     if (maske(blk.location(1), blk.location(2)))
       data = blk.data(valids);
-      vals = [nanmedian(data), nanstd(data)];
+
+      if (sum(isfinite(data(:))) > min_n)
+        vals = [nanmedian(data), nanstd(data)];
+      else
+        vals = nans;
+      end
     else
       vals = nans;
     end
