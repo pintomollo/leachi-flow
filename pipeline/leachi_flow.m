@@ -215,8 +215,48 @@ function leachi_flow(myrecording, opts)
   avgs = cellfun(@nanmedian, data, 'UniformOutput', false);
   avgs = cat(1, avgs{:});
   corrs = corr(avgs);
-  sames = (corrs(1,:)>0);
-  sames = 2*sames-1;
+
+  C = corrs - eye(branches_size);
+  sC = sign(C);
+  sC(sC==0) = 1;
+  aC = abs(C);
+  groups = NaN(branches_size);
+  groups(:,1) = [1:branches_size];
+
+  for i=1:branches_size^2
+    [val, indxi] = max(aC,[],1);
+    [val, indxj] = max(val,[],2);
+
+    if (val == 0)
+      break;
+    end
+
+    indxi = indxi(indxj);
+
+    s = sC(indxi, indxj);
+    aC(indxi, indxj) = 0;
+    aC(indxj, indxi) = 0;
+
+    rowi = any(abs(groups)==indxi,2);
+    rowj = any(abs(groups)==indxj,2);
+
+    if (~any(rowj & rowi))
+      first = find(isnan(groups(rowi,:)), 1, 'first');
+      last = find(~isnan(groups(rowj,:)), 1, 'last');
+
+      groups(rowi, [first:first+last-1]) = s*groups(rowj, [1:last]);
+      groups(rowj,:) = NaN;
+    end
+
+    if (sum(~isnan(groups(:,1)))==1)
+      break;
+    end
+  end
+
+  values = groups(~isnan(groups));
+  [junk, indx] = sort(abs(values));
+  sames = sign(values(indx));
+  sames = sames(:).';
 
   %{
   keyboard
@@ -258,17 +298,39 @@ function leachi_flow(myrecording, opts)
   end
   %}
 
+  avgs = bsxfun(@times, avgs, sames);
+  figure;
+  for i=1:size(avgs,2)
+    subplot(1,size(avgs,2), i);
+    plot(avgs(:,i));
+  end
+
   speeds = [];
   group_indxs = [];
+  avgs_indxs = [];
   pos = [1:ndata];
   for i = pos
-    tmp = bsxfun(@times, data{i}, sames);
-    tmp = tmp(isfinite(tmp));
-    speeds = [speeds; tmp];
-    group_indxs = [group_indxs; ones(size(tmp))*i];
+    tmp_all = bsxfun(@times, data{i}, sames);
+    for j=1:size(avgs,2)
+      tmp = tmp_all(:,j);
+      tmp = tmp(isfinite(tmp));
+      speeds = [speeds; tmp];
+      group_indxs = [group_indxs; ones(size(tmp))*i];
+      avgs_indxs = [avgs_indxs; ones(size(tmp))*j];
+    end
   end
   bads = cellfun('isempty', data);
   pos = pos(~bads);
+
+  figure;
+  for i=1:size(avgs,2)
+    subplot(1,size(avgs,2), i);
+    goods = (avgs_indxs == i);
+
+    if (any(goods))
+      boxplot(speeds(goods), group_indxs(goods), 'position', pos);
+    end
+  end
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
 

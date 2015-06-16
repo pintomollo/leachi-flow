@@ -109,7 +109,7 @@ function centers = sort_shape(pts, min_branch)
     sorted(replace,1) = news(1);
     sorted(replace,2) = news(2);
   end
-  all_cross = unique(sorted(sorted(:,3)>2,:), 'rows');
+  all_cross = unique(sorted(sorted(:,3)>2,1:2), 'rows');
 
   %colors = jet(ngaps+1);
   %figure;
@@ -127,7 +127,7 @@ function centers = sort_shape(pts, min_branch)
   %plot(sorted(:,1), sorted(:,2), 'k');
 
   nbranches = ngaps+1;
-  orig_cross = all_cross(:,1:2);
+  orig_cross = all_cross;
   all_cross = NaN(size(orig_cross) + [0 nbranches]);
   all_cross(:,1:2) = orig_cross;
 

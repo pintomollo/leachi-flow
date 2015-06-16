@@ -1,5 +1,8 @@
 function cells = ribbon_init(opts)
 
+  b_leachi = get_struct('botrylloides_leachi');
+  cell_props = gmdistribution(b_leachi.blood_cell.mu, b_leachi.blood_cell.sigma, b_leachi.blood_cell.proportions);
+
   img_size = opts.image_size - 1;
   center = img_size / 2;
   angle = opts.creation_params(1);
@@ -13,7 +16,10 @@ function cells = ribbon_init(opts)
          pos(:,1)*sin(angle) + pos(:,2)*cos(angle)];
 
   pos = bsxfun(@plus, rot, center);
-  cells = [pos randn(curr_n, opts.nprops)*opts.cell_variation + opts.cell_size];
+
+  cells = [pos random(cell_props, curr_n)];
+  cells = cells(~any(cells(:,3:4)<=0, 2), :);
+  cells(:,3) = cells(:,3) / opts.pixel_size;
 
   return;
 end
