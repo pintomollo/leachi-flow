@@ -176,6 +176,8 @@ function leachi_flow(myrecording, opts)
     end
     img_next = double(load_data(myrecording.channels(1), nimg+1));
 
+    %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
+
     [x,y,u,v] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask);
     empties = (u == 0 & v == 0);
     u(empties) = NaN;
@@ -217,8 +219,7 @@ function leachi_flow(myrecording, opts)
   corrs = corr(avgs);
 
   C = corrs - eye(branches_size);
-  sC = sign(C);
-  sC(sC==0) = 1;
+  sC = (C >= 0);
   aC = abs(C);
   groups = NaN(branches_size);
   groups(:,1) = [1:branches_size];
@@ -233,7 +234,6 @@ function leachi_flow(myrecording, opts)
 
     indxi = indxi(indxj);
 
-    s = sC(indxi, indxj);
     aC(indxi, indxj) = 0;
     aC(indxj, indxi) = 0;
 
@@ -241,10 +241,15 @@ function leachi_flow(myrecording, opts)
     rowj = any(abs(groups)==indxj,2);
 
     if (~any(rowj & rowi))
+      posi = any(groups(rowi,:)==indxi);
+      posj = any(groups(rowj,:)==indxj);
+      posc = sC(indxi, indxj);
+      fact = (-1)^(posi+posj+posc+1);
+
       first = find(isnan(groups(rowi,:)), 1, 'first');
       last = find(~isnan(groups(rowj,:)), 1, 'last');
 
-      groups(rowi, [first:first+last-1]) = s*groups(rowj, [1:last]);
+      groups(rowi, [first:first+last-1]) = fact*groups(rowj, [1:last]);
       groups(rowj,:) = NaN;
     end
 
@@ -308,7 +313,7 @@ function leachi_flow(myrecording, opts)
   speeds = [];
   group_indxs = [];
   avgs_indxs = [];
-  pos = [1:ndata];
+  pos = [1:ndata]*opts.time_interval;
   for i = pos
     tmp_all = bsxfun(@times, data{i}, sames);
     for j=1:size(avgs,2)
@@ -321,6 +326,7 @@ function leachi_flow(myrecording, opts)
   end
   bads = cellfun('isempty', data);
   pos = pos(~bads);
+  pos = pos(:);
 
   figure;
   for i=1:size(avgs,2)
@@ -333,6 +339,27 @@ function leachi_flow(myrecording, opts)
   end
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
+
+  avg_avg = mymean(speeds, 1, group_indxs);
+  ampl = sqrt(2)*std(speeds);
+  freq = 2*pi / (sqrt(2)*std(differentiator(pos, avg_avg/ampl)));
+  smooth = differentiator(pos,cumsum(avg_avg));
+  cross = find(smooth(1:end-1)>0 & smooth(2:end)<=0);
+  if (isempty(cross))
+    step = 0;
+  else
+    step = mean(mod(cross/freq, 1)) - 0.5;
+
+    if (step < 0)
+      step = 1 + step;
+    end
+  end
+
+  init = [ampl, freq, step];
+
+  CRAPP !!
+%%  fit_opt = optimoptions('lsqcurvefit','Algorithm','levenberg-marquardt');
+%%  best = lsqcurvefit(@sinusoidal_fit, init, group_indxs*opts.time_interval, speeds, [0 opts.time_interval 0], [Inf Inf 1], fit_opt);
 
   keyboard
 
@@ -360,6 +387,13 @@ function index = local_mapping(block)
       end
     end
   end
+
+  return;
+end
+
+function y = sinusoidal_fit(params, x)
+
+  y = params(1)*sin(((x/params(2)) - params(3))*2*pi);
 
   return;
 end
