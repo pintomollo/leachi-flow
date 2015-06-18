@@ -313,7 +313,7 @@ function leachi_flow(myrecording, opts)
   speeds = [];
   group_indxs = [];
   avgs_indxs = [];
-  pos = [1:ndata]*opts.time_interval;
+  pos = [1:ndata];
   for i = pos
     tmp_all = bsxfun(@times, data{i}, sames);
     for j=1:size(avgs,2)
@@ -326,7 +326,7 @@ function leachi_flow(myrecording, opts)
   end
   bads = cellfun('isempty', data);
   pos = pos(~bads);
-  pos = pos(:);
+  pos = pos(:)*opts.time_interval;
 
   figure;
   for i=1:size(avgs,2)
@@ -355,15 +355,33 @@ function leachi_flow(myrecording, opts)
     end
   end
 
-  init = [ampl, freq, step];
+  p0 = [ampl, freq, step];
+  x = group_indxs*opts.time_interval;
+  y = speeds;
+  [ym, ys] = mymean(y);
+  w = exp(-(y - (ym + ys)).^2 / (ys^2)) + exp(-(y - (ym - ys)).^2 / (ys^2));
 
-  CRAPP !!
+  [b,f] = myfit(@err, p0, [0 Inf; 1 Inf; 0 1]);
+
 %%  fit_opt = optimoptions('lsqcurvefit','Algorithm','levenberg-marquardt');
 %%  best = lsqcurvefit(@sinusoidal_fit, init, group_indxs*opts.time_interval, speeds, [0 opts.time_interval 0], [Inf Inf 1], fit_opt);
 
   keyboard
 
   return;
+
+  function val = err(p, junk)
+
+    val = sum((y - p(1)*sin(((x/p(2)) - p(3))*2*pi) .* w).^2);
+    hold off;
+    scatter(x,y,'r');
+    hold on;
+    scatter(x,p(1)*sin(((x/p(2)) - p(3))*2*pi),'b');
+
+    drawnow
+
+    return;
+  end
 end
 
 function index = local_mapping(block)
