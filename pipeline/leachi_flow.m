@@ -224,6 +224,8 @@ function leachi_flow(myrecording, opts)
   groups = NaN(branches_size);
   groups(:,1) = [1:branches_size];
 
+  empty_branches = all(isnan(C), 1);
+
   for i=1:branches_size^2
     [val, indxi] = max(aC,[],1);
     [val, indxj] = max(val,[],2);
@@ -261,6 +263,7 @@ function leachi_flow(myrecording, opts)
   values = groups(~isnan(groups));
   [junk, indx] = sort(abs(values));
   sames = sign(values(indx));
+  sames = sames(~empty_branches);
   sames = sames(:).';
 
   %{
@@ -303,7 +306,7 @@ function leachi_flow(myrecording, opts)
   end
   %}
 
-  avgs = bsxfun(@times, avgs, sames);
+  avgs = bsxfun(@times, avgs(:,~empty_branches), sames);
   figure;
   for i=1:size(avgs,2)
     subplot(1,size(avgs,2), i);
@@ -315,7 +318,7 @@ function leachi_flow(myrecording, opts)
   avgs_indxs = [];
   pos = [1:ndata];
   for i = pos
-    tmp_all = bsxfun(@times, data{i}, sames);
+    tmp_all = bsxfun(@times, data{i}(:,~empty_branches), sames);
     for j=1:size(avgs,2)
       tmp = tmp_all(:,j);
       tmp = tmp(isfinite(tmp));
