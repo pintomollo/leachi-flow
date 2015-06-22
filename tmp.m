@@ -2,7 +2,7 @@ function tmp(num)
 
   x = [1:600];
 
-  params = rand(3,1) .* [50; 30; 1]
+  params = rand(3,1) .* [50; 100; 1]
   y = params(1)*sin(((x/params(2)) - params(3))*2*pi) + randn([1 length(x)]);
   %[ym, ys] = mymean(y);
 
@@ -10,7 +10,7 @@ function tmp(num)
 
   figure;scatter(x,y);
 
-  lsqmultiharmonic(x, y, 2);
+  vals = lsqmultiharmonic(x, y, 8);
 
   keyboard
 
