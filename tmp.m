@@ -1,17 +1,32 @@
 function tmp(num)
 
-  x = [1:600];
+  if (nargin == 0)
+    num = 1;
+  end
 
-  params = rand(3,1) .* [50; 100; 1]
-  y = params(1)*sin(((x/params(2)) - params(3))*2*pi) + randn([1 length(x)]);
+  npts = 600;
+  nsamples = 10;
+
+  pos = [1:npts];
+  params = abs((1 + randn(3,1)) .* [50; 100; 2*pi]);
+
+  x = repmat(pos, nsamples, 1);
+  cosine = params(1)*cos((x/params(2))*2*pi + params(3));
+
+  y = cosine + 2*randn([nsamples length(x)]);
   %[ym, ys] = mymean(y);
 
   %w = exp(-(y - (ym + ys)).^2 / (ys^2)) + exp(-(y - (ym - ys)).^2 / (ys^2));
 
-  figure;scatter(x,y);
+  vals = lsqmultiharmonic(x, y, num);
+  bparams = vals([2 1 (end-1)/2+2]);
 
-  vals = lsqmultiharmonic(x, y, 8);
+  figure;scatter(x(:),y(:));
+  hold on;plot(x, bparams(1)*cos(((pos/bparams(2))*2*pi + bparams(3))), 'k');
 
+  [params bparams]
+
+  return;
   keyboard
 
   p0 = params .* (1 + randn(size(params))*0.2);

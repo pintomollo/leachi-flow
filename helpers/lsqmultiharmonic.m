@@ -26,13 +26,26 @@ function best = lsqmultiharmonic(x, y, nharm)
 
   mean_val = interp1(pos(goods), mean_val(goods), uniform_pos);
 
-  nfft = 2^nextpow2(npos);
+  %%%% interpolated FFT from ACD test toolbox (Tamas Virostek)
+  Fc=fft(mean_val);
+  F=abs(Fc);
+  [Mfft,w]=max(F(2:round(npos/2)));
 
-  ff_val = fft(mean_val, nfft)/npos;
-  ff_val = 2*abs(ff_val(1:nfft/2+1));
+  if w>1
+      %calculating the 2 points, between them the estimated frequency is
+      if F(w-1)>F(w+1) w=w-1; end
+  end
 
-  [junk, indx] = max(ff_val);
-  period_inv = indx(1)/(2*npos);
+  n=2*pi/npos;
+  U=real(Fc(w+1));    V=imag(Fc(w+1));
+  U1=real(Fc(w+2));  V1=imag(Fc(w+2));
+  Kopt=(sin(n*w)*(V1-V)+cos(n*w)*(U1-U))/(U1-U);
+  Z1=V*(Kopt-cos(n*w))/sin(n*w)+U;
+  Z2=V1*(Kopt-cos(n*(w+1)))/sin(n*(w+1))+U1;
+
+  lambda=acos((Z2*cos(n*(w+1))-Z1*cos(n*w))/(Z2-Z1))/n;
+  period_inv=lambda/npos;
+  %%%%
 
   goods = (~isnan(x) & ~isnan(y));
   x = x(goods);
@@ -93,7 +106,7 @@ function best = lsqmultiharmonic(x, y, nharm)
 
   period = 1/period_inv;
   ampls = sqrt(params(3:2:end).^2 + params(4:2:end).^2);
-  phases = atan2(params(4:2:end), params(3:2:end));
+  phases = atan2(-params(4:2:end), params(3:2:end));
 
   best = [period; ampls; phases];
 

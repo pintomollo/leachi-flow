@@ -343,6 +343,12 @@ function leachi_flow(myrecording, opts)
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
 
+  vals = lsqmultiharmonic(group_indxs, speeds, 1);
+  bparams = vals([2 1 (end-1)/2+2]);
+  hold on;plot(x, bparams(1)*cos(((pos/bparams(2))*2*pi + bparams(3))), 'k');
+
+  keyboard
+
   avg_avg = mymean(speeds, 1, group_indxs);
   ampl = sqrt(2)*std(speeds);
   freq = 2*pi / (sqrt(2)*std(differentiator(pos, avg_avg/ampl)));
