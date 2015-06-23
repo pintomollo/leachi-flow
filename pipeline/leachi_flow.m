@@ -343,9 +343,27 @@ function leachi_flow(myrecording, opts)
 
   figure;boxplot(speeds, group_indxs, 'position', pos);
 
-  vals = lsqmultiharmonic(group_indxs, speeds, 1);
-  bparams = vals([2 1 (end-1)/2+2]);
-  hold on;plot(x, bparams(1)*cos(((pos/bparams(2))*2*pi + bparams(3))), 'k');
+  [gpos, indxi, indxj] = unique(group_indxs);
+
+  goods = (~isnan(group_indxs) & ~isnan(speeds));
+  prev_params = -Inf;
+  for i=1:10
+    vals = lsqmultiharmonic(group_indxs(goods), speeds(goods), 1);
+    bparams = vals([2 1 (end-1)/2+2]);
+    hold on;plot(pos, bparams(1)*cos(((pos/bparams(2))*2*pi + bparams(3))), 'k');
+
+    sign_val = bparams(1)*cos(((gpos/bparams(2))*2*pi + bparams(3)));
+    thresh = bparams(1)/2;
+
+    goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
+
+    dx = sum(bparams - prev_params);
+    prev_params = bparams;
+
+    if (dx < 1e-6)
+      break;
+    end
+  end
 
   keyboard
 

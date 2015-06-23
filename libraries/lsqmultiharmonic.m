@@ -56,19 +56,6 @@ function best = lsqmultiharmonic(x, y, nharm)
   mat = ones(npts, 1+2*nharm);
   freq = 2*pi*x;
 
-  %{
-  for i=1:nharm
-    curr_freq = freq .* i * period_inv;
-    mat(:,2*i) = cos(curr_freq);
-    mat(:,2*i+1) = sin(curr_freq);
-  end
-
-  params = mat \ y;
-
-  mat = [NaN(npts, 1) mat];
-  params = [0; params];
-  %}
-
   for j=1:max_iter
     for i=1:nharm
       curr_freq = freq .* i * period_inv;
@@ -78,19 +65,12 @@ function best = lsqmultiharmonic(x, y, nharm)
 
     params = mat \ y;
 
-    %mat(:,1) = 0;
     counter = zeros(npts, 1);
     for i=1:nharm
-      %prev_freq = freq .* i * period_inv;
-      %curr_freq = prev_freq;
-      %curr_freq = freq .* i * (period_inv + params(1));
       curr_freq = freq .* i * period_inv;
       xi = x * i;
 
       counter = counter - params(2*i) * xi .* sin(curr_freq) + params(2*i+1) * xi .* cos(curr_freq);
-      %mat(:,1) = mat(:,1) - params(2*i+1) * xi .* sin(prev_freq) + params(2*i+2) * xi .* cos(prev_freq);
-      %mat(:,2*i+1) = cos(curr_freq);
-      %mat(:,2*i+2) = sin(curr_freq);
     end
 
     params = [counter mat] \ y;
@@ -102,7 +82,6 @@ function best = lsqmultiharmonic(x, y, nharm)
       break;
     end
   end
-  %period_inv = period_inv + params(1);
 
   period = 1/period_inv;
   ampls = sqrt(params(3:2:end).^2 + params(4:2:end).^2);
