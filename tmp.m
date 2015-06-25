@@ -1,30 +1,84 @@
 function tmp(num)
 
+  %{
+  nmax = 200;
+  a = 0.05;
+
+  v = 2 + randn([1, nmax])*3;
+  v = [v 20 5 9].';
+
+  v = sort(v);
+
+  counts = [1:length(v)];
+  sums = cumsum(v);
+  avgs = sums ./ counts.';
+
+  residues = triu(bsxfun(@minus, v, avgs.'));
+  S = sqrt(sum(residues.^2, 1) ./ (counts-1));
+
+  prc = tinv(1 - a./(2*counts), counts - 2);
+  grubb = sqrt(prc.^2 ./ (counts - 2 + prc.^2));
+
+  thresh = S .* grubb .* (counts-1) ./ sqrt(counts);
+  m = max(abs(residues), [], 1);
+
+  m > thresh
+
+  m = mean(v)
+  r = v - m;
+  s = sqrt(sum(r.^2) / (length(v)-1))
+  thresh = s*((length(v)-1)/sqrt(length(v)));
+  r > thresh
+
+  return;
+  %}
+
   if (nargin == 0)
     num = 1;
   end
 
   npts = 600;
-  nsamples = 10;
+  nsamples = 6;
 
   pos = [1:npts];
-  params = abs((1 + randn(3,1)) .* [50; 100; 2*pi]);
+  params = abs(bsxfun(@times, (1 + randn(3,num)), [50; 100; 2*pi]));
+  params(2,:) = params(2,1);
+  %params = abs((1 + randn(3,1)) .* [50; 100; 2*pi]);
 
   x = repmat(pos, nsamples, 1);
-  cosine = params(1)*cos((x/params(2))*2*pi + params(3));
+
+  cosine = zeros(size(x));
+  for i=1:num
+    cosine = cosine + params(1,i)*cos((i*x/params(2,i))*2*pi + params(3,i));
+  end
+  %cosine = params(1,1)*cos((x/params(2,1))*2*pi + params(3,1));
+  y = cosine + 0.5*min(params(1,:))*randn([nsamples length(x)]);
+
+  %{
+  n = estimate_harmonics_number(y);
+  figure;plot(y);
+  title(n);
+
+  return;
 
   y = cosine + 2*randn([nsamples length(x)]);
   %[ym, ys] = mymean(y);
 
   %w = exp(-(y - (ym + ys)).^2 / (ys^2)) + exp(-(y - (ym - ys)).^2 / (ys^2));
+  %}
 
-  vals = lsqmultiharmonic(x, y, num);
-  bparams = vals([2 1 (end-1)/2+2]);
+  [period, ampls, phases] = lsqmultiharmonic(x, y);
+  nharm = length(ampls);
+
+  cosine = zeros(size(pos));
+  for i=1:nharm
+    cosine = cosine + ampls(i)*cos((i*pos/period)*2*pi + phases(i));
+  end
 
   figure;scatter(x(:),y(:));
-  hold on;plot(x, bparams(1)*cos(((pos/bparams(2))*2*pi + bparams(3))), 'k');
+  hold on;plot(x, cosine, 'k');
 
-  [params bparams]
+  [params [ampls period*ones(nharm,1) phases].']
 
   return;
   keyboard

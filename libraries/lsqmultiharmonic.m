@@ -1,4 +1,4 @@
-function best = lsqmultiharmonic(x, y, nharm)
+function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
 
   max_iter = 20000;
   damp = 0.2;
@@ -26,10 +26,46 @@ function best = lsqmultiharmonic(x, y, nharm)
 
   mean_val = interp1(pos(goods), mean_val(goods), uniform_pos);
 
+  if (nargin < 3)
+    nharm = estimate_harmonics_number(mean_val);
+    nharm = max(nharm, 1);
+  end
+
   %%%% interpolated FFT from ACD test toolbox (Tamas Virostek)
   Fc=fft(mean_val);
-  F=abs(Fc);
-  [Mfft,w]=max(F(2:round(npos/2)));
+  F=abs(Fc(2:round(npos/2)));
+
+  %figure;plot(F);hold on;
+  if (nharm < 2)
+    [Mfft,w]=max(F);
+  else
+
+    [maxs, indxs] = local_extrema(F);
+    [maxs, s] = sort(maxs, 'descend');
+    indxs = indxs(s);
+
+    %scatter(indxs, maxs, 'g')
+
+    if (nharm == 2)
+      w = min(indxs(1:2));
+    else
+      dist = abs(indxs(2:end) - indxs(1));
+      ratio = dist(1) ./ dist;
+      new_val = round(ratio)*dist(1);
+
+      ratio_inv = dist./dist(1);
+      new_val2 = round(ratio).*dist;
+
+      new_val(ratio < 1) = new_val2(ratio < 1);
+
+      goods = [true (abs(dist - new_val) < 2)];
+
+      w = min(indxs(goods));
+
+      %scatter(indxs(goods), F(indxs(goods)), 'r')
+    end
+  end
+  %scatter(w, F(w), 'k')
 
   if w>1
       %calculating the 2 points, between them the estimated frequency is
@@ -86,8 +122,6 @@ function best = lsqmultiharmonic(x, y, nharm)
   period = 1/period_inv;
   ampls = sqrt(params(3:2:end).^2 + params(4:2:end).^2);
   phases = atan2(-params(4:2:end), params(3:2:end));
-
-  best = [period; ampls; phases];
 
   return;
 end
