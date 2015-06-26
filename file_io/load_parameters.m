@@ -158,10 +158,15 @@ function opts = load_parameters(opts, fnames)
 
           % If we found the two elements, we can assign the value to the field
           if (~isempty(tokens) & length(tokens{1}) == 2)
+            is_empty = strncmp(tokens{1}{2}, '[]', 2);
 
             try
-              % We use the eval function to interpret the values as in MATLAB 
-              eval(['opts.' prefix tokens{1}{1} ' = ' tokens{1}{2} ';']);
+              if (is_empty)
+                eval(['opts.' prefix tokens{1}{1} '(1:end) = [];']);
+              else
+                % We use the eval function to interpret the values as in MATLAB 
+                eval(['opts.' prefix tokens{1}{1} ' = ' tokens{1}{2} ';']);
+              end
             catch ME
               warning('Bleachi:load_parameters', ['An error occured when loading field ''' prefix '.' tokens{1}{1} '''\n' ME.message])
               break;
