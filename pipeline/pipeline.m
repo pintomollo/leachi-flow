@@ -1,8 +1,61 @@
 function pipeline(varargin)
 
+  disp('----B. leachi pipeline----')
+  disp('Parsing inputs...')
   [myrecording, mysimulation, opts] = parse_inputs(varargin{:});
 
-  keyboard
+  do_simulate = false;
+  if (isempty(myrecording.channels))
+    disp('Simulating flow...')
+    [fname, mysimulation] = simulate_flow(mysimulation);
+    opts.simulation = mysimulation;
+
+    myrecording.channels(1).fname = fname;
+    [junk, exp_name, junk] = fileparts(fname);
+    [junk, exp_name, junk] = fileparts(exp_name);
+    myrecording.experiment = exp_name;
+
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+    do_simulate = true;
+  end
+
+  exp_name = myrecording.experiment;
+
+  do_process = false;
+  for i=1:length(myrecording.channels)
+    if (isempty(myrecording.channels(i).file))
+      disp('Converting recording...')
+
+      if (do_simulate)
+        myrecording.channels(i).fname = convert_movie(myrecording.channels(i).fname, false);
+      else
+        myrecording.channels(i).fname = convert_movie(myrecording.channels(i).fname);
+      end
+      do_process = true;
+
+      if (isempty(exp_name))
+        exp_name = myrecording.channels(i).fname;
+        [junk, exp_name, junk] = fileparts(exp_name);
+        [junk, exp_name, junk] = fileparts(exp_name);
+        exp_name = regexprep(exp_name, ' ', '');
+        myrecording.experiment = exp_name;
+      end
+
+      save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+    end
+  end
+
+  if (do_process)
+    disp('Processing recording...')
+    [myrecording, opts] = preprocess_movie(myrecording, opts);
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+  end
+
+  disp('Analyzing flow...')
+  myrecording = leachi_flow(myrecording, opts);
+  save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+
+  disp('DONE !')
 
   return;
 end

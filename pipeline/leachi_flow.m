@@ -19,6 +19,12 @@ function leachi_flow(myrecording, opts)
     end
   end
 
+  if (isempty(myrecording.segmentations))
+    segmentations = get_struct('segmentation');
+  else
+    segmentations = myrecording.segmentations;
+  end
+
   b_leachi = get_struct('botrylloides_leachi');
 
   diff_thresh = 2;
@@ -28,6 +34,12 @@ function leachi_flow(myrecording, opts)
 
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
+
+  if (isempty(segmentations.detections) || length(segmentations.detections < nframes))
+    detections = get_struct('detection', [1 nframes]);
+  else
+    detections = segmentations.detections(1:nframes);
+  end
 
   orig_img = double(load_data(myrecording.channels(1), 1));
 
@@ -42,6 +54,8 @@ function leachi_flow(myrecording, opts)
   noise = estimate_noise(orig_img);
   prev_img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
   prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+
+  detections(1).noise = noise;
 
   %figure;
   mask = zeros(img_size+6*vessel_width);
@@ -100,6 +114,8 @@ function leachi_flow(myrecording, opts)
     error('nothing');
   end
 
+  detections(1).properties = branches;
+
   %subplot(2,2,4)
   %imagesc(mask);hold on
   %plot(branches(:,1), branches(:,2), 'k');
@@ -140,15 +156,6 @@ function leachi_flow(myrecording, opts)
                                        origin(2,:)), ...
                         params(2,:) .* params(4,:));
 
-  %{
-  perps = bsxfun(@times, bsxfun(@minus, X(:), ...
-                                       origin(1,:)), ...
-                        -params(2,:) .* params(5,:)) + ...
-         bsxfun(@times, bsxfun(@minus, Y(:), ...
-                                       origin(2,:)), ...
-                        params(1,:) .* params(5,:));
-  %}
-
   dists(frac < 0 | frac > 1 | dists > 1) = Inf;
   crosses = any(nodes < 1.5, 2);
   dists(crosses,:) = Inf;
@@ -157,6 +164,8 @@ function leachi_flow(myrecording, opts)
   [junk, indexes] = min(dists(inside,:), [], 2);
   mapping = double(mask);
   mapping(mask) = indexes;
+
+  detections(1).cluster = mapping;
 
   real_mapping = [];
 
@@ -209,9 +218,12 @@ function leachi_flow(myrecording, opts)
     speed(others) = NaN;
 
     data{nimg} = speed;
+    detections(nimg).carth = speed;
 
     prev_indx = nimg;
   end
+
+  segmentations.detections = detections;
 
   ndata = length(data);
   avgs = cellfun(@nanmedian, data, 'UniformOutput', false);
@@ -266,46 +278,6 @@ function leachi_flow(myrecording, opts)
   sames = sames(~empty_branches);
   sames = sames(:).';
 
-  %{
-  keyboard
-
-  for i=1:ngroups
-    results = data(indexes(1:nframes,1)==groups(i));
-    ndata = length(results);
-    nsubs = length(results{1});
-
-    %% Might want to use some statistics to determine relevant averages
-    %signs = NaN(ndata, nsubs, 4);
-    signs = NaN(ndata, nsubs);
-
-    for j=1:ndata
-      %sm1 = cellfun(@mean, results{j});
-      %sm2 = cellfun(@median, results{j});
-      %sm3 = cellfun(@std, results{j});
-      %sm4 = cellfun(@(x)(1.4826*mad(x,1)), results{j});
-
-      %signs(j, :, 1) = sm1;
-      %signs(j, :, 2) = sm2;
-      %signs(j, :, 3) = sm3;
-      %signs(j, :, 4) = sm4;
-
-      signs(j,:) = cellfun(@mean, results{j});
-    end
-
-    temp_var = sign(mean(signs, 2));
-    invert = sign(mean(bsxfun(@times, signs, temp_var)));
-
-    for j=1:ndata
-      for k=1:nsubs
-        results{j}{k} = results{j}{k} * invert(k);
-      end
-      results{j} = cat(1, results{j}{:});
-    end
-
-    data(indexes(1:nframes,1)==groups(i)) = results;
-  end
-  %}
-
   avgs = bsxfun(@times, avgs(:,~empty_branches), sames);
   figure;
   for i=1:size(avgs,2)
@@ -327,89 +299,73 @@ function leachi_flow(myrecording, opts)
       avgs_indxs = [avgs_indxs; ones(size(tmp))*j];
     end
   end
-  bads = cellfun('isempty', data);
-  pos = pos(~bads);
-  pos = pos(:)*opts.time_interval;
+  %bads = cellfun('isempty', data);
+  group_indxs = group_indxs*opts.time_interval;
+  [gpos, indxi, indxj] = unique(group_indxs);
 
+  %pos = pos(~bads);
+  %pos = pos(:)*opts.time_interval;
+
+  %{
   figure;
   for i=1:size(avgs,2)
     subplot(1,size(avgs,2), i);
     goods = (avgs_indxs == i);
 
     if (any(goods))
-      boxplot(speeds(goods), group_indxs(goods), 'position', pos);
+      boxplot(speeds(goods), group_indxs(goods), 'position', gpos);
     end
   end
-
-  [gpos, indxi, indxj] = unique(group_indxs);
+  %}
 
   figure;boxplot(speeds, group_indxs, 'position', gpos);
 
   goods = (~isnan(group_indxs) & ~isnan(speeds));
   prev_params = -Inf;
   for i=1:20
-    vals = lsqmultiharmonic(group_indxs(goods), speeds(goods), 1);
-    bparams = vals([2 1 (end-1)/2+2]);
+    [period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
+    nharm = length(ampls);
 
-    sign_val = bparams(1)*cos(((gpos/bparams(2))*2*pi + bparams(3)));
-    thresh = bparams(1)/2;
+    sign_val = zeros(size(gpos));
+    for j=1:nharm
+      sign_val = sign_val + ampls(j)*cos((j*gpos/period)*2*pi + phases(j));
+    end
+    thresh = max(ampls)/2;
 
     hold on;plot(gpos, sign_val, 'k');
 
     goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
 
-    dx = sum(bparams - prev_params);
-    prev_params = bparams;
+    dx = sum([period ampls(1) phases(1)] - prev_params);
+    prev_params = [period ampls(1) phases(1)];
 
     if (dx < 1e-6)
       break;
     end
   end
 
-  keyboard
-
-  avg_avg = mymean(speeds, 1, group_indxs);
-  ampl = sqrt(2)*std(speeds);
-  freq = 2*pi / (sqrt(2)*std(differentiator(pos, avg_avg/ampl)));
-  smooth = differentiator(pos,cumsum(avg_avg));
-  cross = find(smooth(1:end-1)>0 & smooth(2:end)<=0);
-  if (isempty(cross))
-    step = 0;
+  if (isempty(myrecording.trackings))
+    trackings = get_struct('tracking');
   else
-    step = mean(mod(cross/freq, 1)) - 0.5;
-
-    if (step < 0)
-      step = 1 + step;
-    end
+    trackings = myrecording.trackings;
   end
 
-  p0 = [ampl, freq, step];
-  x = group_indxs*opts.time_interval;
-  y = speeds;
-  [ym, ys] = mymean(y);
-  w = exp(-(y - (ym + ys)).^2 / (ys^2)) + exp(-(y - (ym - ys)).^2 / (ys^2));
+  if (isempty(trackings.detections))
+    res = get_struct('detection', 1);
+  else
+    res = trackings.detections(1);
+  end
 
-  [b,f] = myfit(@err, p0, [0 Inf; 1 Inf; 0 1]);
+  res.carth = [speeds group_indxs];
+  res.cluster = goods;
+  res.properties = [ampls(:).' period*ones(1,length(ampls)) phases(:).'];
 
-%%  fit_opt = optimoptions('lsqcurvefit','Algorithm','levenberg-marquardt');
-%%  best = lsqcurvefit(@sinusoidal_fit, init, group_indxs*opts.time_interval, speeds, [0 opts.time_interval 0], [Inf Inf 1], fit_opt);
+  trackings.detections = res;
 
-  keyboard
+  myrecording.segmentations = segmentations;
+  myrecording.trackings = trackings;
 
   return;
-
-  function val = err(p, junk)
-
-    val = sum((y - p(1)*sin(((x/p(2)) - p(3))*2*pi) .* w).^2);
-    hold off;
-    scatter(x,y,'r');
-    hold on;
-    scatter(x,p(1)*sin(((x/p(2)) - p(3))*2*pi),'b');
-
-    drawnow
-
-    return;
-  end
 end
 
 function index = local_mapping(block)
@@ -433,13 +389,6 @@ function index = local_mapping(block)
       end
     end
   end
-
-  return;
-end
-
-function y = sinusoidal_fit(params, x)
-
-  y = params(1)*sin(((x/params(2)) - params(3))*2*pi);
 
   return;
 end

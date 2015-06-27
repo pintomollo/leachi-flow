@@ -213,6 +213,7 @@ function mystruct = get_struct(type, nstruct)
       mysegm = get_struct('image_segmentation');
       mytrac = get_struct('spot_tracking');
       mytrkf = get_struct('tracks_filtering');
+      mysimu = get_struct('simulation', 0);
       mystruct = struct('config_files', {{}}, ...       % The various configuration files loaded
                         'binning', 1, ...               % Pixel binning used during acquisition
                         'ccd_pixel_size', 16, ...       % X-Y size of the pixels in um (of the CCD camera, without magnification)
@@ -222,6 +223,7 @@ function mystruct = get_struct(type, nstruct)
                         'tracks_filtering', mytrkf, ... % Parameters for filtering the tracks
                         'pixel_size', -1, ...           % X-Y size of the pixels in um (computed as ccd_pixel_size / magnification)
                         'segmenting', mysegm, ...       % Parameters for segmenting the recordings
+                        'simulation', mysimu, ...
                         'time_interval', 300, ...       % Time interval between frames (in seconds)
                         'verbosity', 2);                % Verbosity level of the analysis
 

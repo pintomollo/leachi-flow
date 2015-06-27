@@ -168,8 +168,19 @@ function opts = load_parameters(opts, fnames)
                 eval(['opts.' prefix tokens{1}{1} ' = ' tokens{1}{2} ';']);
               end
             catch ME
-              warning('Bleachi:load_parameters', ['An error occured when loading field ''' prefix '.' tokens{1}{1} '''\n' ME.message])
-              break;
+              if (is_empty)
+                try
+                  eval(['opts.' prefix tokens{1}{1} ' = [];']);
+                catch ME
+                  warning('Bleachi:load_parameters', ['An error occured when loading field ''' prefix '.' tokens{1}{1} '''\n' ME.message])
+                  break;
+                end
+              else
+                warning('Bleachi:load_parameters', ['An error occured when loading field ''' prefix '.' tokens{1}{1} '''\n' ME.message])
+                keyboard
+
+                break;
+              end
             end
           end
         end
@@ -199,8 +210,37 @@ function opts = load_parameters(opts, fnames)
     opts.config_files = files(indx);
   end
 
+  % Set the new lines back to normal
+  opts = set_new_lines(opts);
+
   % Recompute the pixel size just in case
   opts = set_pixel_size(opts);
+
+  return;
+end
+
+function mystruct = set_new_lines(mystruct)
+
+  if (~isempty(mystruct))
+
+    if (ischar(mystruct))
+      mystruct = regexprep(mystruct, '\\n', '\n');
+    elseif (iscell(mystruct))
+      for i=1:numel(mystruct)
+        mystruct{i} = set_new_lines(mystruct{i});
+      end
+    elseif (isstruct(mystruct))
+      % In addition to the different fields, structures can be arrays.
+      fields = fieldnames(mystruct);
+      for i=1:numel(mystruct)
+
+        % Loop through the fields and call myprint again, adapting the prefix
+        for j=1:length(fields)
+          mystruct(i).(fields{j}) = set_new_lines(mystruct(i).(fields{j}));
+        end
+      end
+    end
+  end
 
   return;
 end

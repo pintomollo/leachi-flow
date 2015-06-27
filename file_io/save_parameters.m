@@ -114,7 +114,8 @@ function myprint(fid, variable, spacer, prefix)
         for i=1:numel(variable)
 
           % Modify the prefix in case of an array
-          if (numel(variable) > 1)
+          %if (numel(variable) > 1)
+          if (~isempty(orig_prefix))
             prefix = [orig_prefix '(' num2str(i) ')'];
           end
 
@@ -155,7 +156,7 @@ function myprint(fid, variable, spacer, prefix)
 
       % Print the strings along with the required apostrophes
       case 'char'
-        fprintf(fid, [prefix spacer '''%s''\n'], variable);
+        fprintf(fid, [prefix spacer '''%s''\n'], regexprep(variable, '[\n\r]', '\\n'));
 
       % Print the functions as handlers
       case 'function_handle'

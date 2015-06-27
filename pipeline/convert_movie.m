@@ -1,4 +1,4 @@
-function [converted_file] = convert_movie(name)
+function [converted_file] = convert_movie(name, force_do_merge)
 % CONVERT_MOVIE converts a recording such that it can be tracked properly.
 %
 %   [CONVERTED] = CONVERT_MOVIE(NAME) converts the movie NAME into CONVERTED
@@ -13,8 +13,21 @@ function [converted_file] = convert_movie(name)
   converted_file = '';
   curdir = '';
   dirpath = '';
+  do_merge = false;
   if (nargin == 0)
     name = '';
+    force_do_merge = false;
+  elseif (nargin == 1)
+    if (islogical(name))
+      do_merge = name;
+      force_do_merge = true;
+      name = '';
+    else
+      force_do_merge = false;
+    end
+  elseif (nargin == 2)
+    do_merge = force_do_merge;
+    force_do_merge = true;
   end
 
   % We got the file to be loaded as input !
@@ -79,14 +92,14 @@ function [converted_file] = convert_movie(name)
   end
 
   % We convert the provided type into a more handy one using LOCI
-  converted_file = bftools_convert(fname);
+  converted_file = bftools_convert(fname, force_do_merge, do_merge);
 
   return;
 end
 
 % Here we'll call the LOCI Bio-formats toolbox to convert anything into our
 % favorite OME-TIFF format
-function [newfile] = bftools_convert(fname)
+function [newfile] = bftools_convert(fname, forced, do_merge)
 
   % We need the absolute path for Java to work properly
   fname = absolutepath(fname);
@@ -211,23 +224,39 @@ function [newfile] = bftools_convert(fname)
   file_pattern = regexp(metadata, 'File pattern = ([^\n]*)\n', 'tokens');
 
   % In case of multiple files, regroup them into one single file
-  merge_cmd = '-stitch ';
-  do_merge = use_tmp_folder;
-  if (~isempty(file_pattern) && ~use_tmp_folder)
-    orig_pattern = file_pattern{1};
-    file_pattern = regexprep(orig_pattern, '<\d+-\d+>', '');
-
-    % In case we did not delete the pattern, it means there was nothing to merge !
-    if (length(orig_pattern{1}) == length(file_pattern{1}))
-      file_pattern = '';
+  if (forced)
+    if (do_merge)
+      merge_cmd = '-stitch ';
+      if (~isempty(file_pattern) && ~use_tmp_folder)
+        orig_pattern = file_pattern{1};
+        file_pattern = regexprep(orig_pattern, '<\d+-\d+>', '');
+        if (length(orig_pattern{1}) == length(file_pattern{1}))
+          file_pattern = '';
+        end
+      end
     else
+      merge_cmd = '';
+      file_pattern = '';
+    end
+  else
+    merge_cmd = '-stitch ';
+    do_merge = use_tmp_folder;
+    if (~isempty(file_pattern) && ~use_tmp_folder)
+      orig_pattern = file_pattern{1};
+      file_pattern = regexprep(orig_pattern, '<\d+-\d+>', '');
 
-      % Otherwise, make sure they should be merged !!
-      answer = questdlg(['There are several files with the naming pattern: ''' orig_pattern{1} '''. Should we merge them together ?'], 'Merging multiple files ?');
-      do_merge = strncmp(answer,'Yes',3);
-      if (~do_merge)
-        merge_cmd = '';
+      % In case we did not delete the pattern, it means there was nothing to merge !
+      if (length(orig_pattern{1}) == length(file_pattern{1}))
         file_pattern = '';
+      else
+
+        % Otherwise, make sure they should be merged !!
+        answer = questdlg(['There are several files with the naming pattern: ''' orig_pattern{1} '''. Should we merge them together ?'], 'Merging multiple files ?');
+        do_merge = strncmp(answer,'Yes',3);
+        if (~do_merge)
+          merge_cmd = '';
+          file_pattern = '';
+        end
       end
     end
   end
