@@ -1,4 +1,4 @@
-function pipeline(varargin)
+function [myrecording, opts] = pipeline(varargin)
 
   disp('----B. leachi pipeline----')
   disp('Parsing inputs...')

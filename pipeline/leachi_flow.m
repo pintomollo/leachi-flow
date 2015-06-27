@@ -1,4 +1,4 @@
-function leachi_flow(myrecording, opts)
+function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   if (nargin == 0)
     myrecording = [];
