@@ -202,7 +202,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   data = cell(nframes-1, 1);
 
-  if (isempty(detections(1).carth))
+  if (isempty(detections(1).carth) || all(isnan(detections(1).carth(:))))
 
     for nimg=1:nframes-1
       if (prev_indx == nimg)
@@ -357,6 +357,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     try
       boxplot(speeds, group_indxs, 'position', gpos);
     catch ME
+      keyboard
     end
 
     navgs = size(avgs, 2);
@@ -406,7 +407,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   res.carth = [speeds group_indxs];
   res.cluster = goods;
-  res.properties = [ampls(:).' period*ones(1,length(ampls)) phases(:).'];
+  res.properties = [ampls(:).'; period*ones(1,length(ampls)); phases(:).'];
 
   if (opts.verbosity > 1)
     plot(gpos, sign_val, 'k', 'LineWidth', 2);
