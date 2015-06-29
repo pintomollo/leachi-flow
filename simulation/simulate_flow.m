@@ -1,8 +1,16 @@
-function [data, opts] = simulate_flow(opts)
+function [data, simul] = simulate_flow(simul, opts)
 
   % Get the parameter structure if not provided
   if (nargin == 0)
-    opts = get_struct('simulation');
+    simul = get_struct('simulation');
+    opts = get_struct('options');
+  elseif (nargin == 1)
+    if (isfield(simul, 'init_simulation'))
+      opts = get_struct('options');
+    else
+      opts = simul;
+      simul = get_struct('simulation');
+    end
   end
 
   % Decide whether we display or store
@@ -12,20 +20,20 @@ function [data, opts] = simulate_flow(opts)
   end
 
   % Initialize the simulation
-  if (~isempty(opts.init_simulation) && isempty(opts.creation_params))
-    opts = opts.init_simulation(opts);
+  if (~isempty(simul.init_simulation) && isempty(simul.creation_params))
+    simul = simul.init_simulation(simul, opts);
   end
 
   % Need the row/colum size of the image as well (most of the code uses X/Y data)
-  img_size = opts.image_size([2 1]);
+  img_size = simul.image_size([2 1]);
 
   % Create the cells and initialize the moving step
-  cells = opts.create_cells(opts);
-  opts = opts.move_cells(cells, 0, opts);
+  cells = simul.create_cells(simul, opts);
+  simul = simul.move_cells(cells, 0, simul);
 
   % Get the frames
-  nframes = ceil(opts.duration/opts.dt) + 1;
-  frames = [0:nframes]*opts.dt;
+  nframes = ceil(simul.duration/simul.dt) + 1;
+  frames = [0:nframes]*simul.dt;
 
   % Get ready to output our simulation
   if (store_data)
@@ -44,7 +52,7 @@ function [data, opts] = simulate_flow(opts)
   for nimg = 1:nframes
 
     % Draw the current flow
-    img = draw_gaussians_mex(img_size, cells) + randn(img_size)*opts.image_noise;
+    img = draw_gaussians_mex(img_size, cells) + randn(img_size)*simul.image_noise;
     img = 1 - img;
 
     % Perform simulations steps until we reach the next frame we need to output
@@ -53,8 +61,8 @@ function [data, opts] = simulate_flow(opts)
     while (curr_t < frames(nimg+1))
 
       % Move one step forward and remesh if necessary
-      [dmov, dt] = opts.move_cells(cells, curr_t, opts);
-      [cells, thresh] = opts.remesh_cells(cells, dmov, thresh, opts);
+      [dmov, dt] = simul.move_cells(cells, curr_t, simul);
+      [cells, thresh] = simul.remesh_cells(cells, dmov, thresh, simul, opts);
 
       % Update the time and counters
       curr_t = curr_t + dt;

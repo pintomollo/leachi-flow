@@ -13,7 +13,7 @@ function clean_tmp_files()
   nfiles = length(ls_dir);
 
   % Prepare the list of useful temporary files
-  used_tmp = [];
+  used_tmp = {};
 
   % Some fancy progress status bar
   hwait = waitbar(0,'','Name','Cleaning TmpData','Visible','on');
@@ -50,7 +50,7 @@ function clean_tmp_files()
   end
 
   % Get the content of TmpData
-  ls_dir = dir([tmp_dir 'tmpmat*']);
+  ls_dir = dir([tmp_dir '*']);
   nfiles = length(ls_dir);
 
   % Update the waitbar
@@ -64,14 +64,13 @@ function clean_tmp_files()
   for d = 1:nfiles
 
     % Extract the ID of the corresponding temporary file
-    [tmp tokens] = regexp(ls_dir(d).name, 'tmpmat(\d+)\.*', 'match', 'tokens');
+    [tokens] = regexp(ls_dir(d).name,'(.+\..+)','tokens');
 
     % Do we have a valid file ?
-    if (length(tokens) ~= 0)
+    if (~isempty(tokens))
 
-      % Get the ID and check whether it is in the list of used files
-      tmp_token = str2double(char(tokens{1}));
-      if (~any(used_tmp == tmp_token))
+      % Check whether it is in the list of used files
+      if (~any(ismember(used_tmp, tokens{1})))
 
         % Otherwise, a new candidate for removal !
         removed_files(end+1) = {ls_dir(d).name};
@@ -125,17 +124,17 @@ end
 
 function tmps = recursive_tmp(mystruct)
 
-  tmps = [];
-  used_tmp = [];
+  tmps = {};
+  used_tmp = {};
 
   fields = fieldnames(mystruct);
 
   indx = ismember(fields, 'fname');
 
   if (any(indx))
-    [tmp tokens] = regexp(mystruct.fname,'tmpmat(\d+)\.*','match','tokens');
-    if (length(tokens)~=0)
-      used_tmp = [used_tmp; str2double(char(tokens{1}))];
+    [tokens] = regexp(mystruct.fname,'TmpData.(.*)','tokens');
+    if (~isempty(tokens))
+      used_tmp = [used_tmp; tokens{1}];
 
       if (~exist(mystruct.fname, 'file'))
         display(['Missing ' mystruct.fname]);

@@ -4,11 +4,16 @@ function [myrecording, opts] = pipeline(varargin)
   disp('Parsing inputs...')
   [myrecording, mysimulation, opts] = parse_inputs(varargin{:});
 
+  if (nargin > 1 && ~exist('export', 'dir'))
+    mkdir('export');
+  end
+
   do_simulate = false;
   if (isempty(myrecording.channels))
     disp('Simulating flow...')
-    [fname, mysimulation] = simulate_flow(mysimulation);
+    [fname, mysimulation] = simulate_flow(mysimulation, opts);
     opts.simulation = mysimulation;
+    opts.time_interval = mysimulation.dt;
 
     myrecording.channels(1).fname = fname;
     [junk, exp_name, junk] = fileparts(fname);
@@ -17,6 +22,12 @@ function [myrecording, opts] = pipeline(varargin)
 
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
     do_simulate = true;
+
+    if (opts.verbosity > 1)
+      hfig = show_vessels(mysimulation);
+      print(['-f' num2str(hfig)], ['./export/' exp_name '_v.png'], '-dpng');
+      delete(hfig);
+    end
   end
 
   exp_name = myrecording.experiment;
@@ -42,6 +53,14 @@ function [myrecording, opts] = pipeline(varargin)
       end
 
       save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+
+      if (opts.verbosity > 1)
+        hfig = figure;colormap(gray);
+        imagesc(load_data(myrecording.channels(i).fname, 1));
+
+        print(['-f' num2str(hfig)], ['./export/' exp_name '_c' num2str(i) '.png'], '-dpng');
+        delete(hfig);
+      end
     end
   end
 

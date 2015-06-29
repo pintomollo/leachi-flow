@@ -1,17 +1,17 @@
-function cells = vessel_init(opts)
+function cells = vessel_init(simul, opts)
 
-  density = opts.cell_density * opts.pixel_size^2;
+  density = simul.cell_density * opts.pixel_size^2;
 
   b_leachi = get_struct('botrylloides_leachi');
   cell_props = gmdistribution(b_leachi.blood_cell.mu, b_leachi.blood_cell.sigma, b_leachi.blood_cell.proportions);
 
-  if (isstruct(opts.creation_params))
-    mapping = opts.creation_params.mesh;
+  if (isstruct(simul.creation_params))
+    mapping = simul.creation_params.mesh;
 
     curr_size = mapping.bounding_box;
     curr_n = ceil(density * prod(curr_size));
 
-    pos = bsxfun(@times, rand(curr_n, opts.ndims), curr_size);
+    pos = bsxfun(@times, rand(curr_n, simul.ndims), curr_size);
 
     order = mapping.sorted(:,1);
     starts = [0; order(1:end-1,1)];
@@ -78,8 +78,8 @@ function cells = vessel_init(opts)
     %{
     %%% Display only
 
-    trig = opts.creation_params.mesh.nodes(opts.creation_params.mesh.edges(1,[1:end 1]), :);
-    new_trig = bsxfun(@minus, trig, opts.creation_params.mesh.nodes(mapping.registration(1,1),:));
+    trig = simul.creation_params.mesh.nodes(simul.creation_params.mesh.edges(1,[1:end 1]), :);
+    new_trig = bsxfun(@minus, trig, simul.creation_params.mesh.nodes(mapping.registration(1,1),:));
 
     rot_angle = mapping.registration(1, 2);
     rot = [cos(-rot_angle) -sin(-rot_angle); sin(-rot_angle) cos(-rot_angle)];
@@ -90,10 +90,10 @@ function cells = vessel_init(opts)
     figure;hold on;
     scatter(pos(:,1), pos(:,2));
     scatter(pos(ids,1), pos(ids,2), 'm');
-    plot(opts.creation_params.border(:,1), opts.creation_params.border(:,2), 'k');
-    plot(opts.creation_params.border(:,1), opts.creation_params.border(:,2), 'k');
+    plot(simul.creation_params.border(:,1), simul.creation_params.border(:,2), 'k');
+    plot(simul.creation_params.border(:,1), simul.creation_params.border(:,2), 'k');
 
-    scatter(opts.creation_params.mesh.nodes(:,1), opts.creation_params.mesh.nodes(:,2), 'k');
+    scatter(simul.creation_params.mesh.nodes(:,1), simul.creation_params.mesh.nodes(:,2), 'k');
     plot(trig(:,1), trig(:,2), 'r');
     plot(new_trig(:,1), new_trig(:,2), 'm');
     scatter(rel_x(ids,1), rel_y(ids,1), 'r');
@@ -102,15 +102,15 @@ function cells = vessel_init(opts)
     %}
 
     %{
-    img_size = opts.image_size - 1;
+    img_size = simul.image_size - 1;
     center = img_size / 2;
-    angle = opts.creation_params(1);
+    angle = simul.creation_params(1);
 
-    %density = opts.n_cells / (min(img_size)*opts.creation_params(2));
-    curr_size = [sqrt(sum(img_size.^2)) * (1 + 2*opts.outside_ridge) opts.creation_params(2)];
+    %density = simul.n_cells / (min(img_size)*simul.creation_params(2));
+    curr_size = [sqrt(sum(img_size.^2)) * (1 + 2*simul.outside_ridge) simul.creation_params(2)];
     curr_n = ceil(density * prod(curr_size));
 
-    pos = bsxfun(@times, rand(curr_n, opts.ndims)-0.5, curr_size);
+    pos = bsxfun(@times, rand(curr_n, simul.ndims)-0.5, curr_size);
     rot = [pos(:,1)*cos(angle) - pos(:,2)*sin(angle), ...
            pos(:,1)*sin(angle) + pos(:,2)*cos(angle)];
 
@@ -120,11 +120,11 @@ function cells = vessel_init(opts)
     cells = cells(~any(cells(:,3:4)<=0, 2), :);
     %}
   else
-    curr_size = (opts.image_size-1) * (1 + 2*opts.outside_ridge);
+    curr_size = (simul.image_size-1) * (1 + 2*simul.outside_ridge);
     curr_n = ceil(density * prod(curr_size));
 
-    pos = bsxfun(@minus, bsxfun(@times, rand(curr_n, opts.ndims), curr_size) + 1, ...
-                         (opts.image_size-1)*opts.outside_ridge);
+    pos = bsxfun(@minus, bsxfun(@times, rand(curr_n, simul.ndims), curr_size) + 1, ...
+                         (simul.image_size-1)*simul.outside_ridge);
   end
 
   cells = [pos random(cell_props, curr_n)];
@@ -132,7 +132,7 @@ function cells = vessel_init(opts)
   cells(:,3) = cells(:,3) / opts.pixel_size;
 
   %{
-  show_vessels(opts)
+  show_vessels(simul)
   hold on;
   scatter(cells(:,1), cells(:,2), 'k')
 

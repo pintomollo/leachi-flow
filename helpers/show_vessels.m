@@ -1,4 +1,4 @@
-function show_vessels(vessels)
+function hfig = show_vessels(vessels)
 
   if (isstruct(vessels))
     vessel = [];
@@ -28,7 +28,7 @@ function show_vessels(vessels)
 
       speeds = bsxfun(@times, vects, sqrt(lens));
 
-      figure;hold on;
+      h = figure;hold on;
       plot(centers(:,1), centers(:,2), 'r');
       quiver(x1, y1, speeds(:,1), speeds(:,2), 'r');
       plot(vessel.border(:,1), vessel.border(:,2), 'b');
@@ -36,6 +36,10 @@ function show_vessels(vessels)
       plot(vessel.junction.polygon(:,1), vessel.junction.polygon(:,2), 'k')
       quiver(vessel.junction.polygon(1:5:end,1), vessel.junction.polygon(1:5:end,2), vessel.junction.vector(1,:).', vessel.junction.vector(2,:).', 'k')
     end
+  end
+
+  if (nargout > 0)
+    hfig = h;
   end
 
   return;

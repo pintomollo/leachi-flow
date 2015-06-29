@@ -1,5 +1,28 @@
 function tmp(num)
 
+  if (nargin == 0)
+    num = 1;
+  end
+  niter = 3;
+
+  switch num
+    case 1
+      fields = {'movement_params'};
+      values = {[10 50 100 200 300 400 600]};
+    otherwise
+      return;
+  end
+
+  for i=1:length(fields)
+    for j=1:niter
+      for k=1:length(values{i})
+        pipeline(fields{i}, values{i}(k));
+      end
+    end
+  end
+
+  return;
+
   %{
   nmax = 200;
   a = 0.05;

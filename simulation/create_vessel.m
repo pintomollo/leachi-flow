@@ -1,12 +1,12 @@
-function opts = create_vessel(opts)
+function simul = create_vessel(simul, opts)
 
   % Get the statistical properties of the vessels
   b_leachi = get_struct('botrylloides_leachi');
   vessel_props = gmdistribution(b_leachi.vessel_width.mu / opts.pixel_size, b_leachi.vessel_width.sigma / opts.pixel_size, b_leachi.vessel_width.proportions);
 
   % The size of the drawing area
-  rim = (opts.image_size - 1) * opts.outside_ridge;
-  bounding_box = [1-rim(1) opts.image_size(1)+rim(1) 1-rim(2) opts.image_size(2)+rim(2)];
+  rim = (simul.image_size - 1) * simul.outside_ridge;
+  bounding_box = [1-rim(1) simul.image_size(1)+rim(1) 1-rim(2) simul.image_size(2)+rim(2)];
 
   % The maximal number of trials to build the vessel
   max_trials = 20;
@@ -19,11 +19,11 @@ function opts = create_vessel(opts)
   widths = NaN(1,0);
 
   % Loop over the vessels
-  for i=1:opts.init_params(1)
+  for i=1:simul.init_params(1)
 
     % And trial a number of times to create it
     for j=1:max_trials
-      [new_vessel, new_middle, new_junctions, new_widths] = get_vessel(bounding_box, vessels, vessel_props, opts.init_params(2));
+      [new_vessel, new_middle, new_junctions, new_widths] = get_vessel(bounding_box, vessels, vessel_props, simul.init_params(2));
 
       % Nothing got created, something is wrong
       if (~isempty(new_vessel))
@@ -72,10 +72,10 @@ function opts = create_vessel(opts)
 
   % Store everything
   vessel.mesh = mesh;
-  opts.creation_params = vessel;
+  simul.creation_params = vessel;
 
   % Display the result
-  show_vessels(opts)
+  %show_vessels(simul)
 
   return;
 end
