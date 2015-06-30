@@ -1,91 +1,59 @@
-function [img, moire] = immoire(img, thresh)
+function [img, moire] = immoire(img, thresh, max_size)
 
   if (nargin < 2)
-    thresh = 5;
+    thresh = 8;
+  end
+  if (nargin < 3)
+    max_size = 5;
   end
 
   F = fft2(img);
+  F = fftshift(F);
 
-  outliers1 = filter_thresh(real(F), thresh);
-  outliers2 = filter_thresh(imag(F), thresh);
+  G = log(abs(F));
 
-  F1 = F;
-  F2 = F;
-  F3 = F;
+  noise = estimate_noise(G);
 
-  F1(outliers1) = 0;
-  F2(outliers2) = 0;
-  F3(outliers1 | outliers2) = 0;
+  G = gaussian_mex(G, 0.67);
 
-  G1 = real(ifft2(F1));
-  G2 = real(ifft2(F2));
-  G3 = real(ifft2(F3));
+  intens_thresh = noise(1) + thresh*noise(2);
 
-  figure;
-  subplot(2,3,1);imagesc(G1);
-  subplot(2,3,2);imagesc(G2);
-  subplot(2,3,3);imagesc(G3);
+  % Create a mask to identify the local maxima
+  tmp_size = ceil(max_size/2);
+  tmp_size = tmp_size + mod(tmp_size+1, 2);
+  mask = ones(tmp_size);
+  mask((end-1)/2+1) = 0;
 
-  subplot(2,3,4);imagesc(G1-img);
-  subplot(2,3,5);imagesc(G2-img);
-  subplot(2,3,6);imagesc(G3-img);
+  % If need be, perpare the averaging mask
+  mask_avg = ones(tmp_size);
+  mask_avg = mask_avg / numel(mask_avg);
 
-  keyboard
+  % Performs the actual spot detection "a trous" algorithm [1]
+  atrous = imatrou(G, max_size, thresh);
 
-  return;
-end
+  % Compute the local average
+  avgs = imfilter(G, mask_avg);
 
-function res = filter_thresh(data, thresh)
+  % Get the local maxima
+  bw = (atrous > 0) & (G >= imdilate(G, mask)) & (avgs >= intens_thresh);
 
-  res = false(size(data));
-  data = data(:);
+  % Shrink them to single pixel values
+  bw = bwmorph(bw, 'shrink', Inf);
 
-  % We need to robustly estimate the mean and the standard deviation of the pixel
-  % distribution. In opposition with what is proposed in [1], we utilize the median
-  % and the MAD estimators for this purpose.
-  dmed = median(data);
-  dmad = 1.4826 * median(abs(data-dmed));
+  center = floor(size(img)/2)+1;
+  bw(center(1), center(2)) = false;
 
-  % Here we most likely have a problem, so try another approach to estimate the
-  % standard deviation.
-  if (dmad==0)
-    dmad = 1.4826 * mean(abs(data-dmed));
-
-    % If nothing else worked, follow [1] to esimate the standard deviation
-    if (dmad == 0)
-      dmad = sqrt(mean(data.^2 - dmed^2));
-    end
+  if (any(bw(:)))
+    moire = imnorm(gaussian_mex(double(bw), max_size));
+  else
+    moire = double(bw);
   end
 
-  % Sort the data, keeping track of the correspondency
-  [data, indx] = sort(data-dmed);
+  H = F .* (1-moire);
+  img = real(ifft2(ifftshift(H)));
 
-  figure;hist(data, 200);
-
-  % And measure the distance between pixel values
-  dist = [0; diff(data)];
-
-  % Our cosmic rays are higher than the estimated mean and have a gap larger than
-  % the standard deviation times the threshold
-  bads = (data > 0 & dist > thresh*dmad);
-
-  % If we find one, [1] removes all the higher-valued pixels. Given that we have
-  % ordere them, we find the first index and replace all higher values by the median
-  if (any(bads))
-    first = find(bads, 1, 'first');
-    res(indx(first:end)) = true;
-  end
-
-  % Our cosmic rays are higher than the estimated mean and have a gap larger than
-  % the standard deviation times the threshold
-  bads = (data < 0 & dist > thresh*dmad);
-
-  % If we find one, [1] removes all the higher-valued pixels. Given that we have
-  % ordere them, we find the first index and replace all higher values by the median
-  if (any(bads))
-    first = find(bads, 1, 'last');
-    res(indx(1:first)) = true;
-  end
+  H = F .* moire;
+  moire = real(ifft2(ifftshift(H)));
 
   return;
 end
