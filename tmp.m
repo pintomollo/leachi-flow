@@ -1,5 +1,13 @@
 function tmp(num)
 
+  files = dir('flow*.mat');
+  for i=1:length(files)
+    data = load(files(i).name);
+    leachi_flow(data.myrecording, data.opts);
+  end
+
+  return;
+
   if (nargin == 0)
     num = 1;
   end

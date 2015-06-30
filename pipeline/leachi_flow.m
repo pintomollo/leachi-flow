@@ -58,7 +58,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
     detections(1).noise = noise;
 
-    %figure;
+    figure;
     mask = zeros(img_size+6*vessel_width);
     for nimg=2:nframes
       orig_img = double(load_data(myrecording.channels(1), nimg));
@@ -68,27 +68,34 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       img_diff = abs(prev_img - img);
       img_diff(prev_mask | curr_mask) = false;
 
+      im = img_diff;
+      im(isnan(im)) = 0;
+      F1 = fft2(im);
+      keyboard
+
       bw = img_diff > diff_thresh * noise(2);
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
+      subplot(2,2,1);imagesc(prev_img)
+      subplot(2,2,2);imagesc(img_diff)
       if (any(bw(:)))
 
         closed = imdilate(bw, disk1);
         open = imerode(closed, disk2);
         mask = mask + open;
 
-        %subplot(2,2,1);imagesc(prev_img)
-        %subplot(2,2,2);imagesc(closed)
-        %subplot(2,2,3);imagesc(open);
-        %subplot(2,2,4);imagesc(mask)
+        subplot(2,2,3);imagesc(bw);
+        subplot(2,2,4);imagesc(mask)
         %props = sum(open(:)) * inelems;
         %title(props)
       end
 
       prev_img = img;
       prev_mask = curr_mask;
-      %drawnow
+      drawnow
     end
+
+    keyboard
 
     mask = imnorm(mask);
 
@@ -413,7 +420,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     plot(gpos, sign_val, 'k', 'LineWidth', 2);
     tmp = 2*sum(ampls(:));
     ylim([-tmp tmp]);
-    title(res.properties);
+    title(num2str(res.properties));
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_f.png'], '-dpng');
     delete(hfig);
   end

@@ -67,8 +67,6 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
   end
   %scatter(w, F(w), 'k')
 
-  %keyboard
-
   if (length(F) > w+2)
     if w>1
         %calculating the 2 points, between them the estimated frequency is
