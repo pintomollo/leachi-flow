@@ -104,15 +104,31 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         end
 
         vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
-        vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+        vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap) - 1;
+
+        metric1 = cornermetric(img1, method);
+        metric1 = metric1(sub2ind(img_size, vpoints(:,2), vpoints(:,1)));
 
         vpoints2 = corner(img2(1:overlap, :), method, numberCorners);
+        metric2 = cornermetric(img2, method);
+        metric2 = metric2(sub2ind(img_size, vpoints2(:,2), vpoints2(:,1)));
 
-        all_vpoints = [all_vpoints; vpoints];
-        all_vpoints2 = [all_vpoints2; vpoints2];
+        all_vpoints{j} = [vpoints metric1 j*ones(size(metric1))];
+        all_vpoints2{j} = [vpoints2 metric2 j*ones(size(metric2))];
       end
 
-      [vshiftx, vshifty] = ShiftByCornerClustering(all_vpoints, all_vpoints2, method, numberCorners, 1);
+      tmp1 = cat(1, all_vpoints{:});
+      [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
+      tmp1 = tmp1(tmp_indxs(1:numberCorners),:);
+
+      tmp2 = cat(1, all_vpoints2{:});
+      [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
+      tmp2 = tmp2(tmp_indxs(1:numberCorners),:);
+
+      [vshiftx, vshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+
+      %%%%
+      keyboard
 
       vpoints2 = LKTracker(img1, img2, vpoints, [vshiftx vshifty]);
       indices2 = CheckPointsAndNAN(img2, vpoints2);
