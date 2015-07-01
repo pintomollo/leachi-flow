@@ -27,7 +27,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   b_leachi = get_struct('botrylloides_leachi');
 
-  diff_thresh = 2;
+  diff_thresh = 0.75;
   min_length = 1;
   min_branch = 10;
   prop_thresh = 0.3;
@@ -45,6 +45,10 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   proj_dist = vessel_width * 0.75;
 
   if (isempty(detections(1).cluster))
+    if (opts.verbosity > 1)
+      hwait = waitbar(0,'Computing mask...','Name','B. leachi flow');
+    end
+
     orig_img = double(load_data(myrecording.channels(1), 1));
 
     disk1 = strel('disk', 2*vessel_width);
@@ -53,46 +57,56 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
 
     noise = estimate_noise(orig_img);
-    prev_img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
-    prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+    orig_img = gaussian_mex(orig_img, sigma);
+    prev_img = padarray(orig_img, [3 3]*vessel_width, NaN);
+    %prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
 
     detections(1).noise = noise;
 
-    figure;
+    %figure;
     mask = zeros(img_size+6*vessel_width);
     for nimg=2:nframes
-      orig_img = double(load_data(myrecording.channels(1), nimg));
-      img = padarray(gaussian_mex(orig_img, sigma), [3 3]*vessel_width, NaN);
-      curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+      new_img = double(load_data(myrecording.channels(1), nimg));
+      new_img = gaussian_mex(new_img, sigma);
 
-      img_diff = abs(prev_img - img);
-      img_diff(prev_mask | curr_mask) = false;
+      [img_diff, moire] = immoire(new_img - orig_img, 5, 2*sigma);
 
-      im = img_diff;
-      im(isnan(im)) = 0;
-      F1 = fft2(im);
-      keyboard
+      orig_img = new_img;
+      img = padarray(orig_img, [3 3]*vessel_width, NaN);
+      %curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+
+      img_diff = abs(padarray(img_diff, [3 3]*vessel_width, NaN));
+      %img_diff(prev_mask | curr_mask) = false;
 
       bw = img_diff > diff_thresh * noise(2);
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
-      subplot(2,2,1);imagesc(prev_img)
-      subplot(2,2,2);imagesc(img_diff)
+      %subplot(2,2,1);imagesc(prev_img)
+      %subplot(2,2,1);imagesc(prev_mask | curr_mask)
+      %subplot(2,2,2);imagesc(img_diff)
       if (any(bw(:)))
 
         closed = imdilate(bw, disk1);
         open = imerode(closed, disk2);
         mask = mask + open;
 
-        subplot(2,2,3);imagesc(bw);
-        subplot(2,2,4);imagesc(mask)
+        %subplot(2,2,3);imagesc(bw);
+        %subplot(2,2,4);imagesc(mask)
         %props = sum(open(:)) * inelems;
         %title(props)
       end
 
       prev_img = img;
-      prev_mask = curr_mask;
-      drawnow
+      %prev_mask = curr_mask;
+
+      if (opts.verbosity > 1)
+        waitbar(nimg/nframes,hwait);
+      end
+      %drawnow
+    end
+
+    if (opts.verbosity > 1)
+      close(hwait);
     end
 
     keyboard
@@ -171,6 +185,10 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     mapping(mask) = indexes;
 
     detections(1).cluster = mapping;
+    segmentations.detections = detections;
+    myrecording.segmentations = segmentations;
+
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
     mapping = detections(1).cluster;
     mask = logical(mapping);
@@ -258,6 +276,9 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     end
 
     segmentations.detections = detections;
+    myrecording.segmentations = segmentations;
+
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
     for nimg=1:nframes-1
       data{nimg} = detections(nimg).carth;

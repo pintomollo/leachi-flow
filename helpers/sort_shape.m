@@ -1,4 +1,4 @@
-function centers = sort_shape(pts, min_branch)
+function centers = sort_shape(pts, min_branch, min_curve)
 
   if (isempty(pts))
     centers = NaN(0,2);
@@ -126,8 +126,22 @@ function centers = sort_shape(pts, min_branch)
   %scatter(shapes{end}(:,1),shapes{end}(:,2), 'MarkerEdgeColor', colors(end,:));
   %plot(sorted(:,1), sorted(:,2), 'k');
 
-  nbranches = ngaps+1;
-  orig_cross = all_cross;
+  tmp_shapes = {};
+  for i=1:length(shapes)
+    pts = shapes{i};
+    pacs = impac(pts, min_curve, 'recursive');
+
+    knots = find(ismember(pts, pacs, 'rows'));
+    pts(knots(2:end-1), 3) = 3;
+    for j=1:length(knots)-1
+      tmp_shapes{end+1} = pts(knots(j):knots(j+1),:);
+    end
+  end
+  shapes = tmp_shapes;
+  all_pts = cat(1, shapes{:});
+
+  nbranches = length(shapes);
+  orig_cross = unique(all_pts(all_pts(:,3)>2,1:2), 'rows');
   all_cross = NaN(size(orig_cross) + [0 nbranches]);
   all_cross(:,1:2) = orig_cross;
 
