@@ -76,27 +76,43 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       %% Try to sort instead of max, and run through several to increase number of points
 
-      [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
-      vindx = [curr_indx(rindx, cindx) curr_indx(rindx+1, cindx)];
+      %[rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
+      [rindx, cindx] = find(vert_dist>3*avg_edges);
 
-      img1 = load_img(vindx(1));
-      img2 = load_img(vindx(2));
-
-      %strong1 = all_edges{vindx(1), 1} > avg_edges;
-      %strong2 = all_edges{vindx(2), 1} > avg_edges;
-
-      %[estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
-      [estims, corr1] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
-      overlap = round(mean(estims));
-      if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
-        continue
+      if (isempty(rindx))
+        [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
       end
 
-      vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
-      vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+      ncands = length(rindx);
 
-      vpoints2 = corner(img2(1:overlap, :), method, numberCorners);
-      [vshiftx, vshifty] = ShiftByCornerClustering(vpoints, vpoints2, method, numberCorners, 1);
+      all_vpoints = cell([1 ncands]);
+      all_vpoints2 = cell([1 ncands]);
+      for j=1:length(rindx)
+        vindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j)+1, cindx(j))];
+
+        img1 = load_img(vindx(1));
+        img2 = load_img(vindx(2));
+
+        %strong1 = all_edges{vindx(1), 1} > avg_edges;
+        %strong2 = all_edges{vindx(2), 1} > avg_edges;
+
+        %[estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
+        [estims, corr1] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
+        overlap = round(mean(estims));
+        if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
+          continue
+        end
+
+        vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
+        vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+
+        vpoints2 = corner(img2(1:overlap, :), method, numberCorners);
+
+        all_vpoints = [all_vpoints; vpoints];
+        all_vpoints2 = [all_vpoints2; vpoints2];
+      end
+
+      [vshiftx, vshifty] = ShiftByCornerClustering(all_vpoints, all_vpoints2, method, numberCorners, 1);
 
       vpoints2 = LKTracker(img1, img2, vpoints, [vshiftx vshifty]);
       indices2 = CheckPointsAndNAN(img2, vpoints2);
