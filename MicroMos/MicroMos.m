@@ -104,10 +104,15 @@ function [Mosaic, parameters] = MicroMos(varargin)
             warning(['Error during the analysis:']);
             print_all(err);
           end
-        elseif (isempty(fname))
-          fname = files(i).name;
         else
-          fname = common_substring(fname, files(i).name);
+          [file_path, file_name, file_ext] = fileparts(files(i).name);
+          if (~exist(fullfile(parameters.ImageFolder, file_name), 'dir'))
+            if (isempty(fname))
+              fname = files(i).name;
+            else
+              fname = common_substring(fname, files(i).name);
+            end
+          end
         end
       end
     end

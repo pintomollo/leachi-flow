@@ -56,9 +56,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   avg_edges = total_edges / nelems;
   indexes = [1:nelems];
 
-  all_shifts = NaN(size(sizes, 1), 6);
+  all_shifts = NaN(size(sizes, 1), 8);
 
-  best = 0;
   for i=size(sizes, 1):-1:1
     curr_indx = reshape(indexes, sizes(i,[2 1]));
 
@@ -71,23 +70,22 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     data2 = props(curr_indx,2);
     data2 = reshape(data2, sizes(i,:));
 
+    corr1 = 0;
     if (sizes(i,1) > 1)
       vert_dist = data1(1:end-1,:) + data2(2:end, :);
 
-      %% Try to sort instead of max, and run through several to increase number of points
-
-      %[rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
-      [rindx, cindx] = find(vert_dist>3*avg_edges);
-
-      if (isempty(rindx))
-        [rindx, cindx] = find(vert_dist==max(vert_dist(:)), 1);
-      end
+      [vert_edges, sub_ind] = sort(vert_dist(:), 'descend');
+      [rindx, cindx] = ind2sub(size(vert_dist), sub_ind);
 
       ncands = length(rindx);
 
       all_vpoints = cell([1 ncands]);
       all_vpoints2 = cell([1 ncands]);
       for j=1:length(rindx)
+        if (vert_edges(j) < 3*avg_edges && j > 3)
+          break;
+        end
+
         vindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j)+1, cindx(j))];
 
         img1 = load_img(vindx(1));
@@ -97,11 +95,12 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         %strong2 = all_edges{vindx(2), 1} > avg_edges;
 
         %[estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
-        [estims, corr1] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
+        [estims, c] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
         overlap = round(mean(estims));
         if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
           continue
         end
+        corr1 = corr1 + c;
 
         vpoints = corner(img1(end-overlap:end, :), method, numberCorners);
         vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap) - 1;
@@ -118,22 +117,51 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       end
 
       tmp1 = cat(1, all_vpoints{:});
+
+      if (isempty(tmp1) || all(isnan(tmp1(:))))
+        continue;
+      end
+
       [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
-      tmp1 = tmp1(tmp_indxs(1:numberCorners),:);
+      tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
 
       tmp2 = cat(1, all_vpoints2{:});
       [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
-      tmp2 = tmp2(tmp_indxs(1:numberCorners),:);
+      tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
 
       [vshiftx, vshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
 
-      %%%%
-      keyboard
+      for j=1:length(rindx)
+        curr_pts = (tmp1(:,4) == j);
 
-      vpoints2 = LKTracker(img1, img2, vpoints, [vshiftx vshifty]);
-      indices2 = CheckPointsAndNAN(img2, vpoints2);
-      vpoints2 = vpoints2(indices2,:);
-      vpoints = vpoints(indices2,:);
+        if (any(curr_pts))
+
+          vindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j)+1, cindx(j))];
+
+          img1 = load_img(vindx(1));
+          img2 = load_img(vindx(2));
+
+          vpoints = tmp1(curr_pts, 1:2);
+
+          vpoints2 = LKTracker(img1, img2, vpoints, [vshiftx vshifty]);
+          indices2 = CheckPointsAndNAN(img2, vpoints2);
+          vpoints2 = vpoints2(indices2,:);
+          vpoints = vpoints(indices2,:);
+
+          all_vpoints{j} = vpoints;
+          all_vpoints2{j} = vpoints2;
+        else
+          all_vpoints{j} = NaN(0,2);
+          all_vpoints2{j} = NaN(0,2);
+        end
+      end
+
+      vpoints = cat(1, all_vpoints{:});
+      vpoints2 = cat(1, all_vpoints2{:});
+
+      if (isempty(vpoints) || all(isnan(vpoints(:))))
+        continue;
+      end
 
       vshift = mean(vpoints - vpoints2);
 
@@ -143,6 +171,10 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       all_shifts(i,1:2) = vshift;
       all_shifts(i,5) = corr1;
+      all_shifts(i,7) = size(vpoints,1);
+    else
+      all_shifts(i,5) = 0;
+      all_shifts(i,7) = 0;
     end
 
     data1 = props(curr_indx,3);
@@ -152,33 +184,100 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
     if (sizes(i,2) > 1)
       horz_dist = data1(:,1:end-1) + data2(:,2:end);
-      [rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
-      hindx = [curr_indx(rindx, cindx) curr_indx(rindx, cindx+1)];
 
-      img1 = load_img(hindx(1));
-      img2 = load_img(hindx(2));
+      [horz_edges, sub_ind] = sort(horz_dist(:), 'descend');
+      [rindx, cindx] = ind2sub(size(horz_dist), sub_ind);
 
-      %strong1 = all_edges{hindx(1), 2} > avg_edges;
-      %strong2 = all_edges{hindx(2), 2} > avg_edges;
+      ncands = length(rindx);
 
-      %[estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
-      [estims, corr2] = wcorrel_edges(img1, img2, all_edges{hindx(1),2}, all_edges{hindx(2),2}, thresh, avg_edges);
-      overlap = round(mean(estims));
+      all_hpoints = cell([1 ncands]);
+      all_hpoints2 = cell([1 ncands]);
+      corr2 = 0;
+      for j=1:length(rindx)
+        if (horz_edges(j) < 3*avg_edges && j > 3)
+          break;
+        end
 
-      if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
-        continue
+        %[rindx, cindx] = find(horz_dist==max(horz_dist(:)), 1);
+        hindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j), cindx(j)+1)];
+
+        img1 = load_img(hindx(1));
+        img2 = load_img(hindx(2));
+
+        %strong1 = all_edges{hindx(1), 2} > avg_edges;
+        %strong2 = all_edges{hindx(2), 2} > avg_edges;
+
+        %[estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
+        [estims, c] = wcorrel_edges(img1, img2, all_edges{hindx(1),2}, all_edges{hindx(2),2}, thresh, avg_edges);
+        overlap = round(mean(estims));
+
+        if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
+          continue
+        end
+        corr2 = corr2 + c;
+
+        hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
+        hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap) - 1;
+
+        metric1 = cornermetric(img1, method);
+        metric1 = metric1(sub2ind(img_size, hpoints(:,2), hpoints(:,1)));
+
+        hpoints2 = corner(img2(:,1:overlap), method, numberCorners);
+
+        metric2 = cornermetric(img2, method);
+        metric2 = metric2(sub2ind(img_size, hpoints2(:,2), hpoints2(:,1)));
+
+        all_hpoints{j} = [hpoints metric1 j*ones(size(metric1))];
+        all_hpoints2{j} = [hpoints2 metric2 j*ones(size(metric2))];
       end
 
-      hpoints = corner(img1(:,end-overlap:end), method, numberCorners);
-      hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
+      tmp1 = cat(1, all_hpoints{:});
 
-      hpoints2 = corner(img2(:,1:overlap), method, numberCorners);
-      [hshiftx, hshifty] = ShiftByCornerClustering(hpoints, hpoints2, method, numberCorners, 1);
+      if (isempty(tmp1) || all(isnan(tmp1(:))))
+        continue;
+      end
 
-      hpoints2 = LKTracker(img1, img2, hpoints, [hshiftx hshifty]);
-      indices2 = CheckPointsAndNAN(img2, hpoints2);
-      hpoints2 = hpoints2(indices2,:);
-      hpoints = hpoints(indices2,:);
+      [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
+      tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
+
+      tmp2 = cat(1, all_hpoints2{:});
+      [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
+      tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
+
+      [hshiftx, hshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+
+      for j=1:length(rindx)
+        curr_pts = (tmp1(:,4) == j);
+
+        if (any(curr_pts))
+
+          hindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j), cindx(j)+1)];
+          %vindx = [curr_indx(rindx(j), cindx(j)) curr_indx(rindx(j)+1, cindx(j))];
+
+          img1 = load_img(hindx(1));
+          img2 = load_img(hindx(2));
+
+          hpoints = tmp1(curr_pts, 1:2);
+
+          hpoints2 = LKTracker(img1, img2, hpoints, [hshiftx hshifty]);
+          indices2 = CheckPointsAndNAN(img2, hpoints2);
+          hpoints2 = hpoints2(indices2,:);
+          hpoints = hpoints(indices2,:);
+
+          all_hpoints{j} = hpoints;
+          all_hpoints2{j} = hpoints2;
+        else
+          all_hpoints{j} = NaN(0,2);
+          all_hpoints2{j} = NaN(0,2);
+        end
+      end
+
+      hpoints = cat(1, all_hpoints{:});
+      hpoints2 = cat(1, all_hpoints2{:});
+
+      if (isempty(hpoints) || all(isnan(hpoints(:))))
+        continue;
+      end
 
       hshift = mean(hpoints - hpoints2);
 
@@ -188,15 +287,17 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       all_shifts(i,3:4) = hshift;
       all_shifts(i,6) = corr2;
+      all_shifts(i,8) = size(hpoints,1);
+    else
+      all_shifts(i,6) = 0;
+      all_shifts(i,8) = 0;
     end
-
-    best = i;
-    break;
   end
 
-  keyboard
+  % Could also use the sum/average of correlations
+  [val, best] = max(sum(all_shifts(:,7:8), 2));
 
-  if (best > 0)
+  if (~isnan(val))
     best_size = sizes(best,:);
 
     gridhx = [0:best_size(2)-1]*all_shifts(best,3);
