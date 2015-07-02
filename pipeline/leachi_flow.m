@@ -109,8 +109,6 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       close(hwait);
     end
 
-    keyboard
-
     mask = imnorm(mask);
 
     %figure;subplot(2,2,1)
@@ -226,9 +224,11 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   threshs = [5; 5; 3; 3];
 
   data = cell(nframes-1, 1);
+  snr = cell(nframes-1, 1);
 
   if (isempty(detections(1).carth) || all(isnan(detections(1).carth(:))))
 
+    %%%%%%%%%%%%%%%%%%% SHOULD WORK ON THE DIFFERENCE BETWEEN FRAMES
     for nimg=1:nframes-1
       if (prev_indx == nimg)
         img = img_next;
@@ -239,10 +239,16 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
-      [x,y,u,v] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask);
+      for i=1:10
+      [x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
+      figure;quiver(x,y,u,v)
+      end
+      keyboard
+
       empties = (u == 0 & v == 0);
       u(empties) = NaN;
       v(empties) = NaN;
+      s(empties) = NaN;
 
       if (isempty(real_mapping))
         tmp_vals = bilinear_mex(mapping, x, y);
@@ -260,9 +266,11 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       %subplot(2,2,1);imagesc(img)
       %subplot(2,2,2);imagesc(img_next)
       %subplot(2,2,3);imagesc(mask);
-      %subplot(2,2,4);quiver(x,-y,u,-v)
-      %axis([1 img_size(2) -img_size(1) -1])
+      %subplot(2,2,4);imagesc((img_next-img) .* mask);hold on;
+      %quiver(x,y,u,v, 'r');
+      %hold off
       %drawnow
+      %keyboard
 
       speed = bsxfun(@times, u(inside), params(1,:) .* sqrt(params(4,:))) + ...
                bsxfun(@times, v(inside), params(2,:) .* sqrt(params(4,:)));
@@ -271,6 +279,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
       data{nimg} = speed;
       detections(nimg).carth = speed;
+
+      snr{nimg} = s(inside);
 
       prev_indx = nimg;
     end
@@ -350,11 +360,14 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   speeds = [];
   group_indxs = [];
   avgs_indxs = [];
+  SnR = [];
   pos = [1:ndata];
   for i = pos
     tmp_all = bsxfun(@times, data{i}(:,~empty_branches), sames);
+    s = snr{i};
     for j=1:size(avgs,2)
       tmp = tmp_all(:,j);
+      SnR = [SnR; s(isfinite(tmp))];
       tmp = tmp(isfinite(tmp));
       speeds = [speeds; tmp];
       group_indxs = [group_indxs; ones(size(tmp))*i];
@@ -380,6 +393,14 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   end
   %}
 
+  nbins = floor(max(SnR));
+  colors = redbluemap(nbins+1);
+  figure;hold on;
+  for i=0:nbins
+    goods = (SnR>i);
+    scatter(group_indxs(goods), speeds(goods), 'MarkerEdgeColor', colors(i+1,:));
+  end
+
   if (opts.verbosity > 1)
     hfig = figure;hold on;
     try
@@ -394,6 +415,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       plot(gpos, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
     end
   end
+
+  keyboard
 
   goods = (~isnan(group_indxs) & ~isnan(speeds));
   prev_params = -Inf;

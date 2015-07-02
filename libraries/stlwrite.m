@@ -67,9 +67,9 @@ function stlwrite(filename, varargin)
 
 
 % Check valid filename path
-path = fileparts(filename);
-if ~isempty(path) && ~exist(path,'dir')
-    error('Directory "%s" does not exist.',path);
+mypath = fileparts(filename);
+if ~isempty(mypath) && ~exist(mypath,'dir')
+    error('Directory "%s" does not exist.',mypath);
 end
 
 % Get faces, vertices, and user-defined options for writing

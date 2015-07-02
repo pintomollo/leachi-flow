@@ -1,4 +1,4 @@
-function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
+function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, snr_thresh)
 % MATPIV_NFFT multiple passes with subpixel NFFT resolution from MatPIV.
 %
 %   [X, Y, U, V] = MATPIV_NFFT(IM1, IM2, WINSIZE, OVERLAP) performs PIV in
@@ -40,8 +40,12 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
   elseif (nargin < 5)
     thresh = 3;
     mask = [];
+    snr_thresh = 1;
   elseif (nargin < 6)
     mask = [];
+    snr_thresh = 1;
+  elseif (nargin < 7)
+    snr_thresh = 1;
   end
 
   if (islogical(thresh))
@@ -61,8 +65,6 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask)
   if (isempty(thresh))
     thresh = 3;
   end
-
-  snr_thresh = 1;
 
   if (any(imgsize ~= size(im2) | imgsize ~= size(mask)))
     disp('Images must have consistent sizes. Aborting !')
@@ -253,18 +255,19 @@ function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
               R = real(ifftn(bt.*at, 'nonsymmetric'));
               R=R(1:end-1,1:end-1);
               R=real(R)./(nelems*stad1*stad2);
+              R_peak=gaussian_mex(R, 2);
 
               %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
               if full_sizes(1)==(N-1) || N < 5 || M < 5
-                  [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
+                  [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
               else
-                  [max_y1,max_x1,max_val]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                  [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
               end
 
               datax(cj,ci)=(M-max_x1)+idx(cj,ci);
               datay(cj,ci)=(N-max_y1)+idy(cj,ci);
 
-              snr(cj,ci) = mf * max_val.^2 / sum(R(:).^2);
+              snr(cj,ci) = mf * max_val.^2 / sum(R_peak(:).^2);
           end
       end
   end
@@ -495,7 +498,7 @@ end
 
 function [u,v]=snrfilt(u,v,snr,thresh)
 
-  bads = ~(snr >= thresh);
+  bads = (snr < thresh);
 
   u(bads) = NaN;
   v(bads) = NaN;

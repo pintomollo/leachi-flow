@@ -149,6 +149,7 @@ function [Mosaic, parameters] = MicroMos(varargin)
       end
   end
 
+  disp('------------------------------------------');
   disp('MicroMos: START.');
 
   % Determine the acquisition grid
@@ -157,13 +158,20 @@ function [Mosaic, parameters] = MicroMos(varargin)
     [MatricesGLOBAL, mosaic_order] = DefineAcquisitionGrid(parameters);
 
     if (isempty(mosaic_order))
-      disp('The acquisition grid could not be estimated using the provided data !');
-      parameters.flag_ComputeRegistrations = 1;
-    else
-      parameters.flag_ComputeRegistrations = 0;
-      parameters.ImageIndexs = parameters.ImageIndexs(mosaic_order);
-      MatricesGLOBAL = MatricesGLOBAL(:,:,mosaic_order);
+      disp('Troubles estimating the acqusition grid, trying with more corners...'):
+
+      tmp_params = parameters;
+      tmp_params.numberCorners = 2*tmp_params.numberCorners;
+
+      [MatricesGLOBAL, mosaic_order] = DefineAcquisitionGrid(tmp_params);
+      if (isempty(mosaic_order))
+        error('The acquisition grid could not be estimated using the provided data !');
+      end
     end
+
+    parameters.flag_ComputeRegistrations = 0;
+    parameters.ImageIndexs = parameters.ImageIndexs(mosaic_order);
+    MatricesGLOBAL = MatricesGLOBAL(:,:,mosaic_order);
   end
 
   start_index = 1;
@@ -399,6 +407,8 @@ function [Mosaic, parameters] = MicroMos(varargin)
 
   % MOSAIC CREATION
   disp('Building the mosaic...')
+
+  NumberOfregisteredImages = length(Indeces);
 
   %Mosaic initialization to referenceFrame 
   [Mosaic, MosaicOrigin] = InitMosaic([nrows, ncols, nchannels], MatricesGLOBAL);

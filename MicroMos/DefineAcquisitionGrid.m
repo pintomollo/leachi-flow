@@ -1,6 +1,6 @@
 function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
-  numberCorners = 150;
+  numberCorners = parameters.numberCorners;
   flag_Harris = 0;
   thresh = 0.3;
   pix_thresh = 5;
@@ -163,7 +163,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
-      vshift = mean(vpoints - vpoints2);
+      vshift = mean(vpoints - vpoints2, 1);
 
       if (abs(vshift(1)/vshift(2)) > prop_thresh)
         continue;
@@ -279,7 +279,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
-      hshift = mean(hpoints - hpoints2);
+      hshift = mean(hpoints - hpoints2, 1);
 
       if (abs(hshift(2)/hshift(1)) > prop_thresh)
         continue;
