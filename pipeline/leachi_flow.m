@@ -281,7 +281,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       speed(others) = NaN;
 
       data{nimg} = speed;
-      detections(nimg).carth = speed;
+      detections(nimg).carth = [speed s(inside)];
 
       snr{nimg} = s(inside);
 
@@ -294,7 +294,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
     for nimg=1:nframes-1
-      data{nimg} = detections(nimg).carth;
+      data{nimg} = detections(nimg).carth(:,1);
+      snr{nimg} = detections(nimg).carth(:,2);
     end
   end
 
