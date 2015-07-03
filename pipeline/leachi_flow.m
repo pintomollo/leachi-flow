@@ -129,7 +129,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     [icoord, jcoord] = find(mask);
     centers = [jcoord, icoord];
 
-    branches = sort_shape(centers, min_branch);
+    branches = sort_shape(centers, min_branch, vessel_width / 3);
     if (isempty(branches))
       error('nothing');
     end
@@ -228,6 +228,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   if (isempty(detections(1).carth) || all(isnan(detections(1).carth(:))))
 
+    %figure;
     %%%%%%%%%%%%%%%%%%% SHOULD WORK ON THE DIFFERENCE BETWEEN FRAMES
     for nimg=1:nframes-1
       if (prev_indx == nimg)
@@ -239,16 +240,18 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
-      for i=1:10
-      [x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
-      figure;quiver(x,y,u,v)
-      end
-      keyboard
+      [x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
+      %for i=1:10
+      %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
+      %quiver(x,y,u,v, 0);
+      %drawnow
+      %end
+      %keyboard
 
-      empties = (u == 0 & v == 0);
-      u(empties) = NaN;
-      v(empties) = NaN;
-      s(empties) = NaN;
+      %empties = (u == 0 & v == 0);
+      %u(empties) = NaN;
+      %v(empties) = NaN;
+      %s(empties) = NaN;
 
       if (isempty(real_mapping))
         tmp_vals = bilinear_mex(mapping, x, y);
@@ -393,6 +396,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   end
   %}
 
+  %{
   nbins = floor(max(SnR));
   colors = redbluemap(nbins+1);
   figure;hold on;
@@ -400,14 +404,11 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     goods = (SnR>i);
     scatter(group_indxs(goods), speeds(goods), 'MarkerEdgeColor', colors(i+1,:));
   end
+  %}
 
   if (opts.verbosity > 1)
     hfig = figure;hold on;
-    try
-      boxplot(speeds, group_indxs, 'position', gpos);
-    catch ME
-      keyboard
-    end
+    boxplot(speeds, group_indxs, 'position', gpos);
 
     navgs = size(avgs, 2);
     colors = redbluemap(navgs);
@@ -415,8 +416,6 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       plot(gpos, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
     end
   end
-
-  keyboard
 
   goods = (~isnan(group_indxs) & ~isnan(speeds));
   prev_params = -Inf;

@@ -1,4 +1,4 @@
-function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, snr_thresh)
+function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, snr_thresh)
 % MATPIV_NFFT multiple passes with subpixel NFFT resolution from MatPIV.
 %
 %   [X, Y, U, V] = MATPIV_NFFT(IM1, IM2, WINSIZE, OVERLAP) performs PIV in
@@ -20,6 +20,8 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
 % window shifting technique for PIV", Experiments in Fluids 38 (2005) 197–208.
 %
 % Quite heavly adapted by Simon Blanchoud (concatenated files, bug fix and speedup).
+% Added a gaussian smoothing on the correlation matrix and SnR computation to reduce
+% the impact of noise
 % 10.02.2015
 %
 % Copyright 1998-2011, Kristian Sveen, jks@math.uio.no/j.k.sveen@gmail.com
@@ -111,7 +113,7 @@ function [x, y, u, v, SnR] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   % Final pass. Gives displacement to subpixel accuracy.
   [x,y,datax,datay,win_mask] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask);
 
-  [datax,datay,SnR]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
+  [datax,datay,snr]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
 
   [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
   [datax,datay]=globfilt(x,y,datax,datay,thresh(end));
@@ -134,12 +136,8 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
   x=[1:((1-ol)*M):imgsize(2)-M+1];
   y=[1:((1-ol)*N):imgsize(1)-N+1];
 
-  %nx=length(x);
-  %ny=length(y);
   new_size = [length(y) length(x)];
 
-  %xx=repmat(x+M/2,ny,1);
-  %yy=repmat((y+N/2).',1,nx);
   xx=repmat(x+M/2,new_size(1),1);
   yy=repmat((y+N/2).',1,new_size(2));
 
@@ -150,23 +148,15 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
     datax = ones(new_size) * datax;
     datay = ones(new_size) * datay;
   else
-    %datax = round(interp2(prevx,prevy,datax,xx,yy));
-    %datay = round(interp2(prevx,prevy,datay,xx,yy));
     datax = round(imnanresize(datax,new_size));
     datay = round(imnanresize(datay,new_size));
   end
-  %datax(isnan(datax)) = 0;
-  %datay(isnan(datay)) = 0;
-
-  %win_maske=(interp2(double(maske),xx,yy)>=0.5);
   win_maske=(imnanresize(double(maske),new_size)>=0.25);
 
   return;
 end
 
 function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
-
-% function [x,y,datax,datay]=firstpass(A,B,M,ol,idx,idy,maske)
 %
 % This function is used in conjunction with the MULTIPASS.M run-file.
 % Inputs are allocated from within MULTIPASS.
@@ -240,34 +230,39 @@ function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
               stad1= sqrt(sum(E(:).^2) * inestim);
               stad2= sqrt(sum(D2(:).^2) * inestim);
 
-              % use weights
-              E = E.*W;
-              F = D2.*W;
+              ok1 = (stad1>eps);
+              ok2 = (stad2>eps);
 
-              E = E - sum(E(:)) * inelems;
-              F = F - sum(F(:)) * inelems;
+              if (ok1 && ok2)
+                  % use weights
+                  E = E.*W;
+                  F = D2.*W;
 
-              % take zero-padded Fourier Transform
-              at = fftn(E,[mf mf]);
-              bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+                  E = E - sum(E(:)) * inelems;
+                  F = F - sum(F(:)) * inelems;
 
-              %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
-              R = real(ifftn(bt.*at, 'nonsymmetric'));
-              R=R(1:end-1,1:end-1);
-              R=real(R)./(nelems*stad1*stad2);
-              R_peak=gaussian_mex(R, 2);
+                  % take zero-padded Fourier Transform
+                  at = fftn(E,[mf mf]);
+                  bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
-              %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
-              if full_sizes(1)==(N-1) || N < 5 || M < 5
-                  [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
-              else
-                  [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                  %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
+                  R = real(ifftn(bt.*at, 'nonsymmetric'));
+                  R=R(1:end-1,1:end-1);
+                  R=real(R)./(nelems*stad1*stad2);
+                  R_peak=gaussian_mex(R, 2);
+
+                  %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
+                  if full_sizes(1)==(N-1) || N < 5 || M < 5
+                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
+                  else
+                      [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                  end
+
+                  datax(cj,ci)=(M-max_x1)+idx(cj,ci);
+                  datay(cj,ci)=(N-max_y1)+idy(cj,ci);
+
+                  snr(cj,ci) = mf * max_val.^2 / sum(R_peak(:).^2);
               end
-
-              datax(cj,ci)=(M-max_x1)+idx(cj,ci);
-              datay(cj,ci)=(N-max_y1)+idy(cj,ci);
-
-              snr(cj,ci) = mf * max_val.^2 / sum(R_peak(:).^2);
           end
       end
   end
@@ -328,13 +323,9 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
   mf = 2^nextpow2(M+N);
 
   % window shift
-  window_shift = zeros(mf);
-  I=1:2*M; I(I>M)=I(I>M)-2*M; I=repmat(I,2*N,1); % used in the sub-pixel
-  window_shift(1:2*N,1:2*M) = I;
-  I=window_shift;
-  J=(1:2*N)'; J(J>N)=J(J>N)-2*N; J=repmat(J,1,2*M);
-  window_shift(1:2*N,1:2*M) = J;
-  J=window_shift;
+  window_shift=[1:mf/2 [mf/2+1:mf]-mf];
+  I=repmat(window_shift, mf, 1);
+  J=repmat(window_shift.', 1, mf);
 
   iI = 1/(size(I,2));
   iJ = 1/(size(J,1));
@@ -389,22 +380,24 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                   bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
                   %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
-                  R = real(ifftn(bt.*at, 'nonsymmetric'));
+                  R = real(ifftn(bt.*at, [mf mf], 'nonsymmetric'));
                   R=R(1:end-1,1:end-1);
                   R=real(R)./(nelems*stad1*stad2);
+                  R_peak=gaussian_mex(R, 2);
 
                   %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
                   if full_sizes(1)==(N-1) || N < 5 || M < 5
-                      [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
+                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
                   else
-                      [max_y1,max_x1,max_val]=getmax(R(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+                      [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
                   end
 
                   % loop on integer basis to make sure we've converged to
                   % +-0.5 pixels before entering subpixel shifting
-                  stx=idx(cj,ci); sty=idy(cj,ci);
+                  stx=(M-max_x1)+idx(cj,ci);
+                  sty=(N-max_y1)+idy(cj,ci);
 
-                  while max_x1~=M && max_y1~=N && ...
+                  while (max_x1~=M || max_y1~=N) && ...
                           breakoutcounter<max_iterations &&...
                           jj+sty>0 && ii+stx>0 && ii+M-1+stx<=sx && jj+N-1+sty<=sy
 
@@ -417,7 +410,8 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
 
                       R=R(1:end-1,1:end-1);
                       R=real(R)./(nelems*stad1*stad2);
-                      [max_y1,max_x1,max_val]=getmax(R, full_sizes, no_off);
+                      R_peak=gaussian_mex(R, 2);
+                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
 
                       stx=stx + (M-max_x1);
                       sty=sty + (N-max_y1);
@@ -441,6 +435,10 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                           R(max_y1,max_x1-1),R(max_y1,max_x1+1),...
                           R(max_y1-1,max_x1),R(max_y1+1,max_x1),M,N);
                       X0=x0; Y0=y0;
+
+                      dy = max_y1;
+                      dx = max_x1;
+
                       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                       % here we do the subpixel shifts in Fourier space
                       while (abs(x0)>min_res || abs(y0)>min_res) &&...
@@ -462,14 +460,11 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                           R(R<=0) = 1e-6;
                           R=real(R)./(nelems*stad1*stad2);
 
-                          [dy,dx,max_val]=getmax(R, full_sizes, no_off);
-
-                          X0=X0+(M-dx); Y0=Y0+(N -dy);
                           if dx>1 && dx<mf-1 && dy>1 && dy<mf-1
                               %only gaussian fit here
-                              x0= -(log(R(dy,dx-1))-log(R(dy,dx+1)))/...
+                              x0=-(log(R(dy,dx-1))-log(R(dy,dx+1)))/...
                                   (2*log(R(dy,dx-1))-4*log(R(dy,dx))+2*log(R(dy,dx+1)));
-                              y0= -(log(R(dy-1,dx))-log(R(dy+1,dx)))/...
+                              y0=-(log(R(dy-1,dx))-log(R(dy+1,dx)))/...
                                   (2*log(R(dy-1,dx))-4*log(R(dy,dx))+2*log(R(dy+1,dx)));
 
                               X0=X0-x0; Y0=Y0-y0;
@@ -479,9 +474,11 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                               breakoutcounter=max_iterations;
                           end
                       end
+
                       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
                       % Find the signal to Noise ratio
-                      SnR(cj,ci) = mf * max_val.^2 / sum(R(:).^2);
+                      R_peak=gaussian_mex(R, 2);
+                      SnR(cj,ci) = mf * R_peak(dy,dx).^2 / sum(R_peak(:).^2);
 
                       %%%%%%%%%%%%%%%%%%%%%% Store the displacements, SnR and Peak Height.
                       up(cj,ci)=(-X0+idx(cj,ci));
@@ -497,6 +494,7 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
 end
 
 function [u,v]=snrfilt(u,v,snr,thresh)
+% Removes data that have a poor SnR
 
   bads = (snr < thresh);
 
