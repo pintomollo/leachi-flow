@@ -74,6 +74,10 @@ function simul = create_vessel(simul, opts)
   vessel.mesh = mesh;
   simul.creation_params = vessel;
 
+  % Create the background of the vessels
+  vessel = create_background(vessel, simul, opts);
+  simul.creation_params = vessel;
+
   % Display the result
   %show_vessels(simul)
 

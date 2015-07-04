@@ -30,6 +30,7 @@ function [data, simul] = simulate_flow(simul, opts)
   % Create the cells and initialize the moving step
   cells = simul.create_cells(simul, opts);
   simul = simul.move_cells(cells, 0, simul);
+  [junk, bkg] = draw_background(img_size, simul.creation_params.background);
 
   % Get the frames
   nframes = ceil(simul.duration/simul.dt) + 1;
@@ -52,7 +53,9 @@ function [data, simul] = simulate_flow(simul, opts)
   for nimg = 1:nframes
 
     % Draw the current flow
-    img = draw_gaussians_mex(img_size, cells) + randn(img_size)*simul.image_noise;
+    img = draw_gaussians_mex(img_size, cells) + ...
+          draw_background(img_size, bkg) + ...
+          randn(img_size)*simul.image_noise;
     img = 1 - img;
 
     % Perform simulations steps until we reach the next frame we need to output
