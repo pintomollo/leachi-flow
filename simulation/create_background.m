@@ -22,14 +22,13 @@ function vessel = create_background(vessel, simul, opts)
     if (length(simul.init_params) > 3 && simul.init_params(4) > 0)
       cell_props = gmdistribution(b_leachi.ampulla.mu, b_leachi.ampulla.sigma, b_leachi.ampulla.proportions);
 
-      curr_size = (simul.image_size-1) * (1 + 2*simul.outside_ridge);
       curr_n = ceil(simul.init_params(4));
 
-      pos = bsxfun(@minus, bsxfun(@times, rand(curr_n, simul.ndims), curr_size) + 1, ...
-                           (simul.image_size-1)*simul.outside_ridge);
+      pos = bsxfun(@times, rand(curr_n, simul.ndims), simul.image_size-1) + 1;
 
       cells = [pos random(cell_props, curr_n)];
       cells = cells(~any(cells(:,3:4)<=0, 2), :);
+      cells(:,3) = cells(:,3) / opts.pixel_size;
 
       background.ampulla = cells;
     end

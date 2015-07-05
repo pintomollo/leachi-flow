@@ -139,10 +139,35 @@ function myprint(fid, variable, spacer, prefix)
         if (numel(variable) == 1)
           fprintf(fid, [prefix spacer '%e\n'], variable);
         else
+          ssize = size(variable);
           fprintf(fid, [prefix spacer '[']);
           fprintf(fid, '%e ', variable);
+          fprintf(fid, ']#[');
+          fprintf(fid, '%d ', ssize);
           fprintf(fid, ']\n');
         end
+        %{
+        if (ndims(variable) == 2)
+          fprintf(fid, [prefix spacer '[']);
+          for i = 1:size(variable, 1)
+            fprintf(fid, '%e ', variable(i,:));
+            fprintf(fid, '; ');
+          end
+          fprintf(fid, ']\n');
+        elseif (ndims(variable) == 3)
+          fprintf(fid, [prefix spacer 'cat(3']);
+          for j = 1:size(variable, 3)
+            fprintf(fid, ', [');
+            for i = 1:size(variable, 1)
+              fprintf(fid, '%e ', variable(i,:));
+              fprintf(fid, '; ');
+            end
+            fprintf(fid, ']');
+          end
+          fprintf(fid, ']\n');
+        else
+        end
+        %}
 
       % Print logicals as binary values
       case 'logical'

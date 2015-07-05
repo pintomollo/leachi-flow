@@ -294,8 +294,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
     for nimg=1:nframes-1
-      data{nimg} = detections(nimg).carth(:,1);
-      snr{nimg} = detections(nimg).carth(:,2);
+      data{nimg} = detections(nimg).carth(:,1:end-1);
+      snr{nimg} = detections(nimg).carth(:,end);
     end
   end
 

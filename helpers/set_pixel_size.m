@@ -64,30 +64,32 @@ function params = set_pixel_size(params, pixel_size)
   % Otherwise, we loop recursively on the parameter structure to try to set the
   % dynamic fields
   fields = fieldnames(params);
-  for i=1:length(fields)
+  for n=1:length(params)
+    for i=1:length(fields)
 
-    % If it's a string, maybe we can set something here
-    if (ischar(params.(fields{i})) & ~isempty(pixel_size))
+      % If it's a string, maybe we can set something here
+      if (ischar(params(n).(fields{i})) & ~isempty(pixel_size))
 
-      % Get the comamnds and split them per line
-      commands = params.(fields{i});
-      indx = [0 strfind(commands, ';')];
-      ncomma = length(indx) - 1;
+        % Get the comamnds and split them per line
+        commands = params(n).(fields{i});
+        indx = [0 strfind(commands, ';')];
+        ncomma = length(indx) - 1;
 
-      % Loop over each command and execute it
-      for j=1:ncomma
+        % Loop over each command and execute it
+        for j=1:ncomma
 
-        % For the last one, we need to assign it back the structure field
-        if (j == ncomma)
-          eval(['params.(fields{i}) = ' commands(indx(j)+1:indx(j+1))]);
-        else
-          eval(commands(indx(j)+1:indx(j+1)));
+          % For the last one, we need to assign it back the structure field
+          if (j == ncomma)
+            eval(['params(n).(fields{i}) = ' commands(indx(j)+1:indx(j+1))]);
+          else
+            eval(commands(indx(j)+1:indx(j+1)));
+          end
         end
-      end
 
-    % If it's a structure field, call set_pixel_size recursively
-    elseif (isstruct(params.(fields{i})))
-      params.(fields{i}) = set_pixel_size(params.(fields{i}), pixel_size);
+      % If it's a structure field, call set_pixel_size recursively
+      elseif (isstruct(params(n).(fields{i})))
+        params(n).(fields{i}) = set_pixel_size(params(n).(fields{i}), pixel_size);
+      end
     end
   end
 

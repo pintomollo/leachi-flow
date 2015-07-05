@@ -1,4 +1,4 @@
-function [img, background] = draw_background(img_size, background)
+function [img, background] = draw_background(img_size, background, curr_time, opts)
 
   img = zeros(img_size);
   if (~isempty(background))
@@ -59,11 +59,11 @@ function [img, background] = draw_background(img_size, background)
       img = background.vessel;
     end
 
-    if (~isempty(background.ampulla))
-      %%% Need to use this function instead:
-      %%% figure;plot(x,exp(-0.3./(1 - x.^2))/exp(-0.3))
-      %%% But valid only [-1 1]
-      img = img + draw_gaussians_mex(img_size, background.ampulla);
+    if (~isempty(background.ampulla) && nargin > 2)
+      variation = 0.2;
+      dm = 1 + variation * cos(2*pi*curr_time/opts.movement_params(1));
+      curr_size = background.ampulla(:,3) * dm;
+      img = img + draw_bumps_mex(img_size, [background.ampulla(:, 1:2) curr_size background.ampulla(:, 4)], 0.2);
     end
   end
 

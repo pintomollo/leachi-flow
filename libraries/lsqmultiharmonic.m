@@ -1,5 +1,13 @@
 function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
 
+  if (isempty(x) || isempty(y) || numel(x)~=numel(y))
+    period = NaN;
+    ampls = [];
+    phases = [];
+
+    return;
+  end
+
   max_iter = 20000;
   damp = 0.2;
   thresh = 0.00000001;
