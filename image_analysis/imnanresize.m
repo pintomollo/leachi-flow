@@ -2,8 +2,9 @@ function out = imnanresize(img, output_size)
 
   kernel = @cubic;
   kernel_size = 4;
-  img_size = size(img);
-  scale = output_size ./ img_size;
+  [m,n,o] = size(img);
+  img_size = [m n o];
+  scale = output_size ./ img_size(1:2);
   antialiasing = true;
 
   % Calculate interpolation weights and indices for each dimension.
@@ -13,24 +14,25 @@ function out = imnanresize(img, output_size)
   out = img;
   new_size = img_size;
   for k = 1:2
-      [weights{k}, indices{k}] = contributions(img_size(k), ...
-          output_size(k), scale(k), kernel, ...
-          kernel_size, antialiasing);
+    [weights{k}, indices{k}] = contributions(img_size(k), ...
+        output_size(k), scale(k), kernel, ...
+        kernel_size, antialiasing);
 
-      new_size(k) = output_size(k);
+    new_size(k) = output_size(k);
 
-      in = out;
-      out = NaN(new_size);
+    in = out;
+    out = NaN(new_size);
 
+    for p=1:new_size(3)
       for i=1:new_size(1)
         for j=1:new_size(2)
           if (k==1)
-            tmp_vals = in(indices{k}(i,:),j);
+            tmp_vals = in(indices{k}(i,:),j,p);
             tmp_weig = weights{k}(i,:).';
 
             %out(i,j) = sum(in(indices{k}(i,:),j).*weights{k}(i,:).', k);
           else
-            tmp_vals = in(i,indices{k}(j,:));
+            tmp_vals = in(i,indices{k}(j,:),p);
             tmp_weig = weights{k}(j,:);
 
             %out(i,j) = sum(in(i,indices{k}(j,:)).*weights{k}(j,:), k);
@@ -38,16 +40,17 @@ function out = imnanresize(img, output_size)
           bads = isnan(tmp_vals);
 
           if (all(bads))
-            out(i,j) = NaN;
+            out(i,j,p) = NaN;
           else
             tmp_vals(bads) = 0;
             tmp_weig(bads) = 0;
             tmp_weig = tmp_weig / sum(tmp_weig);
 
-            out(i,j) = sum(tmp_vals.*tmp_weig, k);
+            out(i,j,p) = sum(tmp_vals.*tmp_weig, k);
           end
         end
       end
+    end
   end
 
   return;

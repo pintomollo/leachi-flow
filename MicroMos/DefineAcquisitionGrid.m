@@ -30,6 +30,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   tmp_indx(2:2:end) = [nperms:-1:ceil(nperms/2)+1];
 
   sizes = sizes(tmp_indx, :);
+  sizes = sizes(~any(sizes==1,2),:);
 
   props = NaN(nelems, 4);
   all_edges = cell(nelems, 2);
@@ -79,9 +80,11 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       ncands = length(rindx);
 
+      overlaps = NaN(ncands, 1);
+
       all_vpoints = cell([1 ncands]);
       all_vpoints2 = cell([1 ncands]);
-      for j=1:length(rindx)
+      for j=1:ncands
         if (vert_edges(j) < 3*avg_edges && j > 3)
           break;
         end
@@ -112,6 +115,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         metric2 = cornermetric(img2, method);
         metric2 = metric2(sub2ind(img_size, vpoints2(:,2), vpoints2(:,1)));
 
+        overlaps(j) = overlap;
         all_vpoints{j} = [vpoints metric1 j*ones(size(metric1))];
         all_vpoints2{j} = [vpoints2 metric2 j*ones(size(metric2))];
       end
@@ -122,10 +126,15 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
+      mean_overlap = nanmedian(overlaps);
+      tmp1 = tmp1(tmp1(:,2)>img_size(1)-mean_overlap,:);
+
       [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
       tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
 
       tmp2 = cat(1, all_vpoints2{:});
+      tmp2 = tmp2(tmp2(:,2)<mean_overlap+1,:);
+
       [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
       tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
 
@@ -190,10 +199,12 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       ncands = length(rindx);
 
+      overlaps = NaN(ncands, 1);
+
       all_hpoints = cell([1 ncands]);
       all_hpoints2 = cell([1 ncands]);
       corr2 = 0;
-      for j=1:length(rindx)
+      for j=1:ncands
         if (horz_edges(j) < 3*avg_edges && j > 3)
           break;
         end
@@ -227,6 +238,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         metric2 = cornermetric(img2, method);
         metric2 = metric2(sub2ind(img_size, hpoints2(:,2), hpoints2(:,1)));
 
+        overlaps(j) = overlap;
         all_hpoints{j} = [hpoints metric1 j*ones(size(metric1))];
         all_hpoints2{j} = [hpoints2 metric2 j*ones(size(metric2))];
       end
@@ -237,10 +249,15 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
+      mean_overlap = nanmedian(overlaps);
+      tmp1 = tmp1(tmp1(:,1)>img_size(2)-mean_overlap,:);
+
       [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
       tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
 
       tmp2 = cat(1, all_hpoints2{:});
+      tmp2 = tmp2(tmp2(:,1)<mean_overlap+1,:);
+
       [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
       tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
 
@@ -298,6 +315,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   [val, best] = max(sum(all_shifts(:,7:8), 2));
 
   if (~isnan(val))
+    all_shifts(isnan(all_shifts)) = 0;
     best_size = sizes(best,:);
 
     gridhx = [0:best_size(2)-1]*all_shifts(best,3);
@@ -461,6 +479,7 @@ function [maxs, max_corr] = wcorrel_edges(img1, img2, strength1, strength2, thre
 
   return;
 end
+
 function [maxs, max_corr] = correl_edges(img1, img2, goods1, goods2, thresh)
 
   maxs = [];

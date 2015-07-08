@@ -43,6 +43,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   vessel_width = ceil(min(b_leachi.vessel_width.mu) / opts.pixel_size);
   proj_dist = vessel_width * 0.75;
+  sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
+
 
   if (isempty(detections(1).cluster))
     if (opts.verbosity > 1)
@@ -54,12 +56,10 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     disk1 = strel('disk', 2*vessel_width);
     disk2 = strel('disk', vessel_width);
 
-    sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
-
     noise = estimate_noise(orig_img);
-    orig_img = gaussian_mex(orig_img, sigma);
-    prev_img = padarray(orig_img, [3 3]*vessel_width, NaN);
-    %prev_mask = imdilate(imopen(prev_img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+    prev_img = gaussian_mex(orig_img, sigma);
+    tmp_img = padarray(prev_img, [3 3]*vessel_width, NaN);
+    prev_mask = imdilate(imopen(tmp_img < noise(1) - diff_thresh*noise(2), disk2), disk2);
 
     detections(1).noise = noise;
 
@@ -69,14 +69,14 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       new_img = double(load_data(myrecording.channels(1), nimg));
       new_img = gaussian_mex(new_img, sigma);
 
-      [img_diff, moire] = immoire(new_img - orig_img, 5, 2*sigma);
+      [img_diff, moire] = immoire(new_img - prev_img, 5, 2.5*sigma);
 
-      orig_img = new_img;
-      img = padarray(orig_img, [3 3]*vessel_width, NaN);
-      %curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk1), disk2);
+      %orig_img = new_img;
+      img = padarray(new_img, [3 3]*vessel_width, NaN);
+      curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk2), disk2);
 
       img_diff = abs(padarray(img_diff, [3 3]*vessel_width, NaN));
-      %img_diff(prev_mask | curr_mask) = false;
+      img_diff(prev_mask | curr_mask) = false;
 
       bw = img_diff > diff_thresh * noise(2);
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
@@ -95,9 +95,10 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
         %props = sum(open(:)) * inelems;
         %title(props)
       end
+      %title(nimg)
 
-      prev_img = img;
-      %prev_mask = curr_mask;
+      prev_img = new_img;
+      prev_mask = curr_mask;
 
       if (opts.verbosity > 1)
         waitbar(nimg/nframes,hwait);
@@ -230,20 +231,34 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
     %figure;
     %%%%%%%%%%%%%%%%%%% SHOULD WORK ON THE DIFFERENCE BETWEEN FRAMES
-    for nimg=1:nframes-1
-      if (prev_indx == nimg)
+    prev_img = double(load_data(myrecording.channels(1), 1));
+    prev_img = gaussian_mex(prev_img, sigma);
+
+    for nimg=2:nframes-1
+      if (prev_indx == nimg-1)
         img = img_next;
+        prev_diff = img_diff;
       else
         img = double(load_data(myrecording.channels(1), nimg));
+        [prev_diff, moire] = immoire(img - prev_img, 5, 2.5*sigma);
       end
       img_next = double(load_data(myrecording.channels(1), nimg+1));
+      [img_diff, moire] = immoire(img_next - img, 5, 2.5*sigma);
 
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
-      [x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
+      %[x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
+      [x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1.5);
+
+      if (nimg==53)
+        keyboard
+      end
+
       %for i=1:10
       %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
+
       %quiver(x,y,u,v, 0);
+      %title(nimg)
       %drawnow
       %end
       %keyboard
@@ -293,15 +308,22 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
-    for nimg=1:nframes-1
+    for nimg=2:nframes-1
       data{nimg} = detections(nimg).carth(:,1:end-1);
       snr{nimg} = detections(nimg).carth(:,end);
     end
   end
 
+  data = data(2:end);
+  snr = snr(2:end);
+
   ndata = length(data);
   avgs = cellfun(@nanmedian, data, 'UniformOutput', false);
   avgs = cat(1, avgs{:});
+  pos = [1:ndata];
+  nils = all(isnan(avgs), 2);
+  pos = pos(~nils);
+  avgs = avgs(~nils,:);
   corrs = corr(avgs);
 
   C = corrs - eye(branches_size);
@@ -365,7 +387,6 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   group_indxs = [];
   avgs_indxs = [];
   SnR = [];
-  pos = [1:ndata];
   for i = pos
     tmp_all = bsxfun(@times, data{i}(:,~empty_branches), sames);
     s = snr{i};
@@ -407,6 +428,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   end
   %}
 
+  keyboard
   if (opts.verbosity > 1)
     hfig = figure;hold on;
     boxplot(speeds, group_indxs, 'position', gpos);

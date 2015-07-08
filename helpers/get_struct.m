@@ -209,7 +209,7 @@ function mystruct = get_struct(type, nstruct)
                         'flag_FrameToMosaic', 1, ... % (Piccinini, 2013: F2M clearly better) (by default: 1). 0 for registering the images according to the Frame-to-Frame registration approach; 1 (suggested) for registering the images according to the Frame-to-Mosaic registration approach.
                         'RANSACerror', 2, ... % maximum subpixel reprojection error used inside RANSAC algorithm. We suggest 2 pixels.
                         'flag_PhaseCorrelationOnly', 0, ... % It can assume values 0 or 1. 1 means that the images are registered according to the Phase Correlation ALgorithm only.
-                        'numberCorners', 150, ...
+                        'numberCorners', 200, ...
                         'flag_PCglobalORlocal', 0, ... % It can assume values 0 or 1. 0 means that the metric used to determine the best shift inside the Phase Correlation ALgorithm is the global RMSE performed on the whole overlapping region. 1 means that the used metric is the RMSE performed using only the pixels with highest value. 
                         'PCscaleFactor', 1, ... % to speed up the computational processes. Image rescale factor applyed to optionally resize the images. The value must be a positive integer. E.g.: ceil(2) to obtain half-sized images than the original images. 1 (suggested) means: rescaling not active.
                         'flag_ComputeRegistrations', 1, ... % 0 for loading an external registration matrix to stitch the images. In case, the registration matrix must be saved as 3x3xn (n=number of images to be registered) Matlab matrix in the folder named: "REGISTRATIONMATRIX".

@@ -93,16 +93,21 @@ function [Mosaic, parameters] = MicroMos(varargin)
     for i=1:length(files)
       if (files(i).name(1)~='.')
         if (files(i).isdir)
-          tmp_params = parameters;
-          tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
-          disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
 
-          try
-            MicroMos(tmp_params);
-          catch
-            err = lasterror();
-            warning(['Error during the analysis:']);
-            print_all(err);
+          others = dir(fullfile(parameters.ImageFolder, [files(i).name '.*']));
+
+          if (isempty(others))
+            tmp_params = parameters;
+            tmp_params.ImageFolder = fullfile(tmp_params.ImageFolder, files(i).name);
+            disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
+
+            try
+              MicroMos(tmp_params);
+            catch
+              err = lasterror();
+              warning(['Error during the analysis:']);
+              print_all(err);
+            end
           end
         else
           [file_path, file_name, file_ext] = fileparts(files(i).name);
@@ -118,6 +123,10 @@ function [Mosaic, parameters] = MicroMos(varargin)
     end
 
     parameters.ImageBaseName = fname;
+  end
+
+  if (isempty(parameters.ImageBaseName))
+    return;
   end
 
   %Image format and number of characters for the images' number 
@@ -158,7 +167,7 @@ function [Mosaic, parameters] = MicroMos(varargin)
     [MatricesGLOBAL, mosaic_order] = DefineAcquisitionGrid(parameters);
 
     if (isempty(mosaic_order))
-      disp('Troubles estimating the acqusition grid, trying with more corners...'):
+      disp('Troubles estimating the acqusition grid, trying with more corners...');
 
       tmp_params = parameters;
       tmp_params.numberCorners = 2*tmp_params.numberCorners;

@@ -91,18 +91,32 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   datax = [];
   datay = [];
 
+  accumx = [];
+  accumy = [];
+
   for i=1:iter-1
 
-      [x,y,datax,datay,win_mask] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask);
+      [x,y,datax,datay,win_mask,accumx,accumy] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask,accumx,accumy);
 
-      [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax,datay,win_mask);
+      [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax(:,:,1),datay(:,:,1),win_mask);
 
       [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-      [datax,datay]=globfilt(x,y,datax,datay,thresh(i));
-      [datax,datay]=localfilt(x,y,datax,datay,thresh(i),win_mask);
+      [datax,datay]=maskfilt(x,y,datax,datay,mask);
+      [datax,datay]=globfilt(datax,datay,thresh(i));
+      [datax,datay]=localfilt(datax,datay,thresh(i),win_mask);
+      %% CONVERGENCE THRESH
+
+      [datax, datay]=converge(datax,datay,accumx,accumy);
 
       if (all(size(datax) > 1))
         [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
+      end
+
+      if (any(~isnan(datax(:))))
+        accumx(:,:,1) = accumx(:,:,1) + datax;
+        accumx(:,:,2) = accumx(:,:,2) + 1;
+        accumy(:,:,1) = accumy(:,:,1) + datay;
+        accumy(:,:,2) = accumy(:,:,2) + 1;
       end
 
       datax=round(datax);
@@ -111,13 +125,17 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Final pass. Gives displacement to subpixel accuracy.
-  [x,y,datax,datay,win_mask] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask);
+  [x,y,datax,datay,win_mask,accumx,accumy] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask, accumx, accumy);
+
+  datax = round(accumx(:,:,1) ./ accumx(:,:,2));
+  datay = round(accumy(:,:,1) ./ accumy(:,:,2));
 
   [datax,datay,snr]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
 
   [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-  [datax,datay]=globfilt(x,y,datax,datay,thresh(end));
-  [datax,datay]=localfilt(x,y,datax,datay,thresh(end),win_mask);
+  [datax,datay]=maskfilt(x,y,datax,datay,mask);
+  [datax,datay]=globfilt(datax,datay,thresh(end));
+  [datax,datay]=localfilt(datax,datay,thresh(end),win_mask);
 
   if (all(size(datax) > 1))
     [u,v]=naninterp2(datax,datay,win_mask,x,y);
@@ -129,7 +147,7 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   return;
 end
 
-function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske)
+function [xx,yy,datax,datay,win_maske,accumx,accumy] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske,accumx, accumy)
 
   M=winsize(1);
   N=winsize(2);
@@ -144,12 +162,17 @@ function [xx,yy,datax,datay,win_maske] = remesh(imgsize, winsize, ol, prevx, pre
   if (isempty(datax) || isempty(datay))
     datax = zeros(new_size);
     datay = zeros(new_size);
+    accumx = zeros([new_size 2]);
+    accumy = zeros([new_size 2]);
   elseif (numel(prevx) == 1)
     datax = ones(new_size) * datax;
     datay = ones(new_size) * datay;
   else
     datax = round(imnanresize(datax,new_size));
     datay = round(imnanresize(datay,new_size));
+
+    accumx = round(imnanresize(accumx,new_size));
+    accumy = round(imnanresize(accumy,new_size));
   end
   win_maske=(imnanresize(double(maske),new_size)>=0.25);
 
@@ -419,11 +442,13 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
                       breakoutcounter=breakoutcounter+1;
                   end
 
-                  if breakoutcounter~=max_iterations
+                  if (breakoutcounter<max_iterations || (max_x1==M && max_y1==N))
                       %update these only IF convergence was met, that is, we
                       %used less than max_iterations
                       idx(cj,ci)=stx; idy(cj,ci)=sty; 
                       breakoutcounter=1; % only reset if converged
+                  else
+                      break;
                   end
 
                   %Only enter next bit if the peak is not located at the
@@ -504,7 +529,22 @@ function [u,v]=snrfilt(u,v,snr,thresh)
   return;
 end
 
-function [u,v]=globfilt(x,y,u,v,thresh)
+function [u,v]=maskfilt(x,y,u,v,mask)
+
+  bads = isnan(u(:));
+  u(bads) = 0;
+  v(bads) = 0;
+
+  valids = bilinear_mex(double(mask), x(:)+u(:),y(:)+v(:));
+  valids = (valids>=0.25);
+
+  u(bads & ~valids) = NaN;
+  v(bads & ~valids) = NaN;
+
+  return;
+end
+
+function [u,v]=globfilt(u,v,thresh)
 % This function is a so called global histogram operator. It
 % features a few slightly different ways of giving the maximum and
 % minimum velocities allowed in your vector fields.
@@ -550,7 +590,7 @@ function [u,v]=globfilt(x,y,u,v,thresh)
   return;
 end
 
-function [u, v] = localfilt(x, y, u, v, threshold, maske)
+function [u, v] = localfilt(u, v, threshold, maske)
 % [NewU,NewV]=localfilt(x,y,u,v,threshold,mask)
 %
 % This function is a filter that will remove vectors that deviate from
@@ -612,6 +652,25 @@ function [u, v] = localfilt(x, y, u, v, threshold, maske)
   end
 end
 
+function [datax,datay] = converge(datax, datay, accumx, accumy)
+
+  tmp = datax;
+  tmp(isnan(datax)) = 0;
+  tmpa = accumx(:,:,1);
+  tmpa(isnan(accumx(:,:,1))) = 0;
+
+  datax = (tmp + tmpa) ./ (accumx(:,:,2)+(~isnan(datax)));
+
+  tmp = datay;
+  tmp(isnan(datay)) = 0;
+  tmpa = accumy(:,:,1);
+  tmpa(isnan(accumy(:,:,1))) = 0;
+
+  datay = (tmp + tmpa) ./ (accumy(:,:,2)+(~isnan(datay)));
+
+  return;
+end
+
 function [si,sj,val] = getmax(mat, sizes, offset)
 
   [val, ind] = max(mat(:));
@@ -641,10 +700,12 @@ function [u,v]=naninterp2(u,v,mask,xx,yy)
   % Replaced that function with the solution from John D'Errico
   % that is around 10x faster and works much more precisely,
   % in particular for smooth surfaces
-  u = inpaint_nans(u, 2);
+  means = nanmean([u(:) v(:)], 1);
+
+  u = inpaint_nans(u - means(1), 4) + means(1);
   u(~mask) = NaN;
 
-  v = inpaint_nans(v, 2);
+  v = inpaint_nans(v - means(2), 4) + means(2);
   v(~mask) = NaN;
 
   return;
