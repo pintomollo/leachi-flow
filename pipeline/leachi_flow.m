@@ -248,7 +248,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
       %[x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
-      [x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1.5);
+      [x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1);
 
       if (nimg==53)
         keyboard

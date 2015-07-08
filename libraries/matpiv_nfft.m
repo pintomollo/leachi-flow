@@ -96,27 +96,27 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
 
   for i=1:iter-1
 
-      [x,y,datax,datay,win_mask,accumx,accumy] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask,accumx,accumy);
+      [x,y,datax,datay,win_mask,accum] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask, accum);
 
       [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax(:,:,1),datay(:,:,1),win_mask);
 
       [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-      [datax,datay]=maskfilt(x,y,datax,datay,mask);
+      [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(i,:));
       [datax,datay]=globfilt(datax,datay,thresh(i));
       [datax,datay]=localfilt(datax,datay,thresh(i),win_mask);
       %% CONVERGENCE THRESH
 
-      [datax, datay]=converge(datax,datay,accumx,accumy);
+      [datax, datay]=converge(datax,datay,accum);
 
       if (all(size(datax) > 1))
         [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
       end
 
-      if (any(~isnan(datax(:))))
-        accumx(:,:,1) = accumx(:,:,1) + datax;
-        accumx(:,:,2) = accumx(:,:,2) + 1;
-        accumy(:,:,1) = accumy(:,:,1) + datay;
-        accumy(:,:,2) = accumy(:,:,2) + 1;
+      goods = (~isnan(datax));
+      if (any(goods(:)))
+        accum(:,:,1) = accum(:,:,1) + datax;
+        accum(:,:,2) = accum(:,:,2) + datay;
+        accum(:,:,3) = accum(:,:,3) + goods;
       end
 
       datax=round(datax);
@@ -125,15 +125,15 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Final pass. Gives displacement to subpixel accuracy.
-  [x,y,datax,datay,win_mask,accumx,accumy] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask, accumx, accumy);
+  [x,y,datax,datay,win_mask,accum] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask, accum);
 
-  datax = round(accumx(:,:,1) ./ accumx(:,:,2));
-  datay = round(accumy(:,:,1) ./ accumy(:,:,2));
+  datax = round(accum(:,:,1) ./ accum(:,:,3));
+  datay = round(accum(:,:,2) ./ accum(:,:,3));
 
   [datax,datay,snr]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
 
   [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-  [datax,datay]=maskfilt(x,y,datax,datay,mask);
+  [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(end,:));
   [datax,datay]=globfilt(datax,datay,thresh(end));
   [datax,datay]=localfilt(datax,datay,thresh(end),win_mask);
 
@@ -147,7 +147,7 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   return;
 end
 
-function [xx,yy,datax,datay,win_maske,accumx,accumy] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske,accumx, accumy)
+function [xx,yy,datax,datay,win_maske,accum] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske,accum)
 
   M=winsize(1);
   N=winsize(2);
@@ -162,17 +162,20 @@ function [xx,yy,datax,datay,win_maske,accumx,accumy] = remesh(imgsize, winsize, 
   if (isempty(datax) || isempty(datay))
     datax = zeros(new_size);
     datay = zeros(new_size);
-    accumx = zeros([new_size 2]);
-    accumy = zeros([new_size 2]);
+    accum = zeros([new_size 3]);
   elseif (numel(prevx) == 1)
     datax = ones(new_size) * datax;
     datay = ones(new_size) * datay;
+
+    accum = bsxfun(@times, ones([new_size 3]), accum);
+    accum(:,:,1:2) = bsxfun(@times, accum(:,:,1:2), accum(:,:,3));
   else
     datax = round(imnanresize(datax,new_size));
     datay = round(imnanresize(datay,new_size));
 
-    accumx = round(imnanresize(accumx,new_size));
-    accumy = round(imnanresize(accumy,new_size));
+    accum = imnanresize(accum,new_size);
+    accum(:,:,end) = abs(accum(:,:,3));
+    accum(:,:,1:2) = bsxfun(@times, accum(:,:,1:2), accum(:,:,3));
   end
   win_maske=(imnanresize(double(maske),new_size)>=0.25);
 
@@ -529,17 +532,17 @@ function [u,v]=snrfilt(u,v,snr,thresh)
   return;
 end
 
-function [u,v]=maskfilt(x,y,u,v,mask)
+function [u,v]=maskfilt(x,y,u,v,mask,win_size)
 
   bads = isnan(u(:));
   u(bads) = 0;
   v(bads) = 0;
 
-  valids = bilinear_mex(double(mask), x(:)+u(:),y(:)+v(:));
-  valids = (valids>=0.25);
+  valids = bilinear_mex(double(mask), 0.5+(x(:)+u(:))/win_size(1), 0.5+(y(:)+v(:))/win_size(2));
+  valids = (valids>0.25);
 
-  u(bads & ~valids) = NaN;
-  v(bads & ~valids) = NaN;
+  u(bads | ~valids) = NaN;
+  v(bads | ~valids) = NaN;
 
   return;
 end
@@ -652,21 +655,24 @@ function [u, v] = localfilt(u, v, threshold, maske)
   end
 end
 
-function [datax,datay] = converge(datax, datay, accumx, accumy)
+function [datax,datay] = converge(datax, datay, accum)
+
+  empties = isnan(datax);
+  nones = isnan(accum(:,:,1));
 
   tmp = datax;
-  tmp(isnan(datax)) = 0;
-  tmpa = accumx(:,:,1);
-  tmpa(isnan(accumx(:,:,1))) = 0;
+  tmp(empties) = 0;
+  tmpa = accum(:,:,1);
+  tmpa(nones) = 0;
 
-  datax = (tmp + tmpa) ./ (accumx(:,:,2)+(~isnan(datax)));
+  datax = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datax)));
 
   tmp = datay;
-  tmp(isnan(datay)) = 0;
-  tmpa = accumy(:,:,1);
-  tmpa(isnan(accumy(:,:,1))) = 0;
+  tmp(empties) = 0;
+  tmpa = accum(:,:,2);
+  tmpa(nones) = 0;
 
-  datay = (tmp + tmpa) ./ (accumy(:,:,2)+(~isnan(datay)));
+  datay = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datay)));
 
   return;
 end
