@@ -91,8 +91,7 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   datax = [];
   datay = [];
 
-  accumx = [];
-  accumy = [];
+  accum = [];
 
   for i=1:iter-1
 
@@ -136,6 +135,7 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(end,:));
   [datax,datay]=globfilt(datax,datay,thresh(end));
   [datax,datay]=localfilt(datax,datay,thresh(end),win_mask);
+  goods = ~isnan(datax);
 
   if (all(size(datax) > 1))
     [u,v]=naninterp2(datax,datay,win_mask,x,y);
@@ -143,6 +143,10 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
     u = datax;
     v = datay;
   end
+
+  [u, v]=converge(u,v,accum);
+  u(goods) = datax(goods);
+  v(goods) = datay(goods);
 
   return;
 end
@@ -173,9 +177,11 @@ function [xx,yy,datax,datay,win_maske,accum] = remesh(imgsize, winsize, ol, prev
     datax = round(imnanresize(datax,new_size));
     datay = round(imnanresize(datay,new_size));
 
+    weights = accum(:,:,end);
+    accum = bsxfun(@rdivide, accum, weights);
     accum = imnanresize(accum,new_size);
-    accum(:,:,end) = abs(accum(:,:,3));
-    accum(:,:,1:2) = bsxfun(@times, accum(:,:,1:2), accum(:,:,3));
+    weights = abs(imnanresize(weights,new_size));
+    accum = bsxfun(@times, accum, weights);
   end
   win_maske=(imnanresize(double(maske),new_size)>=0.25);
 

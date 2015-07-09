@@ -98,8 +98,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         %strong2 = all_edges{vindx(2), 1} > avg_edges;
 
         %[estims, corr1] = correl_edges(img1.', img2.', strong1, strong2, thresh);
-        [estims, c] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges);
-        overlap = round(mean(estims));
+        [estims, c] = wcorrel_edges(img1.', img2.', all_edges{vindx(1),1}, all_edges{vindx(2),1}, thresh, avg_edges)
+        overlap = round(nanmean([2*max(estims) nanmean(overlaps)]));
         if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
           continue
         end
@@ -111,13 +111,37 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         metric1 = cornermetric(img1, method);
         metric1 = metric1(sub2ind(img_size, vpoints(:,2), vpoints(:,1)));
 
+        [vpoints, metric1, features1] = get_FREAK_features(img1, vpoints, metric1);
+
         vpoints2 = corner(img2(1:overlap, :), method, numberCorners);
         metric2 = cornermetric(img2, method);
         metric2 = metric2(sub2ind(img_size, vpoints2(:,2), vpoints2(:,1)));
 
+        [vpoints2, metric2, features2] = get_FREAK_features(img2, vpoints2, metric2);
+
+        [index_pair, metric] = matchFeatures(features1, features2, 'MaxRatio', 1, 'MatchThreshold', 100);
+        [remainings, mapping] = unique(index_pair(:,2));
+
+        vpoints2 = vpoints2(remainings,:);
+
+        metric1 = metric1 .* (1-metric);
+        metric2 = metric2(remainings) .* (1-metric(mapping));
+
         overlaps(j) = overlap;
+        %all_vpoints{j} = [vpoints features1 metric1 j*ones(size(metric1))];
+        %all_vpoints2{j} = [vpoints2 features2 metric2 j*ones(size(metric2))];
         all_vpoints{j} = [vpoints metric1 j*ones(size(metric1))];
         all_vpoints2{j} = [vpoints2 metric2 j*ones(size(metric2))];
+
+        figure;
+        subplot(1,2,1);
+        imagesc(img1);colormap(gray);
+        hold on;
+        scatter(vpoints(:,1), vpoints(:,2), 'r');
+        subplot(1,2,2);
+        imagesc(img2);colormap(gray);
+        hold on;
+        scatter(vpoints2(:,1), vpoints2(:,2), 'r');
       end
 
       tmp1 = cat(1, all_vpoints{:});
@@ -125,6 +149,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       if (isempty(tmp1) || all(isnan(tmp1(:))))
         continue;
       end
+
+      keyboard
 
       mean_overlap = nanmedian(overlaps);
       tmp1 = tmp1(tmp1(:,2)>img_size(1)-mean_overlap,:);
@@ -220,7 +246,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
         %[estims, corr2] = correl_edges(img1, img2, strong1, strong2, thresh);
         [estims, c] = wcorrel_edges(img1, img2, all_edges{hindx(1),2}, all_edges{hindx(2),2}, thresh, avg_edges);
-        overlap = round(mean(estims));
+        %overlap = round(mean(estims));
+        overlap = round(nanmean([max(estims) nanmean(overlaps)]));
 
         if (isnan(overlap) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
           continue
@@ -311,6 +338,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     end
   end
 
+      keyboard
+
   % Could also use the sum/average of correlations
   [val, best] = max(sum(all_shifts(:,7:8), 2));
 
@@ -359,71 +388,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       img = rgb2gray(img);
     end
 
-    img = double(img);
+    img = double(imnorm(img));
   end
-end
-
-function [maxs, max_corr] = weighted_correl_edges(img1, img2, weight1, weight2, thresh, threshw)
-
-  maxs = [];
-
-  strength1 = (nanmean(weight1, 1));
-  strength2 = (nanmean(weight2, 1));
-
-  goods1 = (strength1 > threshw);
-  goods2 = (strength2 > threshw);
-
-  strength1 = strength1 / max(strength1(:));
-  strength2 = strength2 / max(strength2(:));
-
-  weight1 = bsxfun(@rdivide, weight1, sum(weight1, 1));
-  weight2 = bsxfun(@rdivide, weight2, sum(weight2, 1));
-
-  img1 = bsxfun(@minus, img1, sum(img1.*weight1, 1));
-  img2 = bsxfun(@minus, img2, sum(img2.*weight2, 1));
-
-  img1 = img1 .* weight1;
-  img2 = img2 .* weight2;
-
-  corr1 = strength2.*sum(bsxfun(@times, img1(:,end), img2), 1) ./ sqrt(sum(img1(:,end).^2, 1) * sum(img2.^2, 1));
-  corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,1)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,1).^2, 1));
-
-  [val1, max1] = max(corr1);
-
-  if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
-    maxs = max1;
-  elseif (any(goods1(1:end-1)))
-    good_column = find(goods1(1:end-1), 1, 'last');
-
-    corr1 = strength2.*sum(bsxfun(@times, img1(:,good_column), img2), 1) ./ sqrt(sum(img1(:,good_column).^2, 1) * sum(img2.^2, 1));
-    [val1, max1] = max(corr1);
-
-    if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
-      maxs = (length(corr1)-good_column) + max1;
-    end
-  end
-
-  [val2, max2] = max(corr2);
-
-  if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
-    maxs = [maxs length(corr2) - max2 + 1];
-  elseif (any(goods2(2:end)))
-    good_column = find(goods2(2:end), 1, 'first')+1;
-
-    corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,good_column)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,good_column).^2, 1));
-
-    [val2, max2] = max(corr2);
-
-    if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
-      maxs = [maxs length(corr2) - max2 + good_column];
-    elseif (isempty(maxs))
-      maxs = NaN;
-    end
-  end
-
-  max_corr = max(val1, val2);
-
-  return;
 end
 
 function [maxs, max_corr] = wcorrel_edges(img1, img2, strength1, strength2, thresh, wthresh)
@@ -480,50 +446,20 @@ function [maxs, max_corr] = wcorrel_edges(img1, img2, strength1, strength2, thre
   return;
 end
 
-function [maxs, max_corr] = correl_edges(img1, img2, goods1, goods2, thresh)
+function [pts, metric, features] = get_FREAK_features(img, pts, metric)
 
-  maxs = [];
+  npts = size(metric);
+  img = uint8(img*255);
 
-  img1 = bsxfun(@minus, img1, mean(img1, 1));
-  img2 = bsxfun(@minus, img2, mean(img2, 1));
+  params = struct('nbOctave', 4, 'orientationNormalized', true, 'scaleNormalized', true, 'patternScale', 7);
 
-  corr1 = sum(bsxfun(@times, img1(:,end), img2), 1) ./ sqrt(sum(img1(:,end).^2, 1) * sum(img2.^2, 1));
-  corr2 = sum(bsxfun(@times, img1, img2(:,1)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,1).^2, 1));
+  ptsStruct = struct('Location', single(pts), 'Scale', ones(npts, 'single').*18, 'Metric', single(metric), 'Orientation', zeros(npts, 'single'));
 
-  [val1, max1] = max(corr1);
+  [validPts, features] = ocvExtractFreak(img, ptsStruct, params);
 
-  if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
-    maxs = max1;
-  elseif (any(goods1(1:end-1)))
-    good_column = find(goods1(1:end-1), 1, 'last');
-
-    corr1 = sum(bsxfun(@times, img1(:,good_column), img2), 1) ./ sqrt(sum(img1(:,good_column).^2, 1) * sum(img2.^2, 1));
-    [val1, max1] = max(corr1);
-
-    if (val1 >= thresh && mean(corr1 > thresh) <= 0.25)
-      maxs = (length(corr1)-good_column) + max1;
-    end
-  end
-
-  [val2, max2] = max(corr2);
-
-  if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
-    maxs = [maxs length(corr2) - max2 + 1];
-  elseif (any(goods2(2:end)))
-    good_column = find(goods2(2:end), 1, 'first')+1;
-
-    corr2 = sum(bsxfun(@times, img1, img2(:,good_column)), 1) ./ sqrt(sum(img1.^2, 1) * sum(img2(:,good_column).^2, 1));
-
-    [val2, max2] = max(corr2);
-
-    if (val2 >= thresh && mean(corr2 > thresh) <= 0.25)
-      maxs = [maxs length(corr2) - max2 + good_column];
-    elseif (isempty(maxs))
-      maxs = NaN;
-    end
-  end
-
-  max_corr = max(val1, val2);
+  pts = double(validPts.Location);
+  metric = double(validPts.Metric);
+  features = double(features);
 
   return;
 end

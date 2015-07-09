@@ -54,7 +54,7 @@ if nargin < 4
 end
 
 % Store the saturated pixels
-satPix = (ImageI==255);
+%satPix = (ImageI==255);
 
 % Compute the actual corrected image
 ImageO = bsxfun(@rdivide, ImageI, Field);
@@ -106,9 +106,11 @@ if flag_LookUpTable == 1 && c>1
     ImageO = reshape(ImageO, [m n c]);
 
     % Fix the saturated values
-    ImageO(satPix) = 255;
+    %ImageO(satPix) = 255;
 else
     % Otherwise, just bound the obtained values
-    ImageO(satPix | ImageO>255) = 255;
-    ImageO(ImageI <0 | ImageO <0) = 0;
+    %ImageO(satPix | ImageO>255) = 255;
+    %ImageO(ImageI <0 | ImageO <0) = 0;
+    ImageO(ImageO > 255) = 255;
+    ImageO(ImageO < 0) = 0;
 end

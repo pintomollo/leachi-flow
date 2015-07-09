@@ -250,10 +250,6 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       %[x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
       [x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1);
 
-      if (nimg==53)
-        keyboard
-      end
-
       %for i=1:10
       %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
 
@@ -321,7 +317,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   avgs = cellfun(@nanmedian, data, 'UniformOutput', false);
   avgs = cat(1, avgs{:});
   pos = [1:ndata];
-  nils = all(isnan(avgs), 2);
+  content = (sum(isnan(avgs), 1) < ndata/20);
+  nils = any(isnan(avgs(:,content)), 2);
   pos = pos(~nils);
   avgs = avgs(~nils,:);
   corrs = corr(avgs);
