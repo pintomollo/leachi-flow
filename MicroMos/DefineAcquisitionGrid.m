@@ -73,7 +73,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
     %corr1 = 0;
     if (sizes(i,1) > 1)
-      vert_dist = data1(1:end-1,:) + data2(2:end, :);
+      vert_dist = data1(1:end-1,:) .* data2(2:end, :);
 
       [vert_edges, sub_ind] = sort(vert_dist(:), 'descend');
       [rindx, cindx] = ind2sub(size(vert_dist), sub_ind);
@@ -82,7 +82,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       corrs = zeros(1,img_size(1));
       for j=1:ncands
-        if (vert_edges(j) < 3*avg_edges && j > 3)
+        if (vert_edges(j) < 3*(avg_edges^2) && j > 3)
           break;
         end
 
@@ -104,7 +104,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       all_vpoints = cell([1 ncands]);
       all_vpoints2 = cell([1 ncands]);
       for j=1:ncands
-        if (vert_edges(j) < 3*avg_edges && j > 3)
+        if (vert_edges(j) < 3*(avg_edges^2) && j > 3)
           break;
         end
 
@@ -182,8 +182,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       %tmp2 = tmp2(tmp2(:,2)<mean_overlap+1,:);
 
-      [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
-      tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
+      %[tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
+      %tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
 
       [vshiftx, vshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
 
@@ -239,7 +239,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     data2 = reshape(data2, sizes(i,:));
 
     if (sizes(i,2) > 1)
-      horz_dist = data1(:,1:end-1) + data2(:,2:end);
+      horz_dist = data1(:,1:end-1) .* data2(:,2:end);
 
       [horz_edges, sub_ind] = sort(horz_dist(:), 'descend');
       [rindx, cindx] = ind2sub(size(horz_dist), sub_ind);
@@ -248,7 +248,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       corrs = zeros(1,img_size(2));
       for j=1:ncands
-        if (horz_edges(j) < 3*avg_edges && j > 3)
+        if (horz_edges(j) < 3*(avg_edges^2) && j > 3)
           break;
         end
 
@@ -263,14 +263,14 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       [corr2, overlap] = max(corrs);
 
-      if (~any(corrs) || isnan(corr2) || overlap < pix_thresh || overlap > img_size(1)-pix_thresh)
+      if (~any(corrs) || isnan(corr2) || overlap < pix_thresh || overlap > img_size(2)-pix_thresh)
         continue;
       end
 
       all_hpoints = cell([1 ncands]);
       all_hpoints2 = cell([1 ncands]);
       for j=1:ncands
-        if (horz_edges(j) < 3*avg_edges && j > 3)
+        if (horz_edges(j) < 3*(avg_edges^2) && j > 3)
           break;
         end
 
@@ -296,13 +296,24 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         hpoints = corner(img1(:,end-overlap+1:end), method, numberCorners);
         hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
 
+        %[hpoints, metric1, features1] = get_FREAK_features(img1, hpoints, metric1);
+
         metric1 = cornermetric(img1, method);
         metric1 = metric1(sub2ind(img_size, hpoints(:,2), hpoints(:,1)));
 
         hpoints2 = corner(img2(:,1:overlap), method, numberCorners);
-
         metric2 = cornermetric(img2, method);
         metric2 = metric2(sub2ind(img_size, hpoints2(:,2), hpoints2(:,1)));
+
+        %[hpoints2, metric2, features2] = get_FREAK_features(img2, hpoints2, metric2);
+
+        %[index_pair, metric] = matchFeatures(features1, features2, 'MaxRatio', 1, 'MatchThreshold', 100);
+        %[remainings, mapping] = unique(index_pair(:,2));
+
+        %hpoints2 = hpoints2(remainings,:);
+
+        %metric1 = metric1 .* (1-metric);
+        %metric2 = metric2(remainings) .* (1-metric(mapping));
 
         %overlaps(j) = overlap;
         all_hpoints{j} = [hpoints metric1 j*ones(size(metric1))];
@@ -324,8 +335,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
 
       %tmp2 = tmp2(tmp2(:,1)<mean_overlap+1,:);
 
-      [tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
-      tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
+      %[tmp_v, tmp_indxs] = sort(tmp2(:,3), 'descend');
+      %tmp2 = tmp2(tmp_indxs(1:min(numberCorners, end)),:);
 
       [hshiftx, hshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
 
@@ -453,6 +464,11 @@ function [corrs] = correl_images(img1, img2, strength1, strength2, thresh, wthre
 
   indx1 = find(goods1(1:end), 1, 'last');
   indx2 = find(goods2(1:end), 1, 'first');
+
+  if (isempty(indx1) || isempty(indx2))
+    corrs = zeros(size(strength1));
+    return;
+  end
 
   corr1 = strength2.*sum(bsxfun(@times, img1(:,indx1), img2), 1) ./ sqrt(sum1(indx1) * sum2);
   corr2 = strength1.*sum(bsxfun(@times, img1, img2(:,indx2)), 1) ./ sqrt(sum1 * sum2(indx2));
