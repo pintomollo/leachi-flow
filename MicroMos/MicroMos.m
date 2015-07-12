@@ -1,4 +1,4 @@
-function [Mosaic, parameters] = MicroMos(varargin)
+function [FileName] = MicroMos(varargin)
 % AUTHOR: Filippo Piccinini (E-mail: f.piccinini@unibo.it)
 % DATE: 03 July 2013
 % NAME: MicroMos
@@ -86,6 +86,7 @@ function [Mosaic, parameters] = MicroMos(varargin)
     parameters.ImageFolder = uigetdir('Movies','Select the directory containing the mosaic');
   end
 
+  FileName = {};
   if (isempty(parameters.ImageBaseName))
     files = dir(fullfile(parameters.ImageFolder, '*'));
 
@@ -102,7 +103,10 @@ function [Mosaic, parameters] = MicroMos(varargin)
             disp(['Performing mosaicing on subfolder ''' files(i).name '''']);
 
             try
-              MicroMos(tmp_params);
+              new_file = MicroMos(tmp_params);
+              if (~isempty(new_file))
+                FileName{end+1} = new_file;
+              end
             catch
               err = lasterror();
               warning(['Error during the analysis:']);
@@ -111,7 +115,9 @@ function [Mosaic, parameters] = MicroMos(varargin)
           end
         else
           [file_path, file_name, file_ext] = fileparts(files(i).name);
-          if (~exist(fullfile(parameters.ImageFolder, file_name), 'dir'))
+          if (exist(fullfile(parameters.ImageFolder, file_name), 'dir'))
+            FileName{end+1} = fullfile(parameters.ImageFolder, files(i).name);
+          else
             if (isempty(fname))
               fname = files(i).name;
             else
@@ -126,6 +132,10 @@ function [Mosaic, parameters] = MicroMos(varargin)
   end
 
   if (isempty(parameters.ImageBaseName))
+    if (nargout == 0)
+      clear FileName;
+    end
+
     return;
   end
 
@@ -539,30 +549,34 @@ function [Mosaic, parameters] = MicroMos(varargin)
       end
   end
 
-  % Convert back to the proper type, adjust and save if need be
-  if (nargout == 0)
-    if (norm_factor == 255/(2^16-1))
-      Mosaic = uint16(Mosaic);
-    elseif (norm_factor == 255/(2^32-1))
-      Mosaic = uint32(Mosaic);
-    elseif (norm_factor == 255/(2^64-1))
-      Mosaic = uint64(Mosaic);
-    else
-      Mosaic = uint8(Mosaic);
-    end
+  % Convert back to the proper type, adjust and save
+  if (norm_factor == 255/(2^16-1))
+    Mosaic = uint16(Mosaic);
+  elseif (norm_factor == 255/(2^32-1))
+    Mosaic = uint32(Mosaic);
+  elseif (norm_factor == 255/(2^64-1))
+    Mosaic = uint64(Mosaic);
+  else
+    Mosaic = uint8(Mosaic);
+  end
 
-    if (parameters.flag_AdjustIntensityValues)
-      Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
-    end
+  if (parameters.flag_AdjustIntensityValues)
+    Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+  end
 
-    fname = parameters.ImageFolder;
-    if (fname(end) == filesep)
-      fname = fname(1:end-1);
-    end
-    fname = [fname ImageFormat];
+  fname = parameters.ImageFolder;
+  if (fname(end) == filesep)
+    fname = fname(1:end-1);
+  end
+  fname = [fname ImageFormat];
 
-    imwrite(Mosaic, fname, ImageFormat(2:end));
-    clear Mosaic
+  imwrite(Mosaic, fname, ImageFormat(2:end));
+  clear Mosaic
+
+  if (nargout > 0)
+    FileName{end+1} = fname;
+  else
+    clear FileName;
   end
 
   disp('MicroMos: THE END.');

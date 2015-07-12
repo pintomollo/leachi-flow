@@ -1,4 +1,4 @@
-function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, snr_thresh)
+function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, centers, thresh, snr_thresh)
 % MATPIV_NFFT multiple passes with subpixel NFFT resolution from MatPIV.
 %
 %   [X, Y, U, V] = MATPIV_NFFT(IM1, IM2, WINSIZE, OVERLAP) performs PIV in
@@ -36,37 +36,19 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
   v = [];
   SnR = [];
 
-  if (nargin < 4)
-    disp('MatPIV requires at least 4 inputs. Aborting !')
+  if (nargin < 6)
+    disp('Vessel PIV requires at least 6 inputs. Aborting !')
     return;
-  elseif (nargin < 5)
-    thresh = 3;
-    mask = [];
-    snr_thresh = 1;
-  elseif (nargin < 6)
-    mask = [];
-    snr_thresh = 1;
   elseif (nargin < 7)
+    thresh = 3;
     snr_thresh = 1;
-  end
-
-  if (islogical(thresh))
-    tmp = mask;
-    mask = thresh;
-    thresh = tmp;
+  elseif (nargin < 8)
+    snr_thresh = 1;
   end
 
   im1 = double(im1);
   im2 = double(im2);
   imgsize = size(im1);
-
-  if (isempty(mask))
-    mask = true(imgsize);
-  end
-
-  if (isempty(thresh))
-    thresh = 3;
-  end
 
   if (any(imgsize ~= size(im2) | imgsize ~= size(mask)))
     disp('Images must have consistent sizes. Aborting !')
@@ -88,6 +70,8 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
     thresh = [thresh(:); ones(iter-numel(thresh), 1) * thresh(end)];
   end
 
+  [vessel_params] = init_vessel(centers);
+
   datax = [];
   datay = [];
 
@@ -103,6 +87,9 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
       [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(i,:));
       [datax,datay]=globfilt(datax,datay,thresh(i));
       [datax,datay]=localfilt(datax,datay,thresh(i),win_mask);
+      %% CONVERGENCE THRESH
+
+      [datax, datay]=converge(datax,datay,accum);
 
       if (all(size(datax) > 1))
         [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
@@ -141,8 +128,25 @@ function [x, y, u, v, snr] = matpiv_nfft(im1, im2, wins, overlap, thresh, mask, 
     v = datay;
   end
 
+  [u, v]=converge(u,v,accum);
   u(goods) = datax(goods);
   v(goods) = datay(goods);
+
+  return;
+end
+
+function vessel_params = init_vessel(centers)
+
+  x1 = centers(1:3:end, 1);
+  x2 = centers(2:3:end, 1);
+  y1 = centers(1:3:end, 2);
+  y2 = centers(2:3:end, 2);
+
+  vects = [x2-x1 y2-y1];
+  lens = sqrt(sum(vects.^2, 2));
+  vects = bsxfun(@rdivide, vects, lens);
+
+  vessel_params = [vects lens];
 
   return;
 end
@@ -655,6 +659,28 @@ function [u, v] = localfilt(u, v, threshold, maske)
 
     return;
   end
+end
+
+function [datax,datay] = converge(datax, datay, accum)
+
+  empties = isnan(datax);
+  nones = isnan(accum(:,:,1));
+
+  tmp = datax;
+  tmp(empties) = 0;
+  tmpa = accum(:,:,1);
+  tmpa(nones) = 0;
+
+  datax = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datax)));
+
+  tmp = datay;
+  tmp(empties) = 0;
+  tmpa = accum(:,:,2);
+  tmpa(nones) = 0;
+
+  datay = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datay)));
+
+  return;
 end
 
 function [si,sj,val] = getmax(mat, sizes, offset)
