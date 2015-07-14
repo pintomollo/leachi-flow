@@ -248,7 +248,8 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
       %[x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
-      [x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1);
+      [x,y,u,v,s] = vessel_piv(prev_diff, img_diff, windows, 1/32, mapping, branches, threshs);
+      %[x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1);
 
       %for i=1:10
       %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
@@ -485,7 +486,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     ylim([-tmp tmp]);
     title(num2str(res.properties));
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_f.png'], '-dpng');
-    delete(hfig);
+%    delete(hfig);
   end
 
   trackings.detections = res;

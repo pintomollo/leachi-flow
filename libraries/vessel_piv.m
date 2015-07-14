@@ -34,7 +34,7 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
   y = [];
   u = [];
   v = [];
-  SnR = [];
+  snr = [];
 
   if (nargin < 6)
     disp('Vessel PIV requires at least 6 inputs. Aborting !')
@@ -46,11 +46,13 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
     snr_thresh = 1;
   end
 
+  min_n = 4;
+
   im1 = double(im1);
   im2 = double(im2);
   imgsize = size(im1);
 
-  if (any(imgsize ~= size(im2) | imgsize ~= size(mask)))
+  if (any(imgsize ~= size(im2) | imgsize ~= size(mapping)))
     disp('Images must have consistent sizes. Aborting !')
     return;
   end
@@ -70,27 +72,31 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
     thresh = [thresh(:); ones(iter-numel(thresh), 1) * thresh(end)];
   end
 
-  [vessel_params] = init_vessel(centers);
+  [vessel_params] = init_vessel(mapping, centers);
 
   datax = [];
   datay = [];
+  group = [];
 
-  accum = [];
+  out_dist = bwdist(logical(mapping));
+
+  accum = zeros(max(mapping(:)), 3);
 
   for i=1:iter-1
+      [x,y,group,datax,datay] = vessel_remesh(imgsize, wins(i,:), overlap, mapping, vessel_params, x, y, group, datax, datay);
 
-      [x,y,datax,datay,win_mask,accum] = remesh(imgsize, wins(i,:), overlap, x, y, datax, datay, mask, accum);
-
-      [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax(:,:,1),datay(:,:,1),win_mask);
+      [datax,datay,snr]=firstpass(im1,im2,wins(i,:),x,y,datax,datay);
 
       [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-      [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(i,:));
+      [datax,datay]=maskfilt(x,y,datax,datay,out_dist,wins(i,:));
       [datax,datay]=globfilt(datax,datay,thresh(i));
-      [datax,datay]=localfilt(datax,datay,thresh(i),win_mask);
-      %% CONVERGENCE THRESH
+      [datax,datay]=localfilt(datax,datay,thresh(i),group,min_n);
 
-      [datax, datay]=converge(datax,datay,accum);
+      [datax,datay]=groupinterp(datax,datay,group);
 
+      [datax, datay, accum]=converge(datax,datay,group,accum);
+
+      %{
       if (all(size(datax) > 1))
         [datax,datay]=naninterp2(datax,datay,win_mask,x,y);
       end
@@ -101,6 +107,7 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
         accum(:,:,2) = accum(:,:,2) + datay;
         accum(:,:,3) = accum(:,:,3) + goods;
       end
+      %}
 
       datax=round(datax);
       datay=round(datay);
@@ -108,17 +115,19 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
 
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Final pass. Gives displacement to subpixel accuracy.
-  [x,y,datax,datay,win_mask,accum] = remesh(imgsize, wins(end,:), overlap, x, y, datax, datay, mask, accum);
+  [x,y,group,datax,datay] = vessel_remesh(imgsize, wins(end,:), overlap, mapping, vessel_params, x, y, group, datax, datay);
 
-  datax = round(accum(:,:,1) ./ accum(:,:,3));
-  datay = round(accum(:,:,2) ./ accum(:,:,3));
+  %datax = round(accum(:,:,1) ./ accum(:,:,3));
+  %datay = round(accum(:,:,2) ./ accum(:,:,3));
 
-  [datax,datay,snr]=finalpass(im1,im2,wins(end,:),x,y,datax,datay,win_mask);
+  [datax,datay,snr]=finalpass(im1,im2,wins(end,:),x,y,datax,datay);
 
   [datax,datay]=snrfilt(datax,datay,snr,snr_thresh);
-  [datax,datay]=maskfilt(x,y,datax,datay,win_mask,wins(end,:));
+  [datax,datay]=maskfilt(x,y,datax,datay,out_dist,wins(end,:));
   [datax,datay]=globfilt(datax,datay,thresh(end));
-  [datax,datay]=localfilt(datax,datay,thresh(end),win_mask);
+  [datax,datay]=localfilt(datax,datay,thresh(end),group,min_n);
+
+  %{
   goods = ~isnan(datax);
 
   if (all(size(datax) > 1))
@@ -131,11 +140,21 @@ function [x, y, u, v, snr] = vessel_piv(im1, im2, wins, overlap, mapping, center
   [u, v]=converge(u,v,accum);
   u(goods) = datax(goods);
   v(goods) = datay(goods);
+  %}
+  [datax, datay]=groupinterp(datax,datay,group);
+
+  [u, v]=converge(datax,datay,group,accum);
+
+  dist = ((u - datax).^2 + (v - datay).^2);
+  refined = (dist < 1);
+
+  u(refined) = datax(refined);
+  v(refined) = datay(refined);
 
   return;
 end
 
-function vessel_params = init_vessel(centers)
+function vessel_params = init_vessel(mapping, centers)
 
   x1 = centers(1:3:end, 1);
   x2 = centers(2:3:end, 1);
@@ -143,52 +162,118 @@ function vessel_params = init_vessel(centers)
   y2 = centers(2:3:end, 2);
 
   vects = [x2-x1 y2-y1];
+  middle = ([x1 y1] + [x2 y2])/2;
   lens = sqrt(sum(vects.^2, 2));
   vects = bsxfun(@rdivide, vects, lens);
+  widths = zeros(size(lens));
+  angl = zeros(size(lens));
 
-  vessel_params = [vects lens];
+  nbranches = length(x1);
+  max_dist = sqrt(sum(size(mapping).^2));
+  y = [0:max_dist];
+  center_indx = length(y);
+  y = [-y(end:-1:2) y];
+
+  for i=1:nbranches
+    curr_branch = double(mapping == i);
+    x = [0:lens(i)];
+
+    [X,Y] = meshgrid(x,y);
+    angl(i) = -atan2(vects(i,2), vects(i,1));
+    rot = [cos(angl(i)) -sin(angl(i)); sin(angl(i)) cos(angl(i))];
+
+    pts = [X(:) Y(:)] * rot;
+    pts = bsxfun(@plus, pts, [x1(i) y1(i)]);
+
+    proj = bilinear_mex(curr_branch, pts);
+    proj = reshape(proj, size(X));
+
+    proj = proj(center_indx:end,:) + proj(center_indx:-1:1,:);
+    rad = nansum(proj,2);
+    widths(i) = find(rad==0, 1, 'first');
+  end
+
+  vessel_params = [middle angl lens/2 widths];
 
   return;
 end
 
-function [xx,yy,datax,datay,win_maske,accum] = remesh(imgsize, winsize, ol, prevx, prevy, datax, datay, maske,accum)
+function [xx,yy,gg,datax,datay] = vessel_remesh(imgsize, winsize, ol, mapping, vessel, prevx, prevy, prevg, datax, datay)
 
   M=winsize(1);
   N=winsize(2);
-  x=[1:((1-ol)*M):imgsize(2)-M+1];
-  y=[1:((1-ol)*N):imgsize(1)-N+1];
 
-  new_size = [length(y) length(x)];
+  rim = ceil(winsize/2);
 
-  xx=repmat(x+M/2,new_size(1),1);
-  yy=repmat((y+N/2).',1,new_size(2));
+  xx=[];
+  yy=[];
+  gg=[];
 
-  if (isempty(datax) || isempty(datay))
+  origs = vessel(:,1:2);
+  angls = vessel(:,3);
+  lens = vessel(:,4);
+  widths = vessel(:,5);
+
+  nbranches = size(vessel, 1);
+  for i=1:nbranches
+    x=[0:((1-ol)*M):lens(i)];
+    y=[0:((1-ol)*N):widths(i)];
+
+    x = [-x(end:-1:2) x];
+    y = [-y(end:-1:2) y];
+
+    [X,Y] = meshgrid(x,y);
+    rot = [cos(angls(i)) -sin(angls(i)); sin(angls(i)) cos(angls(i))];
+
+    pts = [X(:) Y(:)] * rot;
+    pts = round(bsxfun(@plus, pts, origs(i,:)));
+
+    valids = all(bsxfun(@gt, pts, rim) & bsxfun(@le, pts, imgsize([2 1])-rim), 2);
+    pts = pts(valids, :);
+
+    groups = mapping((pts(:,1)-1)*imgsize(1) + pts(:,2));
+    goods = (groups == i);
+
+    xx = [xx; pts(goods, 1)];
+    yy = [yy; pts(goods, 2)];
+    gg = [gg; groups(goods)];
+  end
+
+  new_size = [length(xx) 1];
+
+  valids = (~isnan(datax) & ~isnan(datay));
+
+  if (isempty(datax) || isempty(datay) || ~any(valids) || isempty(xx))
     datax = zeros(new_size);
     datay = zeros(new_size);
-    accum = zeros([new_size 3]);
-  elseif (numel(prevx) == 1)
-    datax = ones(new_size) * datax;
-    datay = ones(new_size) * datay;
-
-    accum = bsxfun(@times, ones([new_size 3]), accum);
-    accum(:,:,1:2) = bsxfun(@times, accum(:,:,1:2), accum(:,:,3));
+  %elseif (numel(prevx) == 1)
+  %  datax = ones(new_size) * datax;
+  %  datay = ones(new_size) * datay;
   else
-    datax = round(imnanresize(datax,new_size));
-    datay = round(imnanresize(datay,new_size));
 
-    weights = accum(:,:,end);
-    accum = bsxfun(@rdivide, accum, weights);
-    accum = imnanresize(accum,new_size);
-    weights = abs(imnanresize(weights,new_size));
-    accum = bsxfun(@times, accum, weights);
+    dists = bsxfun(@minus, xx, prevx(valids).').^2 + ...
+            bsxfun(@minus, yy, prevy(valids).').^2;
+
+    sames = bsxfun(@eq, gg, prevg(valids).');
+
+    dists(~sames) = Inf;
+
+    weights = exp(-bsxfun(@rdivide, dists, 2*widths(gg).^2));
+    norms = sum(weights, 2);
+
+    weights = bsxfun(@rdivide, weights, norms);
+
+    datax = sum(bsxfun(@times, weights, datax(valids).'), 2);
+    datay = sum(bsxfun(@times, weights, datay(valids).'), 2);
+
+    datax = round(datax);
+    datay = round(datay);
   end
-  win_maske=(imnanresize(double(maske),new_size)>=0.25);
 
   return;
 end
 
-function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
+function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy)
 %
 % This function is used in conjunction with the MULTIPASS.M run-file.
 % Inputs are allocated from within MULTIPASS.
@@ -201,15 +286,14 @@ function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
   M=N(1); N=N(2); 
   [sy,sx]=size(A);
 
-  x=round(xx(1,:)-M/2);
-  y=round(yy(:,1)-N/2);
+  x=round(xx-M/2);
+  y=round(yy-N/2);
 
-  nx=length(x);
-  ny=length(y);
+  n=length(x);
 
-  datax=NaN(ny,nx);
-  datay=NaN(ny,nx);
-  snr=NaN(ny,nx);
+  datax=NaN(n,1);
+  datay=NaN(n,1);
+  snr=NaN(n,1);
 
   idx(isnan(idx)) = 0;
   idy(isnan(idy)) = 0;
@@ -234,75 +318,72 @@ function [datax,datay,snr]=firstpass(A,B,N,xx,yy,idx,idy,maske)
   offset = [N M]/2 + 1;
   no_off = [0 0];
 
-  for cj=1:ny
-      jj = y(cj);
-      for ci=1:nx
-        ii = x(ci);
-          if maske(cj,ci)
-              if jj+idy(cj,ci)<1
-                  idy(cj,ci)=1-jj;
-              elseif jj+idy(cj,ci)>sy-N+1
-                  idy(cj,ci)=sy-N+1-jj;
-              end
-              if ii+idx(cj,ci)<1
-                  idx(cj,ci)=1-ii;
-              elseif ii+idx(cj,ci)>sx-M+1
-                  idx(cj,ci)=sx-M+1-ii;
-              end
+  for i=1:n
+    jj = y(i);
+    ii = x(i);
 
-              E=A(jj:jj+N-1,ii:ii+M-1);   
-              D2=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
+    if jj+idy(i)<1
+        idy(i)=1-jj;
+    elseif jj+idy(i)>sy-N+1
+        idy(i)=sy-N+1-jj;
+    end
+    if ii+idx(i)<1
+        idx(i)=1-ii;
+    elseif ii+idx(i)>sx-M+1
+        idx(i)=sx-M+1-ii;
+    end
 
-              mD2 = sum(D2(:)) * inelems;
-              mE = sum(E(:)) * inelems;
+    E=A(jj:jj+N-1,ii:ii+M-1);
+    D2=B(jj+idy(i):jj+N-1+idy(i),ii+idx(i):ii+M-1+idx(i));
 
-              D2 = D2 - mD2;
-              E = E - mE;
+    mD2 = sum(D2(:)) * inelems;
+    mE = sum(E(:)) * inelems;
 
-              stad1= sqrt(sum(E(:).^2) * inestim);
-              stad2= sqrt(sum(D2(:).^2) * inestim);
+    D2 = D2 - mD2;
+    E = E - mE;
 
-              ok1 = (stad1>eps);
-              ok2 = (stad2>eps);
+    stad1= sqrt(sum(E(:).^2) * inestim);
+    stad2= sqrt(sum(D2(:).^2) * inestim);
 
-              if (ok1 && ok2)
-                  % use weights
-                  E = E.*W;
-                  F = D2.*W;
+    ok1 = (stad1>eps);
+    ok2 = (stad2>eps);
 
-                  E = E - sum(E(:)) * inelems;
-                  F = F - sum(F(:)) * inelems;
+    if (ok1 && ok2)
+        % use weights
+        E = E.*W;
+        F = D2.*W;
 
-                  % take zero-padded Fourier Transform
-                  at = fftn(E,[mf mf]);
-                  bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+        E = E - sum(E(:)) * inelems;
+        F = F - sum(F(:)) * inelems;
 
-                  %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
-                  R = real(ifftn(bt.*at, 'nonsymmetric'));
-                  R=R(1:end-1,1:end-1);
-                  R=real(R)./(nelems*stad1*stad2);
-                  R_peak=gaussian_mex(R, 2);
+        % take zero-padded Fourier Transform
+        at = fftn(E,[mf mf]);
+        bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
-                  %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
-                  if full_sizes(1)==(N-1) || N < 5 || M < 5
-                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
-                  else
-                      [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
-                  end
+        %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
+        R = real(ifftn(bt.*at, 'nonsymmetric'));
+        R=R(1:end-1,1:end-1);
+        R=real(R)./(nelems*stad1*stad2);
+        R_peak=gaussian_mex(R, 2);
 
-                  datax(cj,ci)=(M-max_x1)+idx(cj,ci);
-                  datay(cj,ci)=(N-max_y1)+idy(cj,ci);
+        %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
+        if full_sizes(1)==(N-1) || N < 5 || M < 5
+            [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
+        else
+            [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+        end
 
-                  snr(cj,ci) = mf * max_val.^2 / sum(R_peak(:).^2);
-              end
-          end
-      end
+        datax(i)=(M-max_x1)+idx(i);
+        datay(i)=(N-max_y1)+idy(i);
+
+        snr(i) = mf * max_val.^2 / sum(R_peak(:).^2);
+    end
   end
 
   return;
 end
 
-function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
+function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy)
 % function [x,y,u,v,SnR,PeakHeight,brc]=finalpass_new(A,B,N,ol,idx,idy,Dt,mask)
 %
 % Provides the final pass to get the displacements with
@@ -319,16 +400,15 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
   M=N(1); N=N(2);
   [sy,sx]=size(A);
 
-  x=round(xx(1,:)-M/2);
-  y=round(yy(:,1)-N/2);
+  x=round(xx-M/2);
+  y=round(yy-N/2);
 
-  nx=length(x);
-  ny=length(y);
+  n=length(x);
 
-  up=NaN(ny,nx);
-  vp=NaN(ny,nx);
+  up=NaN(n,1);
+  vp=NaN(n,1);
 
-  SnR=NaN(ny,nx);
+  SnR=NaN(n,1);
 
   idx(isnan(idx)) = 0;
   idy(isnan(idy)) = 0;
@@ -336,7 +416,6 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
   % Variables used for subpixel displacement in Fourier Domain
   min_res=0.005; % minimum residual to reach before breaking out of
   % sub-pixel iterations
-  breakoutcounter=1; % count the iterations
   max_iterations=10; % max iterations before breaking out
   dev=20;
   tmpw = (1-cos(pi*(0:N-1)/(N-1)).^dev);tmpw2 = (1-cos(pi*(0:M-1)/(M-1)).^dev);
@@ -369,159 +448,157 @@ function [up,vp,SnR]=finalpass(A,B,N,xx,yy,idx,idy,maske)
   alt_off = [N M]/2 - 1;
   no_off = [0 0];
 
-  for cj=1:ny
-      jj = y(cj);
-      for ci=1:nx
-        ii = x(ci);
-          if maske(cj,ci)
-              if jj+idy(cj,ci)<1
-                  idy(cj,ci)=1-jj;
-              elseif jj+idy(cj,ci)>sy-N+1
-                  idy(cj,ci)=sy-N+1-jj;
-              end
-              if ii+idx(cj,ci)<1
-                  idx(cj,ci)=1-ii;
-              elseif ii+idx(cj,ci)>sx-M+1
-                  idx(cj,ci)=sx-M+1-ii;
-              end
-              E=A(jj:jj+N-1,ii:ii+M-1);
-              D2=B(jj+idy(cj,ci):jj+N-1+idy(cj,ci),ii+idx(cj,ci):ii+M-1+idx(cj,ci));
+  for i=1:n
+    jj = y(i);
+    ii = x(i);
 
-              mD2 = sum(D2(:)) * inelems;
-              mE = sum(E(:)) * inelems;
+    breakoutcounter=1; % count the iterations
 
-              D2 = D2 - mD2;
-              E = E - mE;
+    if jj+idy(i)<1
+        idy(i)=1-jj;
+    elseif jj+idy(i)>sy-N+1
+        idy(i)=sy-N+1-jj;
+    end
+    if ii+idx(i)<1
+        idx(i)=1-ii;
+    elseif ii+idx(i)>sx-M+1
+        idx(i)=sx-M+1-ii;
+    end
+    E=A(jj:jj+N-1,ii:ii+M-1);
+    D2=B(jj+idy(i):jj+N-1+idy(i),ii+idx(i):ii+M-1+idx(i));
 
-              stad1= sqrt(sum(E(:).^2) * inestim);
-              stad2= sqrt(sum(D2(:).^2) * inestim);
+    mD2 = sum(D2(:)) * inelems;
+    mE = sum(E(:)) * inelems;
 
-              ok1 = (stad1>eps);
-              ok2 = (stad2>eps);
+    D2 = D2 - mD2;
+    E = E - mE;
 
-              if (ok1 && ok2)
-                  % use weights
-                  E = E.*W;
-                  F = D2.*W;
+    stad1= sqrt(sum(E(:).^2) * inestim);
+    stad2= sqrt(sum(D2(:).^2) * inestim);
 
-                  E = E - sum(E(:)) * inelems;
-                  F = F - sum(F(:)) * inelems;
+    ok1 = (stad1>eps);
+    ok2 = (stad2>eps);
 
-                  % take zero-padded Fourier Transform
-                  at = fftn(E,[mf mf]);
-                  bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+    if (ok1 && ok2)
+        % use weights
+        E = E.*W;
+        F = D2.*W;
 
-                  %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
-                  R = real(ifftn(bt.*at, [mf mf], 'nonsymmetric'));
-                  R=R(1:end-1,1:end-1);
-                  R=real(R)./(nelems*stad1*stad2);
-                  R_peak=gaussian_mex(R, 2);
+        E = E - sum(E(:)) * inelems;
+        F = F - sum(F(:)) * inelems;
 
-                  %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
-                  if full_sizes(1)==(N-1) || N < 5 || M < 5
-                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
-                  else
-                      [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
-                  end
+        % take zero-padded Fourier Transform
+        at = fftn(E,[mf mf]);
+        bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
 
-                  % loop on integer basis to make sure we've converged to
-                  % +-0.5 pixels before entering subpixel shifting
-                  stx=(M-max_x1)+idx(cj,ci);
-                  sty=(N-max_y1)+idy(cj,ci);
+        %%%%%%%%%%%%%%%%%%%%%% Calculate the normalized correlation:
+        R = real(ifftn(bt.*at, [mf mf], 'nonsymmetric'));
+        R=R(1:end-1,1:end-1);
+        R=real(R)./(nelems*stad1*stad2);
+        R_peak=gaussian_mex(R, 2);
 
-                  while (max_x1~=M || max_y1~=N) && ...
-                          breakoutcounter<max_iterations &&...
-                          jj+sty>0 && ii+stx>0 && ii+M-1+stx<=sx && jj+N-1+sty<=sy
+        %%%%%%%%%%%%%%%%%%%%%% Find the position of the maximal value of R
+        if full_sizes(1)==(N-1) || N < 5 || M < 5
+            [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
+        else
+            [max_y1,max_x1,max_val]=getmax(R_peak(0.5*N+2:1.5*N-3,0.5*M+2:1.5*M-3), sub_sizes, offset);
+        end
 
-                      D2=B(jj+sty:jj+N-1+sty,...
-                          ii+stx:ii+M-1+stx);
+        % loop on integer basis to make sure we've converged to
+        % +-0.5 pixels before entering subpixel shifting
+        stx=(M-max_x1)+idx(i);
+        sty=(N-max_y1)+idy(i);
 
-                      F=(D2-sum(D2(:))*inelems).*W; F=F-sum(F(:))*inelems;
-                      bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
-                      R = real(ifftn(bt.*at, 'nonsymmetric'));
+        while (max_x1~=M || max_y1~=N) && ...
+                breakoutcounter<max_iterations &&...
+                jj+sty>0 && ii+stx>0 && ii+M-1+stx<=sx && jj+N-1+sty<=sy
 
-                      R=R(1:end-1,1:end-1);
-                      R=real(R)./(nelems*stad1*stad2);
-                      R_peak=gaussian_mex(R, 2);
-                      [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
+            D2=B(jj+sty:jj+N-1+sty,...
+                ii+stx:ii+M-1+stx);
 
-                      stx=stx + (M-max_x1);
-                      sty=sty + (N-max_y1);
+            F=(D2-sum(D2(:))*inelems).*W; F=F-sum(F(:))*inelems;
+            bt = fftn(conj(F(end:-1:1,end:-1:1)),[mf mf]);
+            R = real(ifftn(bt.*at, 'nonsymmetric'));
 
-                      breakoutcounter=breakoutcounter+1;
-                  end
+            R=R(1:end-1,1:end-1);
+            R=real(R)./(nelems*stad1*stad2);
+            R_peak=gaussian_mex(R, 2);
+            [max_y1,max_x1,max_val]=getmax(R_peak, full_sizes, no_off);
 
-                  if (breakoutcounter<max_iterations || (max_x1==M && max_y1==N))
-                      %update these only IF convergence was met, that is, we
-                      %used less than max_iterations
-                      idx(cj,ci)=stx; idy(cj,ci)=sty; 
-                      breakoutcounter=1; % only reset if converged
-                  else
-                      break;
-                  end
+            stx=stx + (M-max_x1);
+            sty=sty + (N-max_y1);
 
-                  %Only enter next bit if the peak is not located at the
-                  %edges of the correlation plane
-                  if max_x1~=1 && max_y1~=1 && max_x1~=mf-1 && max_y1~=mf-1
-                      % 3-point peak fit using centroid, gaussian (default)
-                      % or parabolic fit
-                      [x0, y0]=intpeak(max_x1,max_y1,R(max_y1,max_x1),...
-                          R(max_y1,max_x1-1),R(max_y1,max_x1+1),...
-                          R(max_y1-1,max_x1),R(max_y1+1,max_x1),M,N);
-                      X0=x0; Y0=y0;
+            breakoutcounter=breakoutcounter+1;
+        end
 
-                      dy = max_y1;
-                      dx = max_x1;
+        if (breakoutcounter<max_iterations || (max_x1==M && max_y1==N))
+            %update these only IF convergence was met, that is, we
+            %used less than max_iterations
+            idx(i)=stx; idy(i)=sty; 
+            breakoutcounter=1; % only reset if converged
+        else
+            continue;
+        end
 
-                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                      % here we do the subpixel shifts in Fourier space
-                      while (abs(x0)>min_res || abs(y0)>min_res) &&...
-                              breakoutcounter<max_iterations
+        %Only enter next bit if the peak is not located at the
+        %edges of the correlation plane
+        if max_x1~=1 && max_y1~=1 && max_x1~=mf-1 && max_y1~=mf-1
+            % 3-point peak fit using centroid, gaussian (default)
+            % or parabolic fit
+            [x0, y0]=intpeak(max_x1,max_y1,R(max_y1,max_x1),...
+                R(max_y1,max_x1-1),R(max_y1,max_x1+1),...
+                R(max_y1-1,max_x1),R(max_y1+1,max_x1),M,N);
+            X0=x0; Y0=y0;
 
-                          bt2=(exp(2*1i*pi*( (I*(X0)*iI) + ...
-                              (J*(Y0)*iJ)))).*bt;
-                          % At this point we could do some simple
-                          % FFT-filtering like Todd and Liao suggests in
-                          % their paper
-                          % for example only keeping a certain number of
-                          % Fourier components
-                          % 26/3-05: This makes the peak a lot wider/broader:
-                          % W2=1-weight('cosn',64,20)
-                          % R=ifft2( bt2.*at.*W2 );
-                          %
-                          R=ifftn( bt2.*at, 'nonsymmetric');
-                          R=real(R(1:end-1,1:end-1));
-                          R(R<=0) = 1e-6;
-                          R=real(R)./(nelems*stad1*stad2);
+            dy = max_y1;
+            dx = max_x1;
 
-                          if dx>1 && dx<mf-1 && dy>1 && dy<mf-1
-                              %only gaussian fit here
-                              x0=-(log(R(dy,dx-1))-log(R(dy,dx+1)))/...
-                                  (2*log(R(dy,dx-1))-4*log(R(dy,dx))+2*log(R(dy,dx+1)));
-                              y0=-(log(R(dy-1,dx))-log(R(dy+1,dx)))/...
-                                  (2*log(R(dy-1,dx))-4*log(R(dy,dx))+2*log(R(dy+1,dx)));
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            % here we do the subpixel shifts in Fourier space
+            while (abs(x0)>min_res || abs(y0)>min_res) &&...
+                    breakoutcounter<max_iterations
 
-                              X0=X0-x0; Y0=Y0-y0;
-                              breakoutcounter=breakoutcounter+1;
-                          else
-                              X0=nan; Y0=nan;
-                              breakoutcounter=max_iterations;
-                          end
-                      end
+                bt2=(exp(2*1i*pi*( (I*(X0)*iI) + ...
+                    (J*(Y0)*iJ)))).*bt;
+                % At this point we could do some simple
+                % FFT-filtering like Todd and Liao suggests in
+                % their paper
+                % for example only keeping a certain number of
+                % Fourier components
+                % 26/3-05: This makes the peak a lot wider/broader:
+                % W2=1-weight('cosn',64,20)
+                % R=ifft2( bt2.*at.*W2 );
+                %
+                R=ifftn( bt2.*at, 'nonsymmetric');
+                R=real(R(1:end-1,1:end-1));
+                R(R<=0) = 1e-6;
+                R=real(R)./(nelems*stad1*stad2);
 
-                      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
-                      % Find the signal to Noise ratio
-                      R_peak=gaussian_mex(R, 2);
-                      SnR(cj,ci) = mf * R_peak(dy,dx).^2 / sum(R_peak(:).^2);
+                if dx>1 && dx<mf-1 && dy>1 && dy<mf-1
+                    %only gaussian fit here
+                    x0=-(log(R(dy,dx-1))-log(R(dy,dx+1)))/...
+                        (2*log(R(dy,dx-1))-4*log(R(dy,dx))+2*log(R(dy,dx+1)));
+                    y0=-(log(R(dy-1,dx))-log(R(dy+1,dx)))/...
+                        (2*log(R(dy-1,dx))-4*log(R(dy,dx))+2*log(R(dy+1,dx)));
 
-                      %%%%%%%%%%%%%%%%%%%%%% Store the displacements, SnR and Peak Height.
-                      up(cj,ci)=(-X0+idx(cj,ci));
-                      vp(cj,ci)=(-Y0+idy(cj,ci));
-                  end
-              end
-          end
-          breakoutcounter=1;
-      end
+                    X0=X0-x0; Y0=Y0-y0;
+                    breakoutcounter=breakoutcounter+1;
+                else
+                    X0=nan; Y0=nan;
+                    breakoutcounter=max_iterations;
+                end
+            end
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
+            % Find the signal to Noise ratio
+            R_peak=gaussian_mex(R, 2);
+            SnR(i) = mf * R_peak(dy,dx).^2 / sum(R_peak(:).^2);
+
+            %%%%%%%%%%%%%%%%%%%%%% Store the displacements, SnR and Peak Height.
+            up(i)=(-X0+idx(i));
+            vp(i)=(-Y0+idy(i));
+        end
+    end
   end
 
   return;
@@ -544,8 +621,8 @@ function [u,v]=maskfilt(x,y,u,v,mask,win_size)
   u(bads) = 0;
   v(bads) = 0;
 
-  valids = bilinear_mex(double(mask), 0.5+(x(:)+u(:))/win_size(1), 0.5+(y(:)+v(:))/win_size(2));
-  valids = (valids>0.25);
+  valids = bilinear_mex(double(mask), x(:)+u(:), y(:)+v(:));
+  valids = (valids < 0.5*mean(win_size));
 
   u(bads | ~valids) = NaN;
   v(bads | ~valids) = NaN;
@@ -599,7 +676,7 @@ function [u,v]=globfilt(u,v,thresh)
   return;
 end
 
-function [u, v] = localfilt(u, v, threshold, maske)
+function [u, v] = localfilt(u, v, threshold, groups, min_n)
 % [NewU,NewV]=localfilt(x,y,u,v,threshold,mask)
 %
 % This function is a filter that will remove vectors that deviate from
@@ -619,66 +696,56 @@ function [u, v] = localfilt(u, v, threshold, maske)
 %
 % Time: 10:41, Jan 17 2002
 
-  border = 2;
-  valids = true(2*border + 1);
-  valids(border+1, border+1) = false;
-  nans = NaN(1, 2);
+  [means, stds] = mymean([u v], 1, groups);
 
-  min_n = floor(sum(valids(:))/2);
+  [junk, indxs, reverse] = unique(groups);
+  ngroups = diff([indxs; length(groups)+1]);
 
-  histou = blockproc(u, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
-  histov = blockproc(v, [1 1], @blockstats, 'BorderSize', [border border], 'PadMethod', NaN, 'TrimBorder', false);
+  means(ngroups < min_n, :) = NaN;
 
-  medu = histou(:,1:2:end);
-  stdu = threshold*histou(:,2:2:end);
+  means = means(reverse,:);
+  stds = threshold*stds(reverse,:);
 
-  medv = histov(:,1:2:end);
-  stdv = threshold*histov(:,2:2:end);
-
-  bads = (u > medu + stdu | u < medu - stdu | ...
-          v > medv + stdv | v < medv - stdv);
+  bads = (u > means(:,1) + stds(:,1) | u < means(:,1) - stds(:,1) | ...
+          v > means(:,2) + stds(:,2) | v < means(:,2) - stds(:,2));
 
   u(bads)=NaN;
   v(bads)=NaN;
 
   return;
-
-  function vals = blockstats(blk)
-
-    if (maske(blk.location(1), blk.location(2)))
-      data = blk.data(valids);
-
-      if (sum(isfinite(data(:))) > min_n)
-        vals = [nanmedian(data), nanstd(data)];
-      else
-        vals = nans;
-      end
-    else
-      vals = nans;
-    end
-
-    return;
-  end
 end
 
-function [datax,datay] = converge(datax, datay, accum)
+function [datax,datay,full_accum] = converge(datax, datay, groups, accum)
+
+  if (nargout > 2)
+    full_accum = accum;
+
+    [means] = mymean([datax datay], 1, groups);
+
+    [curr_groups, indxs] = unique(groups);
+    ngroups = diff([indxs; length(groups)+1]);
+
+    means = bsxfun(@times, means, ngroups);
+
+    goods = ~any(isnan(means), 2);
+    if (any(goods))
+      full_accum(curr_groups(goods), :) = full_accum(curr_groups(goods), :) + [means(goods,:) ngroups(goods)];
+    end
+  end
+
+  accum = accum(groups, :);
 
   empties = isnan(datax);
-  nones = isnan(accum(:,:,1));
 
   tmp = datax;
   tmp(empties) = 0;
-  tmpa = accum(:,:,1);
-  tmpa(nones) = 0;
 
-  datax = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datax)));
+  datax = (tmp + accum(:,1)) ./ (accum(:,3)+(~isnan(datax)));
 
   tmp = datay;
   tmp(empties) = 0;
-  tmpa = accum(:,:,2);
-  tmpa(nones) = 0;
 
-  datay = (tmp + tmpa) ./ (accum(:,:,3)+(~isnan(datay)));
+  datay = (tmp + accum(:,2)) ./ (accum(:,3)+(~isnan(datay)));
 
   return;
 end
@@ -693,7 +760,7 @@ function [si,sj,val] = getmax(mat, sizes, offset)
   return;
 end
 
-function [u,v]=naninterp2(u,v,mask,xx,yy)
+function [u,v]=groupinterp(u,v,groups)
 % function [u,v]=naninterp2(u,v,mask,x,y)
 %
 % Interpolates NaN's in a vectorfield. Used by GLOBFILT,
@@ -709,16 +776,16 @@ function [u,v]=naninterp2(u,v,mask,xx,yy)
 % Distributed under the terms of the GNU - GPL license
 % timestamp: 15:46, Oct 23, 2001
 
-  % Replaced that function with the solution from John D'Errico
-  % that is around 10x faster and works much more precisely,
-  % in particular for smooth surfaces
-  means = nanmean([u(:) v(:)], 1);
+  [means] = mymean([u v], 1, groups);
 
-  u = inpaint_nans(u - means(1), 4) + means(1);
-  u(~mask) = NaN;
+  [junk, indxs, reverse] = unique(groups);
 
-  v = inpaint_nans(v - means(2), 4) + means(2);
-  v(~mask) = NaN;
+  means = means(reverse,:);
+
+  bads = (isnan(u) | isnan(v));
+
+  u(bads) = means(bads, 1);
+  v(bads) = means(bads, 2);
 
   return;
 end

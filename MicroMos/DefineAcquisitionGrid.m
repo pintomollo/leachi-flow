@@ -5,6 +5,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   thresh = 0.3;
   pix_thresh = 5;
   prop_thresh = 0.25;
+  shiftFactor = 20;
   if (flag_Harris)
     method = 'Harris';
   else
@@ -58,6 +59,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
   indexes = [1:nelems];
 
   all_shifts = NaN(size(sizes, 1), 8);
+  all_overlaps = NaN(size(sizes, 1), 2);
 
   for i=size(sizes, 1):-1:1
     curr_indx = reshape(indexes, sizes(i,[2 1]));
@@ -100,6 +102,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
+      obj_dist = (img_size(1) - overlap);
+
       all_vpoints = cell([1 ncands]);
       all_vpoints2 = cell([1 ncands]);
       for j=1:ncands
@@ -113,7 +117,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         img2 = load_img(vindx(2));
 
         vpoints = corner(img1(end-overlap+1:end, :), method, numberCorners);
-        vpoints(:,2) = vpoints(:,2) + (img_size(1)-overlap);
+        vpoints(:,2) = vpoints(:,2) + obj_dist;
 
         metric1 = cornermetric(img1, method);
         metric1 = metric1(sub2ind(img_size, vpoints(:,2), vpoints(:,1)));
@@ -136,7 +140,16 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
       tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
 
-      [vshiftx, vshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+      dx = bsxfun(@minus, tmp1(:,1), tmp2(:,1).');
+      dy = bsxfun(@minus, tmp1(:,2), tmp2(:,2).');
+      goods = (abs(dy - obj_dist) < 0.05*obj_dist);
+
+      %[vshiftx, vshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+      [vshiftx, vshifty] = ShiftByCornerClustering(dx(goods), dy(goods), method, numberCorners, 2);
+      %indx = find(abs(vshiftx) < img_size(2)/shiftFactor, 1, 'first');
+
+      %vshiftx = vshiftx(indx);
+      %vshifty = vshifty(indx);
 
       for j=1:length(rindx)
         curr_pts = (tmp1(:,4) == j);
@@ -179,6 +192,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       all_shifts(i,1:2) = vshift;
       all_shifts(i,5) = corr1;
       all_shifts(i,7) = size(vpoints,1);
+
+      all_overlaps(i,1) = img_size(1)-overlap;
     else
       all_shifts(i,5) = 0;
       all_shifts(i,7) = 0;
@@ -218,6 +233,8 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         continue;
       end
 
+      obj_dist = (img_size(2) - overlap);
+
       all_hpoints = cell([1 ncands]);
       all_hpoints2 = cell([1 ncands]);
       for j=1:ncands
@@ -231,7 +248,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
         img2 = load_img(hindx(2));
 
         hpoints = corner(img1(:,end-overlap+1:end), method, numberCorners);
-        hpoints(:,1) = hpoints(:,1) + (img_size(2)-overlap);
+        hpoints(:,1) = hpoints(:,1) + obj_dist;
 
         metric1 = cornermetric(img1, method);
         metric1 = metric1(sub2ind(img_size, hpoints(:,2), hpoints(:,1)));
@@ -254,7 +271,17 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       [tmp_v, tmp_indxs] = sort(tmp1(:,3), 'descend');
       tmp1 = tmp1(tmp_indxs(1:min(numberCorners, end)),:);
 
-      [hshiftx, hshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+      dx = bsxfun(@minus, tmp1(:,1), tmp2(:,1).');
+      dy = bsxfun(@minus, tmp1(:,2), tmp2(:,2).');
+      goods = (abs(dx - obj_dist) < 0.05*obj_dist);
+
+      %[hshiftx, hshifty] = ShiftByCornerClustering(tmp1(:,1:2), tmp2(:,1:2), method, numberCorners, 1);
+      [hshiftx, hshifty] = ShiftByCornerClustering(dx(goods), dy(goods), method, numberCorners, 2);
+
+      %indx = find(abs(hshifty) < img_size(1)/shiftFactor, 1, 'first');
+
+      %hshiftx = hshiftx(indx);
+      %hshifty = hshifty(indx);
 
       for j=1:length(rindx)
         curr_pts = (tmp1(:,4) == j);
@@ -297,12 +324,15 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       all_shifts(i,3:4) = hshift;
       all_shifts(i,6) = corr2;
       all_shifts(i,8) = size(hpoints,1);
+
+      all_overlaps(i,2) = img_size(2)-overlap;
     else
       all_shifts(i,6) = 0;
       all_shifts(i,8) = 0;
     end
   end
 
+  keyboard
   % Could also use the sum/average of correlations
   [val, best] = max(sum(all_shifts(:,7:8), 2));
 
@@ -351,7 +381,7 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
       img = rgb2gray(img);
     end
 
-    img = double(imnorm(img));
+    img = imnorm(double(img));
   end
 end
 
