@@ -332,7 +332,6 @@ function [MatricesGLOBAL, images_ordering] = DefineAcquisitionGrid(parameters)
     end
   end
 
-  keyboard
   % Could also use the sum/average of correlations
   [val, best] = max(sum(all_shifts(:,7:8), 2));
 

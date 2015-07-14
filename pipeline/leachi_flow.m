@@ -426,7 +426,6 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   end
   %}
 
-  keyboard
   if (opts.verbosity > 1)
     hfig = figure;hold on;
     boxplot(speeds, group_indxs, 'position', gpos);
