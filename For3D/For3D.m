@@ -1,4 +1,4 @@
-function For3D(varargin)
+function parameters = For3D(varargin)
 
   % Inputs processing
   if (length(varargin) > 0 && isstruct(varargin{1}))
@@ -28,6 +28,10 @@ function For3D(varargin)
   end
 
   parameters.filename = resize_tif(parameters.filename);
+
+  if (nargout == 0)
+    clear parameters;
+  end
 
   return;
 end

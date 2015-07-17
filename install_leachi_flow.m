@@ -84,6 +84,24 @@ function install_leachi_flow
     end
   end
 
+  % Try to install the MIJ library
+  if (~exist(fullfile(current_dir, 'jars'), 'dir'))
+    mkdir(current_dir, 'jars');
+  end
+  missing_miji = false;
+  try
+    disp('Testing the presence of MIJ (http://bigwww.epfl.ch/sage/soft/mij/)')
+    myMiji(false);
+  catch ME
+    missing_miji = true;
+  end
+  if (missing_miji)
+    warning('Tracking:MIJ','MIJ is not working properly. Please download ij.jar and mij.jar (from the above mentioned website) and copy them into the ''jars'' directory.')
+  else
+    disp('MIJ present and working !');
+  end
+  disp(' ');
+
   % Check if the sparse 64bits flag is needed
   if ~isempty(strfind(computer(),'64'))
     mexopts = ' -largeArrayDims';
@@ -204,7 +222,11 @@ function install_leachi_flow
   end
 
   % Confirm to the user that everything went fine
-  disp('Installation successful !');
+  if (missing_miji)
+    disp('Installation (almost) successful...');
+  else
+    disp('Installation successful !');
+  end
 
   % Gnu GPL notice
   fprintf(1, ['\nB. leachi blood flow plateform,  Copyright (C) 2015  Simon Blanchoud\n', ...
