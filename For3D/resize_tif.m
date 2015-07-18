@@ -21,17 +21,20 @@ function new_names = resize_tif(files, Amax, Bmax)
 if nargin<1, files = '*.tif'; end
 if nargin<3, Amax = 0; Bmax = 0; end
 
+new_names = {};
 dir_out = 'resized'; % '../resized';
 
 if (~iscell(files))
   [filepath, filename, fileext] = fileparts(files);
   ls = dir(files);
+  ls = clean_dir(ls);
 
-  N = length(files);
+  N = length(ls);
 
   if (N == 0)
     ls = dir(fullfile(files, '*.tif'));
-    N = length(files);
+    ls = clean_dir(ls);
+    N = length(ls);
   end
 
   files = cell([N 1]);
@@ -102,3 +105,11 @@ for i = 1:N % loop over images to resize images
 end
 
 %%%
+function list = clean_dir(list)
+
+list = list(~[list.isdir]);
+for i=length(list):-1:1
+  if (list(i).name(1)=='.')
+    list(i) = [];
+  end
+end
