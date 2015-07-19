@@ -83,17 +83,17 @@ for i = 1:N % loop over images to resize images
     if (~exist(new_name, 'file'))
       if (a < Amax || b < Bmax)
 
-        border_rows = squeeze([im(1,:,:) im(end,:,:)]);
-        border_cols = squeeze([im(:,1,:); im(:,end,:)]);
-        background_val = median([border_rows; border_cols]);
+        %border_rows = squeeze([im(1,:,:) im(end,:,:)]);
+        %border_cols = squeeze([im(:,1,:); im(:,end,:)]);
+        %background_val = median([border_rows; border_cols]);
 
         a0 = round(Amax/2-a/2);
         b0 = round(Bmax/2-b/2);
 
         im2 = zeros(Amax, Bmax, c, class(im));
-        for j = 1:c
-            im2(:,:,j) = im2(:,:,j) + background_val(j);
-        end
+        %for j = 1:c
+        %    im2(:,:,j) = im2(:,:,j) + background_val(j);
+        %end
         im2(a0+1:a0+a, b0+1:b0+b, :) = im;
         imwrite(im2, new_name, 'Compression', 'none')
 
