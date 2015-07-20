@@ -88,17 +88,18 @@ function install_leachi_flow
   if (~exist(fullfile(current_dir, 'jars'), 'dir'))
     mkdir(current_dir, 'jars');
   end
-  missing_miji = false;
+  missing_turbo = false;
   try
-    disp('Testing the presence of MIJ (http://bigwww.epfl.ch/sage/soft/mij/)')
-    myMiji(false);
+    disp('Testing the presence of TurboReg');
+    load_jars();
+    turboReg = TurboReg_;
   catch ME
-    missing_miji = true;
+    missing_turbo = true;
   end
-  if (missing_miji)
-    warning('Tracking:MIJ','MIJ is not working properly. Please download ij.jar and mij.jar (from the above mentioned website) and copy them into the ''jars'' directory.')
+  if (missing_turbo)
+    warning('Tracking:TurboReg','TurboReg is not working properly. Please download ij.jar (http://rsb.info.nih.gov/ij/upgrade/) and TurboReg_.jar (http://bigwww.epfl.ch/thevenaz/turboreg/) and place them into the ''jars'' directory.')
   else
-    disp('MIJ present and working !');
+    disp('TurboReg present and working !');
   end
   disp(' ');
 
@@ -222,7 +223,7 @@ function install_leachi_flow
   end
 
   % Confirm to the user that everything went fine
-  if (missing_miji)
+  if (missing_turbo)
     disp('Installation (almost) successful...');
   else
     disp('Installation successful !');

@@ -92,7 +92,7 @@ function [FileName] = MicroMos(varargin)
 
     fname = '';
     for i=1:length(files)
-      if (files(i).name(1)~='.')
+      if (files(i).name(1)~='.' && files(i).name(1)~='_')
         if (files(i).isdir)
 
           others = dir(fullfile(parameters.ImageFolder, [files(i).name '.*']));

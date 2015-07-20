@@ -28,6 +28,7 @@ function parameters = For3D(varargin)
   end
 
   parameters.filename = resize_tif(parameters.filename);
+  parameters.filename = register_stack(parameters.filename);
 
   if (nargout == 0)
     clear parameters;

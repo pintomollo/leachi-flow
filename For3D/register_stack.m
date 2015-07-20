@@ -1,6 +1,8 @@
-function register_stack(files)
+function new_names = register_stack(files)
 
   if nargin<1, files = '*.tif'; end
+
+  new_names = {};
 
   if (~iscell(files))
     [filepath, filename, fileext] = fileparts(files);
@@ -25,134 +27,115 @@ function register_stack(files)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
+  disp('Registering stack...');
+
   try
-    myMiji(false);
+    load_jars();
     turboReg = TurboReg_;
   catch
-    %%% DISPLAY ERROR
+    error('Registration:register_stack', 'TurboReg is not working properly, please follow the instructions from install_leachi_flow to fix this issue.');
   end
 
-  dir_out = 'registered'; % '../resized';
+  dir_out = '_registered';
 
-  filename = files{1};
+  center = ceil(N/2);
+
+  filename = files{center};
   im = imread(filename);
   im = imfillborder(im);
 
   [filepath, fname, fileext] = fileparts(filename);
-  out_path = fullfile(filepath, dir_out);
+  [shorter_path, prev_dir] = fileparts(filepath);
+
+  if (prev_dir(1) == '_')
+    out_path = fullfile(shorter_path, dir_out);
+  else
+    out_path = fullfile(filepath, dir_out);
+  end
+
   if ~isdir(out_path)
     mkdir(out_path);
   end
 
-  [h,w,c] = size(im);
+  [hf,wf,c] = size(im);
 
   is_rgb = (c>1);
   if (is_rgb)
     im = rgb2gray(im);
   end
 
-
-  %%%%%%%% JAVA HEAP SPACE MAX SIZE, RESIZE IM ACCORDINGLY
   max_space = java.lang.Runtime.getRuntime.maxMemory;
-  ratio = max_space / (30*2*h*w);
+  ratio = max_space / (30*2*hf*wf);
 
   if (ratio < 1)
     im = imresize(im, ratio);
     [h,w,c] = size(im);
+  else
+    h = hf;
+    w = wf;
   end
 
+  target = fullfile(out_path, 'target.tiff');
   source = fullfile(out_path, 'source.tiff');
-  imwrite(im, source, 'TIFF');
 
-  command1 = ['-align -file "' source '" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "'];
-  command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -rigidBody ' ...
+  imwrite(im, target, 'TIFF');
+
+  command1 = '-align -file "';
+  command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "' target ...
+              '" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -rigidBody ' ...
               num2str(w/2) ' ' num2str(h/2) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
               num2str(w/2) ' ' num2str(h/4) ' ' num2str(w/2) ' ' num2str(h/4) ' ' ...
               num2str(w/2) ' ' num2str(3*h/4) ' ' num2str(w/2) ' ' num2str(3*h/4) ...
               ' -hideOutput'];
 
-  command3 = ['-transform -file "' source '" ' num2str(w) ' ' num2str(h) ' -rigidBody '];
-  orig_im = im;
+  new_names = files;
 
-  for i = 2:N % loop over images to resize images
+  for i = 1:N % loop over images to resize images
     filename = files{i};
-    im = imread(filename);
-    im = imfillborder(im);
-
     [filepath, fname, fileext] = fileparts(filename);
-    out_path = fullfile(filepath, dir_out);
-    if ~isdir(out_path)
-      mkdir(out_path);
+    new_name = fullfile(out_path, [fname fileext]);
+
+    disp(fname);
+
+    if (i==center)
+      copyfile(filename, new_name);
+    else
+
+      im = imread(filename);
+      im = imfillborder(im);
+      orig_im = im;
+
+      if (is_rgb)
+        im = rgb2gray(im);
+      end
+
+      if (ratio < 1)
+        im = imresize(im, ratio);
+      end
+
+      imwrite(im, source, 'TIFF');
+
+      turboReg.run(java.lang.String([command1 source command2]));
+      spts = turboReg.getSourcePoints();
+      tpts = turboReg.getTargetPoints();
+
+      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+
+      if (ratio < 1)
+        H(1:2,3) = H(1:2,3) / ratio;
+      end
+
+      orig_im = myimtransform(orig_im, 'affine', H, [wf hf], [0 0]);
+      imwrite(imfillborder(orig_im), new_name, 'TIFF');
     end
-
-    if (is_rgb)
-      im = rgb2gray(im);
-    end
-
-    if (ratio < 1)
-      im = imresize(im, ratio);
-    end
-
-    target = fullfile(out_path, 'target.tiff');
-    imwrite(im, target, 'TIFF');
-
-    turboReg.run(java.lang.String([command1 target command2]));
-    spts = turboReg.getSourcePoints();
-    tpts = turboReg.getTargetPoints();
-    rpts = [w/2 h/2; w/2 h/4; w/2 3*h/4];
-
-    %{
-    angle = (atan2(tpts(3,1) - tpts(2,1), tpts(3, 2) - tpts(2, 2)) - ...
-            atan2(spts(3, 1) - spts(2, 1), spts(3, 2) - spts(2, 2)));
-    cosa = cos(angle);
-    sina = sin(angle);
-
-    trans_mat = [ cosa -sina spts(1,1) - cosa*tpts(1,1) + sina*tpts(1,2); ...
-                 sina cosa spts(1,2) - sina*tpts(1,1) - cosa*tpts(1,2); ...
-                 0 0 1];
-
-    im2 = imtransform(orig_im, maketform('affine', trans_mat.'), 'Size', [h w]);
-    %}
-
-    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
-    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
-    modified = fullfile(out_path, 'modified1.tiff');
-    imwrite(im2, modified, 'TIFF');
-
-    H = AffineModel2D(spts(1:3,:), rpts(1:3,:));
-    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
-    modified = fullfile(out_path, 'modified2.tiff');
-    imwrite(im2, modified, 'TIFF');
-
-    H = AffineModel2D(tpts(1:3,:), spts(1:3,:));
-    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
-    modified = fullfile(out_path, 'modified3.tiff');
-    imwrite(im2, modified, 'TIFF');
-
-    H = AffineModel2D(rpts(1:3,:), spts(1:3,:));
-    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
-    modified = fullfile(out_path, 'modified4.tiff');
-    imwrite(im2, modified, 'TIFF');
-
-    command4 = [num2str(spts(1,1)) ' ' num2str(spts(1,2)) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
-                num2str(spts(2,1)) ' ' num2str(spts(2,2)) ' ' num2str(w/2) ' ' num2str(h/4) ' ' ...
-                num2str(spts(3,1)) ' ' num2str(spts(3,2)) ' ' num2str(w/2) ' ' num2str(3*h/4) ...
-                ' -hideOutput'];
-    turboReg.run(java.lang.String([command3 command4]));
-    im3 = turboReg.getTransformedImage();
-    im3 = reshape(im3.getProcessor().getPixels(), [w h]).';
-
-    modified = fullfile(out_path, 'turbo_wrap.tiff');
-    imwrite(all2uint16(im3), modified, 'TIFF');
-
-    keyboard
+    new_names{i} = new_name;
   end
 
-  % Not fitting in memory, need to look in StackReg.java, see how it's done and call image by image to do it ourselves using directly pairs of images and TurboReg.
-
-  % run("Image Sequence...", "open=/Users/blanchou/Documents/MATLAB/Movies/Sectioning/Bleachi_Colony/resized");
-
-  
+  delete(target);
+  if (N>1)
+    delete(source);
+  end
+  disp('Done !');
 
   return;
 end
@@ -171,54 +154,14 @@ end
 
 function Ha = AffineModel2D(x1c, x2c)
 
-x1c = x1c.';
-x2c = x2c.';
+  angle = (atan2(x1c(3, 2) - x1c(2, 2), x1c(3, 1) - x1c(2, 1)) - ...
+          atan2(x2c(3, 2) - x2c(2, 2), x2c(3, 1) - x2c(2, 1)));
+  cosa = cos(angle);
+  sina = sin(angle);
 
-Ha = x2c / [x1c; ones(1, length(x1c))];
-Ha = [Ha; 0 0 1];
-
-return;
-
-% A = [x1c(1,1) x1c(2,1) 1 0 0 0
-%     0 0 0 x1c(1,1) x1c(2,1) 1
-%     x1c(1,2) x1c(2,2) 1 0 0 0
-%     0 0 0 x1c(1,2) x1c(2,2) 1
-%     x1c(1,3) x1c(2,3) 1 0 0 0
-%     0 0 0 x1c(1,3) x1c(2,3) 1];
-A = [0 0 0 0 0 0];
-for i=1:1:length(x1c)
-    A = [A
-        x1c(1,i) x1c(2,i) 1 0 0 0
-        0 0 0 x1c(1,i) x1c(2,i) 1];
-end
-A = A(2:end,:);
-    
-% b = [x2c(1,1)
-%     x2c(2,1)
-%     x2c(1,2)
-%     x2c(2,2)
-%     x2c(1,3)
-%     x2c(2,3)];
-b = 0;
-for i=1:1:length(x1c)
-    b = [b
-        x2c(1,i)
-        x2c(2,i)];
-end
-b = b(2:end,:);
-
-%X è il vettore delle incognite 
-%X = [a11
-%     a12
-%     a13
-%     a21
-%     a22
-%     a23];
-X = A\b;
-
-Ha = [X(1) X(2) X(3)
-    X(4) X(5) X(6)
-    0 0 1];
+  Ha = [ cosa sina x2c(1,1) - cosa*x1c(1,1) - sina*x1c(1,2); ...
+        -sina cosa x2c(1,2) + sina*x1c(1,1) - cosa*x1c(1,2); ...
+          0 0 1];
 
   return;
 end
