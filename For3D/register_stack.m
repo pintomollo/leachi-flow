@@ -72,6 +72,7 @@ function register_stack(files)
               ' -hideOutput'];
 
   command3 = ['-transform -file "' source '" ' num2str(w) ' ' num2str(h) ' -rigidBody '];
+  orig_im = im;
 
   for i = 2:N % loop over images to resize images
     filename = files{i};
@@ -98,19 +99,39 @@ function register_stack(files)
     turboReg.run(java.lang.String([command1 target command2]));
     spts = turboReg.getSourcePoints();
     tpts = turboReg.getTargetPoints();
+    rpts = [w/2 h/2; w/2 h/4; w/2 3*h/4];
 
-    angle = -(atan2(tpts(3,1) - tpts(2,1), tpts(3, 2) - tpts(2, 2)) - ...
+    %{
+    angle = (atan2(tpts(3,1) - tpts(2,1), tpts(3, 2) - tpts(2, 2)) - ...
             atan2(spts(3, 1) - spts(2, 1), spts(3, 2) - spts(2, 2)));
     cosa = cos(angle);
     sina = sin(angle);
 
-    trans_mat = [ cosa sina spts(1,1) - cosa*tpts(1,1) + sina*tpts(1,2); ...
-                 -sina cosa spts(1,2) - sina*tpts(1,1) - cosa*tpts(1,2); ...
+    trans_mat = [ cosa -sina spts(1,1) - cosa*tpts(1,1) + sina*tpts(1,2); ...
+                 sina cosa spts(1,2) - sina*tpts(1,1) - cosa*tpts(1,2); ...
                  0 0 1];
 
-    im2 = imtransform(im, maketform('affine', trans_mat.'), 'Size', [h w]);
+    im2 = imtransform(orig_im, maketform('affine', trans_mat.'), 'Size', [h w]);
+    %}
 
-    modified = fullfile(out_path, 'modified.tiff');
+    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
+    modified = fullfile(out_path, 'modified1.tiff');
+    imwrite(im2, modified, 'TIFF');
+
+    H = AffineModel2D(spts(1:3,:), rpts(1:3,:));
+    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
+    modified = fullfile(out_path, 'modified2.tiff');
+    imwrite(im2, modified, 'TIFF');
+
+    H = AffineModel2D(tpts(1:3,:), spts(1:3,:));
+    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
+    modified = fullfile(out_path, 'modified3.tiff');
+    imwrite(im2, modified, 'TIFF');
+
+    H = AffineModel2D(rpts(1:3,:), spts(1:3,:));
+    im2 = myimtransform(orig_im, 'affine', H, [w h], [0 0]);
+    modified = fullfile(out_path, 'modified4.tiff');
     imwrite(im2, modified, 'TIFF');
 
     command4 = [num2str(spts(1,1)) ' ' num2str(spts(1,2)) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
@@ -144,6 +165,60 @@ function list = clean_dir(list)
       list(i) = [];
     end
   end
+
+  return;
+end
+
+function Ha = AffineModel2D(x1c, x2c)
+
+x1c = x1c.';
+x2c = x2c.';
+
+Ha = x2c / [x1c; ones(1, length(x1c))];
+Ha = [Ha; 0 0 1];
+
+return;
+
+% A = [x1c(1,1) x1c(2,1) 1 0 0 0
+%     0 0 0 x1c(1,1) x1c(2,1) 1
+%     x1c(1,2) x1c(2,2) 1 0 0 0
+%     0 0 0 x1c(1,2) x1c(2,2) 1
+%     x1c(1,3) x1c(2,3) 1 0 0 0
+%     0 0 0 x1c(1,3) x1c(2,3) 1];
+A = [0 0 0 0 0 0];
+for i=1:1:length(x1c)
+    A = [A
+        x1c(1,i) x1c(2,i) 1 0 0 0
+        0 0 0 x1c(1,i) x1c(2,i) 1];
+end
+A = A(2:end,:);
+    
+% b = [x2c(1,1)
+%     x2c(2,1)
+%     x2c(1,2)
+%     x2c(2,2)
+%     x2c(1,3)
+%     x2c(2,3)];
+b = 0;
+for i=1:1:length(x1c)
+    b = [b
+        x2c(1,i)
+        x2c(2,i)];
+end
+b = b(2:end,:);
+
+%X è il vettore delle incognite 
+%X = [a11
+%     a12
+%     a13
+%     a21
+%     a22
+%     a23];
+X = A\b;
+
+Ha = [X(1) X(2) X(3)
+    X(4) X(5) X(6)
+    0 0 1];
 
   return;
 end

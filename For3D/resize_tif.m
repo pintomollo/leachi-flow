@@ -95,6 +95,7 @@ for i = 1:N % loop over images to resize images
         %    im2(:,:,j) = im2(:,:,j) + background_val(j);
         %end
         im2(a0+1:a0+a, b0+1:b0+b, :) = im;
+        im2 = imfillborder(im2);
         imwrite(im2, new_name, 'Compression', 'none')
 
       else

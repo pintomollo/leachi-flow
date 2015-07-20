@@ -21,7 +21,7 @@ function img = imfillborder(img)
 
   for i = 1:c
     tmp_img = img(:,:,i);
-    tmp_img(borders) = nanmedian(tmp_img(rim_image & ~borders));
+    tmp_img(borders) = nanmedian(double(tmp_img(rim_image & ~borders)));
     img(:,:,i) = tmp_img;
   end
 
