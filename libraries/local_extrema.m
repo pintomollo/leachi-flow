@@ -92,6 +92,8 @@ b = (diff(xa) > 0);     % 1  =>  positive slopes (minima begin)
 xb  = diff(b);          % -1 =>  maxima indexes (but one) 
                         % +1 =>  minima indexes (but one)
 
+a = a(1:end-1);
+
 % Compensate for the missing datapoints after diff
 if (size(x,1)==1)
   xb = [0 xb];
@@ -99,12 +101,12 @@ else
   xb = [0; xb];
 end
 
-imax = find((xb == -1) & (x > lmax)); % maxima indexes
+imax = find((xb == -1) & (x(a) > lmax(a))); % maxima indexes
 imax = a(imax);
 
 % Only if needed
 if (nargout > 2)
-  imin = find((xb == +1) & (x < lmin)); % minima indexes
+  imin = find((xb == +1) & (x(a) < lmin(a))); % minima indexes
   imin = a(imin);
 else
   imin = [];
