@@ -11,6 +11,7 @@ function imsplitcolors(img)
   cols = [0:nbins]/nbins;
   cols(end) = cols(end) + eps;
 
+  % Should do it in C, n[floor(val*nbins)] += hsvprod;
   [n, bins] = histc(hsv(:,1), cols);
 
   for i=1:nbins+1
@@ -33,6 +34,8 @@ function imsplitcolors(img)
   imax = imax(indxs(end:-1:1));
 
   imax = (imax(1:min(3, end))-1)/nbins;
+
+  %%% Not fitting in memory, need to do it in C, lookup values for each pixel
 
   dists = bsxfun(@minus, hsv(:,1), imax(:).');
   dists = cat(3, dists, dists+1, dists-1);

@@ -28,7 +28,16 @@ function parameters = For3D(varargin)
   end
 
   parameters.filename = resize_tif(parameters.filename);
+
+  % The splitting of colors stuff (optional)
+  % parameters.filename = colorize_stack(parameters.filename);
+
   parameters.filename = register_stack(parameters.filename);
+
+  %% Not yet working
+  %parameters.filename = smooth_slices(parameters.filename);
+  %parameters.filename = filter_stack(parameters.filename);
+  %rendering_3D(parameters);
 
   if (nargout == 0)
     clear parameters;

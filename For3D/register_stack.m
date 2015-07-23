@@ -140,18 +140,6 @@ function new_names = register_stack(files)
   return;
 end
 
-function list = clean_dir(list)
-
-  list = list(~[list.isdir]);
-  for i=length(list):-1:1
-    if (list(i).name(1)=='.')
-      list(i) = [];
-    end
-  end
-
-  return;
-end
-
 function Ha = AffineModel2D(x1c, x2c)
 
   angle = (atan2(x1c(3, 2) - x1c(2, 2), x1c(3, 1) - x1c(2, 1)) - ...

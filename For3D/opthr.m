@@ -72,11 +72,18 @@ while 1
     %1. The mean of gray levels corresponding to objects in the image is calculated.
     %The actual threshold (T) is used to determine the boundary between objects and
     %background.
-    mean_obj=sum(sum((I>T).*I ))/length(find(I>T));
-    if isnan(mean_obj), mean_obj = 0; end
+    %mean_obj=sum(sum((I>T).*I ))/length(find(I>T));
+    is_obj=(I>T);
+    num_obj=sum(is_obj(:));
+    if num_obj > 0
+      mean_obj=sum(I(is_obj(:)))/num_obj;
+    else
+      mean_obj = 0;
+    end
     
     %2. The same is done for the background pixels.
-    mean_backgnd=sum(sum( (I<=T).*I ))/length(find(I<=T));
+    num_bkg=rows*cols-num_obj;
+    mean_backgnd=sum(I(~is_obj(:)))/num_bkg;
     
     %3. A new threshold is calculated as the mean of the last results:
     new_T=(mean_obj+mean_backgnd)/2;

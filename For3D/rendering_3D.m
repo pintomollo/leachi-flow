@@ -49,12 +49,11 @@ function rendering_3D(params)
 
 %% parameters
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if nargin<1, params = []; end
+if nargin==0
+  params = get_struct('For3D');
+end
 
-[filename, detect_IHC, thresholds, pixel_size, slice_width, alpha, ...
-    transparency, border_erosion] = FOR3D_dialog_box(params);
-
-if isempty(filename), return, end % cancel by user
+if isempty(params.filename), return, end % cancel by user
 
 Nsampling = floor(slice_width/pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
 if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
