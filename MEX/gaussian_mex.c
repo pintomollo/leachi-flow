@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
-#include <string.h> 
+#include <string.h>
 #include "gaussian_smooth.h"
 #include "mex.h"
 

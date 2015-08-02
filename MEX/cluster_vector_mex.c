@@ -33,7 +33,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   // Prepare the output, allocating the memory
   if ((plhs[0] = mxCreateDoubleMatrix(n_vals, 1, mxREAL)) == NULL) {
-    mexErrMsgIdAndTxt("MATLAB:cluster_vector:invalidInputs",
+    mexErrMsgIdAndTxt("MATLAB:cluster_vector:memoryAllocation",
       "Memory allocation failed !");
   }
   cluster = mxGetPr(plhs[0]);
@@ -70,7 +70,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     // Prepare the second output, allocating the memory
     if ((plhs[1] = mxCreateDoubleMatrix(counter, 1, mxREAL)) == NULL) {
-      mexErrMsgIdAndTxt("MATLAB:cluster_vector:invalidInputs",
+      mexErrMsgIdAndTxt("MATLAB:cluster_vector:memoryAllocation",
         "Memory allocation failed !");
     }
     sizes = mxGetPr(plhs[1]);

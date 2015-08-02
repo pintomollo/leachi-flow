@@ -151,6 +151,18 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
+  if (exist('imsplitcolors_mex') ~= 3)
+    try
+      if (~did_setup)
+        mex -setup;
+      end
+      eval(['mex' mexopts ' imsplitcolors_mex.c']);
+      did_setup = true;
+    catch ME
+      cd(root_dir);
+      error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
+    end
+  end
   if (exist('imwarp_mex') ~= 3)
     try
       if (~did_setup)
@@ -205,6 +217,18 @@ function install_leachi_flow
         mex -setup;
       end
       eval(['mex' mexopts ' draw_bumps_mex.c']);
+      did_setup = true;
+    catch ME
+      cd(root_dir);
+      error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
+    end
+  end
+  if (exist('rgb_hsv_mex') ~= 3)
+    try
+      if (~did_setup)
+        mex -setup;
+      end
+      eval(['mex' mexopts ' rgb_hsv_mex.c']);
       did_setup = true;
     catch ME
       cd(root_dir);

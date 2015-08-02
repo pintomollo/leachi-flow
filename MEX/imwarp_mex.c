@@ -20,7 +20,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   // Ensure the types of the two first arrays at least
   if (!mxIsDouble(prhs[0])) {
-    mexErrMsgIdAndTxt("MATLAB:bimwarpinvalidInputs",
+    mexErrMsgIdAndTxt("MATLAB:imwarp:invalidInputs",
         "Input arguments must be of type double.");
   }
 
