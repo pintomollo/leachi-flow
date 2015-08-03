@@ -22,6 +22,10 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
   pos = unique(x);
   dt = min(diff(pos));
 
+  if (isempty(dt))
+    error('Not enough time points provided')
+  end
+
   pos = pos / dt;
   x = x / dt;
 
@@ -33,6 +37,7 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
   goods = (~isnan(pos) & ~isnan(mean_val));
 
   mean_val = interp1(pos(goods), mean_val(goods), uniform_pos);
+  mean_val = smooth(mean_val, 0.2, 'rloess');
 
   if (nargin < 3)
     nharm = estimate_harmonics_number(mean_val);
@@ -41,11 +46,11 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
 
   %%%% interpolated FFT from ACD test toolbox (Tamas Virostek)
   Fc=fft(mean_val);
-  F=abs(Fc(2:round(npos/2)));
+  F=abs(Fc(1:round(npos/2)));
 
   %figure;plot(F);hold on;
   if (nharm < 2)
-    [Mfft,w]=max(F);
+    [Mfft,w]=max(F(2:end));
   else
 
     [maxs, indxs] = local_extrema(F);
@@ -66,7 +71,7 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
 
       new_val(ratio < 1) = new_val2(ratio < 1);
 
-      goods = [true (abs(dist - new_val) < 2)];
+      goods = [true; (abs(dist - new_val) < 2)];
 
       w = min(indxs(goods));
 
@@ -90,7 +95,7 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
 
     w=acos((Z2*cos(n*(w+1))-Z1*cos(n*w))/(Z2-Z1))/n;
   end
-  period_inv=w/npos;
+  period_inv=(w-1)/npos;
   %%%%
 
   goods = (~isnan(x) & ~isnan(y));

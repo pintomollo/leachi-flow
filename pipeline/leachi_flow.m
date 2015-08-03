@@ -228,7 +228,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   data = cell(nframes-1, 1);
   snr = cell(nframes-1, 1);
 
-  if (isempty(detections(1).carth) || all(isnan(detections(1).carth(:))))
+  if (isempty(detections(2).carth) || all(isnan(detections(2).carth(:))))
 
     %figure;
     %%%%%%%%%%%%%%%%%%% SHOULD WORK ON THE DIFFERENCE BETWEEN FRAMES
@@ -300,7 +300,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
       speed(others) = NaN;
 
-      data{nimg} = speed;
+      data{nimg} = speed*opts.pixel_size/opts.time_interval;
       detections(nimg).carth = [speed s(inside)];
 
       snr{nimg} = s(inside);
@@ -314,7 +314,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
     for nimg=2:nframes-1
-      data{nimg} = detections(nimg).carth(:,1:end-1);
+      data{nimg} = detections(nimg).carth(:,1:end-1)*opts.pixel_size/opts.time_interval;
       snr{nimg} = detections(nimg).carth(:,end);
     end
   end
@@ -381,13 +381,33 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   sames = sames(:).';
 
   avgs = bsxfun(@times, avgs(:,~empty_branches), sames);
-  %{
-  figure;
-  for i=1:size(avgs,2)
-    subplot(1,size(avgs,2), i);
-    plot(avgs(:,i));
+
+  if (opts.verbosity > 1)
+    navgs = size(avgs, 2);
+    colors = redbluemap(2*navgs);
+    colors = colors(ceil(navgs/2)-1+[1:navgs],:);
+    hfig = figure;hold on;
   end
-  %}
+
+  for i=1:size(avgs,2)
+    if (opts.verbosity > 1)
+      subplot(1,size(avgs,2), i); hold on;
+      plot(pos*opts.time_interval, avgs(:,i), 'k');
+    end
+
+    avgs(:,i) = smooth(avgs(:,i), 0.2, 'rloess');
+    %plot(smooth(avgs(:,i),15,'moving'), 'r');
+    %plot(smooth(avgs(:,i),15,'sgolay'), 'g');
+    %plot(smooth(avgs(:,i),0.2,'rlowess'), 'k');
+    if (opts.verbosity > 1)
+      plot(pos*opts.time_interval, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
+    end
+  end
+
+  if (opts.verbosity > 1)
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_branches.png'], '-dpng');
+    delete(hfig);
+  end
 
   speeds = [];
   group_indxs = [];
@@ -437,15 +457,24 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
   if (opts.verbosity > 1)
     hfig = figure;hold on;
     boxplot(speeds, group_indxs, 'position', gpos);
+    set(gca, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
 
     navgs = size(avgs, 2);
-    colors = redbluemap(navgs);
+    colors = redbluemap(2*navgs);
+    colors = colors(ceil(navgs/2)-1+[1:navgs],:);
     for i=1:navgs
       plot(gpos, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
     end
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_avg.png'], '-dpng');
+    delete(hfig);
   end
 
-  goods = (~isnan(group_indxs) & ~isnan(speeds));
+  sign_val = mean(avgs, 2);
+  tmp_speeds = speeds - sign_val(indxj);
+  thresh = std(tmp_speeds)/2;
+  goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh) & ...
+          (~isnan(group_indxs) & ~isnan(speeds));
+
   prev_params = -Inf;
   for i=1:20
     [period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
@@ -457,9 +486,9 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     end
     thresh = max(ampls)/2;
 
-    if (opts.verbosity > 1)
-      plot(gpos, sign_val, 'k');
-    end
+    %if (opts.verbosity > 1)
+    %  plot(gpos, sign_val, 'k');
+    %end
 
     goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
 
@@ -485,9 +514,14 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
 
   res.carth = [speeds group_indxs];
   res.cluster = goods;
-  res.properties = [ampls(:).'; period*ones(1,length(ampls)); phases(:).'];
+  res.properties = [ampls(:).'; period*(1./[1:length(ampls)]); phases(:).'];
 
   if (opts.verbosity > 1)
+    [gpos2] = unique(group_indxs(goods));
+    hfig = figure;hold on;
+    boxplot(speeds(goods), group_indxs(goods), 'position', gpos2);
+    set(gca, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
+
     plot(gpos, sign_val, 'k', 'LineWidth', 2);
     tmp = 2*sum(ampls(:));
     ylim([-tmp tmp]);

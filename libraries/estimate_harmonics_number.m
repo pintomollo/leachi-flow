@@ -7,8 +7,14 @@ function [nharm, freq] = estimate_harmonics_number(signal, alpha)
   end
 
   Fc=fft(signal);
-  F=abs(Fc(2:round(end/2)));
-  [lambdas, pos] = local_extrema(F(:), 3);
+  F=abs(Fc(1:round(end/2)));
+  [lambdas, pos] = local_extrema(F(:), 1);
+
+  pos = pos - 1;
+  goods = (pos>0);
+  lambdas = lambdas(goods);
+  pos = pos(goods);
+
   [lambdas, indxs] = sort(lambdas, 'ascend');
 
   counts = [1:length(lambdas)];
