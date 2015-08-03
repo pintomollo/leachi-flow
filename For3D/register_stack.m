@@ -3,26 +3,9 @@ function new_names = register_stack(files)
   if nargin<1, files = '*.tif'; end
 
   new_names = {};
+  dir_out = '_registered';
 
-  if (~iscell(files))
-    [filepath, filename, fileext] = fileparts(files);
-    ls = dir(files);
-    ls = clean_dir(ls);
-
-    N = length(ls);
-
-    if (N == 0)
-      ls = dir(fullfile(files, '*.tif'));
-      ls = clean_dir(ls);
-      N = length(ls);
-    end
-
-    files = cell([N 1]);
-
-    for i = 1:N
-      files{i} = fullfile(filepath, ls(i).name);
-    end
-  end
+  [files, out_path] = get_filenames(files, dir_out);
 
   N = length(files);
   if (N == 0), disp('nada??'), return, end
@@ -36,26 +19,11 @@ function new_names = register_stack(files)
     error('Registration:register_stack', 'TurboReg is not working properly, please follow the instructions from install_leachi_flow to fix this issue.');
   end
 
-  dir_out = '_registered';
-
   center = ceil(N/2);
 
   filename = files{center};
   im = imread(filename);
   im = imfillborder(im);
-
-  [filepath, fname, fileext] = fileparts(filename);
-  [shorter_path, prev_dir] = fileparts(filepath);
-
-  if (prev_dir(1) == '_')
-    out_path = fullfile(shorter_path, dir_out);
-  else
-    out_path = fullfile(filepath, dir_out);
-  end
-
-  if ~isdir(out_path)
-    mkdir(out_path);
-  end
 
   [hf,wf,c] = size(im);
 

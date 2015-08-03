@@ -64,6 +64,7 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     detections(1).noise = noise;
 
     %figure;
+
     mask = zeros(img_size+6*vessel_width);
     for nimg=2:nframes
       new_img = double(load_data(myrecording.channels(1), nimg));
@@ -240,10 +241,14 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
         prev_diff = img_diff;
       else
         img = double(load_data(myrecording.channels(1), nimg));
+        img = gaussian_mex(img, sigma);
         [prev_diff, moire] = immoire(img - prev_img, 5, 2.5*sigma);
+        prev_diff = imdetrend(prev_diff);
       end
       img_next = double(load_data(myrecording.channels(1), nimg+1));
+      img_next = gaussian_mex(img_next, sigma);
       [img_diff, moire] = immoire(img_next - img, 5, 2.5*sigma);
+      img_diff = imdetrend(img_diff);
 
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
@@ -254,6 +259,9 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
       %for i=1:10
       %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
 
+      %hold off;
+      %imagesc(img_diff);
+      %hold on;
       %quiver(x,y,u,v, 0);
       %title(nimg)
       %drawnow

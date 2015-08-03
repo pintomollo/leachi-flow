@@ -55,9 +55,10 @@ end
 
 if isempty(params.filename), return, end % cancel by user
 
-Nsampling = floor(slice_width/pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
+Nsampling = floor(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
 if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
 
+%{
 %% select files
 files = dir(filename);
 Nf = length(dir(filename));
@@ -75,11 +76,28 @@ end
 
 if Nf == 0, disp(['Sorry, ' filename ' not found in ' cd]), end
 thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / file?
+%}
+
+  files = params.filename;
+  new_names = {};
+  dir_out = '_resampled';
+
+  [files, out_path] = get_filenames(files, dir_out);
+
+  Nf = length(files);
+  if (Nf == 0), disp('nada??'), return, end
+
+  new_names = files;
+
+  im = imread(files{1});
+  [Nx, Ny, Nc] = size(im);
+  Nz = Nf;
 
 %% loop/files
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for nf = 1:Nf
     
+    %{
     file = files(nf).name;
     if do_filt, file_out = [file(1:end-4) '_3D'];
     else file_out = [file(1:end-9) '_3D'];
@@ -139,6 +157,7 @@ for nf = 1:Nf
     end
     
     [Nx_out, Ny_out, Nz_out, Nc] = size(stk);
+    %}
     
     % % % % %     if detect_IHC
     % % % % %         %% extra median filter for B zones

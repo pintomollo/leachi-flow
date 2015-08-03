@@ -20,44 +20,14 @@ function new_names = smooth_slices(files)
   new_names = {};
   dir_out = '_smoothed';
 
-  if (~iscell(files))
-    [filepath, filename, fileext] = fileparts(files);
-    ls = dir(files);
-    ls = clean_dir(ls);
-
-    N = length(ls);
-
-    if (N == 0)
-      ls = dir(fullfile(files, '*.tif'));
-      ls = clean_dir(ls);
-      N = length(ls);
-    end
-
-    files = cell([N 1]);
-
-    for i = 1:N
-      files{i} = fullfile(filepath, ls(i).name);
-    end
-  end
+  [files, out_path] = get_filenames(files, dir_out);
 
   Nk = length(files);
   if (Nk == 0), disp('nada??'), return, end
-
-  [filepath, fname, fileext] = fileparts(files{1});
-  [shorter_path, prev_dir] = fileparts(filepath);
-
-  if (prev_dir(1) == '_')
-    out_path = fullfile(shorter_path, dir_out);
-  else
-    out_path = fullfile(filepath, dir_out);
-  end
-
-  if ~isdir(out_path)
-    mkdir(out_path);
-  end
-
   %Nk = length(imfinfo(file));
-  kk = (1:Nk);
+  %kk = (1:Nk);
+
+  new_names = files;
 
   i_bary = zeros(Nk, 1);
   j_bary = zeros(Nk, 1);
@@ -65,7 +35,7 @@ function new_names = smooth_slices(files)
   std_j = zeros(Nk, 1);
   %background_val = zeros(Nk, 3);
 
-  fprintf('filtering %i images for axial smoothing', Nk)
+  fprintf('filtering %i images for axial smoothing', Nk);
 
   for nk = 1:Nk
       im = double(imread(files{nk}));
@@ -99,6 +69,7 @@ function new_names = smooth_slices(files)
       std_i(nk) = sqrt(sum(val_i .* (ii - i_bary(nk)).^2) / sum(val_i)); % std = sqrt(sum(Ii * (i-ib)^2) / sum(Ii))
       std_j(nk) = sqrt(sum(val_j .* (jj - j_bary(nk)).^2) / sum(val_j));
       
+      %{
       if mod(nk, 5) == 0 % show only some, to save time..
           imshow(uint8(im/3)), title(['section ' num2str(nk) ', all channels summed']), hold on
           colormap(gray)
@@ -112,6 +83,7 @@ function new_names = smooth_slices(files)
           legend({'mean intensity along i axis', 'mean intensity along j axis', 'elipse @ mean +/- std'})
           drawnow
       end
+      %}
   end
 
   %% smooth shape descriptors => scaling factors
@@ -122,6 +94,7 @@ function new_names = smooth_slices(files)
   i_scale = smooth_std_i ./ std_i; % scale = size_out / size_in
   j_scale = smooth_std_j ./ std_j;
 
+  %{
   clf
   subplot(2,3,1), plot([i_bary, smooth_i_bary]), title('i bary')
   subplot(2,3,2), plot([j_bary, smooth_j_bary]), title('j bary')
@@ -131,6 +104,7 @@ function new_names = smooth_slices(files)
   legend({'corr i', 'corr j'})
   figure(gcf), pause(.1)
   warning off images:imshow:magnificationMustBeFitForDockedFigure
+  %}
 
   for nk = 1:Nk
       filename = files{i};
@@ -158,6 +132,8 @@ function new_names = smooth_slices(files)
 
       % subplot(232), imshow(im), subplot(235), imshow(im_corr)
       %     if mod(nk, 5) == 0
+
+      %{
       subplot(2,3,6), imshow(uint8(im)), title(['section ' num2str(nk) ', resized & recentered'])
       hold on
       xe = j_bary(nk)-std_j(nk);
@@ -166,8 +142,9 @@ function new_names = smooth_slices(files)
       he = 2*std_i(nk);
       rectangle('Position', [xe, ye, we, he], 'Curvature', [1, 1], 'edgecolor', 'y', 'linewidth', 2)% line([i_bary(nk)+std_i(nk) i_bary(nk)], [j_bary(nk) j_bary(nk)])
       drawnow
+      %}
       %     end
-      
+
       imwrite(cast(im, type), new_name, 'TIFF');
 
       new_names{nk} = new_name;
@@ -175,7 +152,10 @@ function new_names = smooth_slices(files)
       %if nk == 1, imwrite(uint8(im_corr), smooth_file, 'tiff', 'Compression', 'none')
       %else imwrite(uint8(im_corr), smooth_file, 'tiff', 'Compression', 'none', 'writemode', 'append')
       %end %     file_out = [dir_out filesep file(1:end-4) '_smoothed' num2str(nk, '%03i') '.tif']; imwrite(uint8(im_corr), file_out, 'tiff', 'Compression', 'none')    %     bfsave(im,'myMultipageFile.tif', 'XYCZT')
+
+      fprintf('.');
   end
+  fprintf(' done!\n');
 
   %%%
 

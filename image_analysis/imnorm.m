@@ -33,12 +33,6 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
     mode = '';
   end
 
-  % More input checking
-  if (nargin < 6)
-    minrange = 0;
-    maxrange = 1;
-  end
-
   % In case we have no data
   if (nargin == 0 || isempty(img))
     return;
@@ -54,6 +48,17 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
   % In that case, convert it
   if (~is_double)
     img = double(img);
+  end
+
+  % More input checking
+  if (nargin < 6)
+    if (is_double)
+      minrange = 0;
+      maxrange = 1;
+    else
+      minrange = intmin(class_type);
+      maxrange = intmax(class_type);
+    end
   end
 
   % And where there are non-finite elements, we replace them with NaN which do not
@@ -81,7 +86,7 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
         case 's'
           minval = repmat(min(img,[],3), [1, 1, p]);
 
-        % Here we have a problem, so notify it and ignor the provided mode
+        % Here we have a problem, so notify it and ignore the provided mode
         otherwise
           warning('CAST:imnorm', ['Normalization mode ' mode ' is unknown. Ignoring it.']);
           minval = min(img(:));

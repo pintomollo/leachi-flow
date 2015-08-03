@@ -1,6 +1,8 @@
-function img = imfillborder(img)
+function [img, bkgs] = imfillborder(img)
 
   [h,w,c] = size(img);
+
+  bkgs = NaN(1, c);
 
   borders = (any(isnan(img), 3) | all(img==0, 3));
   borders = ~(imfill(~borders, 'holes'));
@@ -21,8 +23,13 @@ function img = imfillborder(img)
 
   for i = 1:c
     tmp_img = img(:,:,i);
-    tmp_img(borders) = nanmedian(double(tmp_img(rim_image & ~borders)));
+    bkgs(i) = nanmedian(double(tmp_img(rim_image & ~borders)));
+    tmp_img(borders) = bkgs(i);
     img(:,:,i) = tmp_img;
+  end
+
+  if (nargout > 1)
+    bkgs = cast(bkgs, class(img));
   end
 
   return;
