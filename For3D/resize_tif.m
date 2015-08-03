@@ -28,6 +28,8 @@ function new_names = resize_tif(files, Amax, Bmax)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
+  disp('Resizing images...');
+
   if (Amax == 0)
       A = zeros(N, 1); B = A;
 
@@ -51,11 +53,7 @@ function new_names = resize_tif(files, Amax, Bmax)
 
       [a, b, c] = size(im);
       [filepath, fname, fileext] = fileparts(filename);
-      out_path = fullfile(filepath, dir_out);
 
-      if ~isdir(out_path)
-        mkdir(out_path);
-      end
       new_name = fullfile(out_path, [fname fileext]);
 
       fprintf('%s\n', new_name);

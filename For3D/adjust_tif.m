@@ -10,6 +10,8 @@ function new_names = adjust_tif(files)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
+  disp('Adjust images pixel values...');
+
   new_names = files;
 
   for i = 1:N % loop over images to resize images

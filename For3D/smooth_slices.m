@@ -107,7 +107,7 @@ function new_names = smooth_slices(files)
   %}
 
   for nk = 1:Nk
-      filename = files{i};
+      filename = files{nk};
       [filepath, fname, fileext] = fileparts(filename);
       new_name = fullfile(out_path, [fname fileext]);
 

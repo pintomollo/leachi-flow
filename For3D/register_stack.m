@@ -47,6 +47,9 @@ function new_names = register_stack(files)
   source = fullfile(out_path, 'source.tiff');
 
   imwrite(im, target, 'TIFF');
+  [m,s] = mymean(im(:));
+  corr1 = (im(:) - m) / s;
+  ns = 1/numel(im);
 
   command1 = '-align -file "';
   command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "' target ...
@@ -57,6 +60,7 @@ function new_names = register_stack(files)
               ' -hideOutput'];
 
   new_names = files;
+  corrs = ones(N, 1);
 
   for i = 1:N % loop over images to resize images
     filename = files{i};
@@ -67,6 +71,7 @@ function new_names = register_stack(files)
 
     if (i==center)
       copyfile(filename, new_name);
+      corrs(i) = sum(corr1 .* corr1)*ns;
     else
 
       im = imread(filename);
@@ -82,6 +87,10 @@ function new_names = register_stack(files)
       end
 
       imwrite(im, source, 'TIFF');
+      [m,s] = mymean(im(:));
+      im = (im(:) - m) / s;
+
+      corrs(i) = sum(corr1 .* im)*ns;
 
       turboReg.run(java.lang.String([command1 source command2]));
       spts = turboReg.getSourcePoints();
