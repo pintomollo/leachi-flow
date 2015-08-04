@@ -85,6 +85,8 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
           minval = repmat(min(img,[],1), [h, 1, 1]);
         case 's'
           minval = repmat(min(img,[],3), [1, 1, p]);
+        case 'a'
+          minval = min(img(:));
 
         % Here we have a problem, so notify it and ignore the provided mode
         otherwise
@@ -92,7 +94,7 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
           minval = min(img(:));
 
           % And remove the weird mode
-          mode = '';
+          mode = 'a';
       end
     end
   end
@@ -109,6 +111,8 @@ function [img, minval, maxval] = imnorm(img, minval, maxval, mode, minrange, max
           maxval = repmat(max(img,[],1), [h, 1, 1]);
         case 's'
           maxval = repmat(max(img,[],3), [1, 1, p]);
+        case 'a'
+          maxval = max(img(:));
 
         % Here we have a problem, so notify it and ignor the provided mode
         otherwise

@@ -18,6 +18,14 @@ function stk = filter_stack(file, alpha, Nsampling, border_erosion)
 %
 % see also rendering_3D, equalize_stack
 
+%%%%%%%% TO FIT IN MEMORY NEED TO :
+%%%%%%%% 1. MEDFILT THE PLANES SEPARATLY (AND GAUSS MAYBE AS WELL...)
+%%%%%%%% 2. WRITE_STACK
+%%%%%%%% 3. LOAD_SPARSE_STACK
+%%%%%%%% 4. GAUSS FILT THE SPARSE MATRIX
+%%%%%%%%    a. NEED TO IMPLEMENT A THRESHOLDED FILTERING ALONG THE 1st DIM
+%%%%%%%%    b. PERMUTE THE STACK
+%%%%%%%% 5. WRITE_STACK
 
 smooth_file = ['temp' filesep file(1:end-4) '_smoothed.tif'];
 im = imread(smooth_file, 'Index', 1);
