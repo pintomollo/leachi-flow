@@ -24,7 +24,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   mwIndex *irs, *jcs, *irs2, *jcs2;
   int i, nelem, count, curr_col, curr_row;
   int r, rr, pr, irr, prs, dr, windowsize, center;
-  double sigma, thresh, x, fx, sum=0.0, sqrttwopi;
+  double sigma, thresh, x, fx, sum=0.0, dot, sqrttwopi;
   double *rs, *rs2, *kernel;
 
   /* No flexibility here, we want both the image and sigma ! */
@@ -112,6 +112,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
       pr = r;
 
       // Compute the gaussian sum on the previous pixels
+      dot = 0.0;
       sum = 0.0;
       for(rr=0;rr>=(-center);rr--){
         irr = i+rr;
@@ -120,7 +121,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // Need to make sure that we are not too far away or in another column
         if((irr >= jcs[curr_col-1]) && ((prs-r)>=(-center))){
           dr = prs-r;
-          sum += rs[irr] * kernel[center+dr];
+          dot += rs[irr] * kernel[center+dr];
+          sum += kernel[center+dr];
         } else {
           break;
         }
@@ -131,11 +133,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         prs = irs[irr];
         if((irr < jcs[curr_col]) && (prs-r<=center)){
           dr = prs-r;
-          sum += rs[irr] * kernel[center+dr];
+          dot += rs[irr] * kernel[center+dr];
+          sum += kernel[center+dr];
         } else {
           break;
         }
       }
+      sum = dot/sum;
 
       // If the value satisfies the threshold, store it !
       if (sum > thresh) {
@@ -169,6 +173,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         pr = r;
 
         // Compute the gaussian sum on the previous values (we know for sure there are none after)
+        dot = 0.0;
         sum = 0.0;
         for(rr=0;rr>=(-center);rr--){
           irr = i+rr;
@@ -176,11 +181,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
           if((irr >= jcs[curr_col-1]) && ((prs-r)>=(-center))){
             dr = prs-r;
-            sum += rs[irr] * kernel[center+dr];
+            dot += rs[irr] * kernel[center+dr];
+            sum += kernel[center+dr];
           } else {
             break;
           }
         }
+        sum = dot/sum;
 
         // Maybe store it ?
         if (sum > thresh) {
