@@ -1,5 +1,31 @@
 function tmp(num)
 
+  if (nargin == 0)
+    num = 100;
+  end
+
+  [img,map] = imread('lena.jpg');
+  if (~isempty(map))
+    img = ind2rgb(img, map);
+  end
+
+  if (size(img, 3) > 1)
+    img = rgb2gray(img);
+  end
+
+  img = double(img);
+  img(img<=num) = 0;
+
+  %img2 = imssmooth(sparse(img), 2, num);
+
+  simg = sparse(repmat(img(:), [1 50]));
+  simg = ndSparse(simg, [size(img) 50]);
+
+  img3 = imssmooth(simg, 2, num);
+  save('tmp.mat', 'img3');
+
+  return;
+
   files = dir('flow*.mat');
   for i=1:length(files)
     data = load(files(i).name);

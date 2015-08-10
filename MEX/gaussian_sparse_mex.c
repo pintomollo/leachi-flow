@@ -91,7 +91,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   count = 0;
   for (i = 0; i < nelem; i++) {
 
-    // Find in which column we currently are
+    // Find in which column we currently are, updating the Jc vector at the same time
     while (jcs[curr_col] <= i) {
       jcs2[curr_col] = count;
       curr_col++;
@@ -114,12 +114,13 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
       // Compute the gaussian sum on the previous pixels
       dot = 0.0;
       sum = 0.0;
-      for(rr=0;rr>=(-center);rr--){
-        irr = i+rr;
+      for(irr=i;irr>=__MAX__((i-center),0);irr--){
+
         prs = irs[irr];
 
         // Need to make sure that we are not too far away or in another column
-        if((irr >= jcs[curr_col-1]) && ((prs-r)>=(-center))){
+        if((irr >= ((int)jcs[curr_col-1])) && ((prs-r)>=(-center))){
+
           dr = prs-r;
           dot += rs[irr] * kernel[center+dr];
           sum += kernel[center+dr];
@@ -127,10 +128,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
           break;
         }
       }
+
       // Same for the pixels afterwards
-      for(rr=1;rr<=center;rr++){
-        irr = i+rr;
+      for(irr=i+1;irr<=__MIN__((i+center),nelem-1);irr++){
         prs = irs[irr];
+
         if((irr < jcs[curr_col]) && (prs-r<=center)){
           dr = prs-r;
           dot += rs[irr] * kernel[center+dr];
@@ -143,14 +145,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
       // If the value satisfies the threshold, store it !
       if (sum > thresh) {
+
         // Here we might need to increase the number of elements in the matrix
         if (count >= nzmax){
           nzmax += nzstep;
           nzmax = __MIN__(nzmax, nzfull);
 
-          mxSetNzmax(plhs[0], nzmax);
           mxSetPr(plhs[0], mxRealloc(rs2, nzmax*sizeof(double)));
           mxSetIr(plhs[0], mxRealloc(irs2, nzmax*sizeof(mwIndex)));
+          mxSetNzmax(plhs[0], nzmax);
 
           rs2  = mxGetPr(plhs[0]);
           irs2 = mxGetIr(plhs[0]);
@@ -175,8 +178,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         // Compute the gaussian sum on the previous values (we know for sure there are none after)
         dot = 0.0;
         sum = 0.0;
-        for(rr=0;rr>=(-center);rr--){
-          irr = i+rr;
+
+        for(irr=i;irr>=__MAX__((i-center),0);irr--){
           prs = irs[irr];
 
           if((irr >= jcs[curr_col-1]) && ((prs-r)>=(-center))){
@@ -197,9 +200,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             nzmax += nzstep;
             nzmax = __MIN__(nzmax, nzfull);
 
-            mxSetNzmax(plhs[0], nzmax);
             mxSetPr(plhs[0], mxRealloc(rs2, nzmax*sizeof(double)));
             mxSetIr(plhs[0], mxRealloc(irs2, nzmax*sizeof(mwIndex)));
+            mxSetNzmax(plhs[0], nzmax);
 
             rs2  = mxGetPr(plhs[0]);
             irs2 = mxGetIr(plhs[0]);
@@ -212,8 +215,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
       }
     }
   }
-  // Needed to create a valid spare matrix
-  jcs2[n] = count;
+
+  // Needed to create a valid spare matrix by filling the last Jc values with the total
+  for (i = curr_col; i <= n; i++) jcs2[i] = count;
 
   // Free the kernel
   mxFree(kernel);
