@@ -35,9 +35,9 @@ function parameters = For3D(varargin)
 
   parameters.filename = register_stack(parameters.filename);
 
-  %% Not yet working
   parameters.filename = smooth_slices(parameters.filename);
-  %parameters.filename = filter_stack(parameters.filename);
+  parameters.filename = equalize_stack(parameters.filename);
+  parameters.filename = filter_stack(parameters.filename);
   %rendering_3D(parameters);
 
   if (nargout == 0)

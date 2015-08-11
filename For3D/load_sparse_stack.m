@@ -1,4 +1,4 @@
-function [all_mats, threshs] = load_sparse_stack(files, threshs)
+function [all_mats, threshs, type] = load_sparse_stack(files, threshs)
 
   if nargin<1
     files = '*.tif';
@@ -62,6 +62,10 @@ function [all_mats, threshs] = load_sparse_stack(files, threshs)
 
   if (N==1)
     all_mats = all_mats{1};
+  end
+
+  if (nargout>2)
+    type = class(img);
   end
 
   return;

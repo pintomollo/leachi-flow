@@ -107,11 +107,13 @@ function mystruct = get_struct(type, nstruct)
       mystruct = struct('filename', '*.tif', ...      % Filename (default: all tif files)
                         'detect_IHC', 0, ...          % Detect IHC staining (1=yes 0=no)
                         'thresholds', [-1 -1 -1], ... % Red Green Blue thresholds (-1=auto)
+                        'sparse_thresholds', [], ...  % The value thresholds used to create a sparse image
                         'pixel_size', 6.5, ...        % Pixel size (um)
+                        'Nsampling', 1, ...           % The sampling rate
                         'slice_width', 22, ...        % Section thickness (um)
                         'alpha', 0.2, ...             % Equalization factor (0=none, 1=full)
                         'transparency', [1/3 1/20 1/20], ... % Red Green Blue transparency ratio, use [1/3 1/3 1/10] for LN, for same transparency in red and green
-                        'border_erosion', [0 0]);     % Red Green border erosion (um, ref=Blue)
+                        'border_erosion', [0 0 0]);     % Red Green border erosion (um, ref=Blue)
 
     case 'fitting'
       mystruct = struct('init_noise', 0, ...

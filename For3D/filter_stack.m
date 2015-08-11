@@ -1,4 +1,4 @@
-function stk = filter_stack(file, alpha, Nsampling, border_erosion)
+function params = filter_stack(params)
 
 %% function stk = filter_stack(file, alpha, Nsampling, border_erosion)
 %
@@ -18,15 +18,126 @@ function stk = filter_stack(file, alpha, Nsampling, border_erosion)
 %
 % see also rendering_3D, equalize_stack
 
-%%%%%%%% TO FIT IN MEMORY NEED TO :
-%%%%%%%% 1. MEDFILT THE PLANES SEPARATLY (AND GAUSS MAYBE AS WELL...)
-%%%%%%%% 2. WRITE_STACK
-%%%%%%%% 3. LOAD_SPARSE_STACK
-%%%%%%%% 4. GAUSS FILT THE SPARSE MATRIX
-%%%%%%%%    a. NEED TO IMPLEMENT A THRESHOLDED FILTERING ALONG THE 1st DIM
-%%%%%%%%    b. PERMUTE THE STACK
-%%%%%%%% 5. WRITE_STACK
+  if nargin < 1
+    params = get_struct('For3D');
+  end
 
+  files = params.filename;
+
+  stk_files = {};
+  dir_out = '_tmp';
+
+  [files, out_path] = get_filenames(files, dir_out);
+
+  Nz = length(files);
+  if (Nz == 0), disp('nada??'), return, end
+  %Nk = length(imfinfo(file));
+  %kk = (1:Nk);
+
+  new_names = files;
+
+  marg = 3;
+  %Msize = [7 7]; % odd size is better
+  Msize = 3;
+  Gsd = 0.65; % Gsize = 5; Gsd = 2
+
+  borders = any(params.border_erosion);
+
+  if (borders)
+    Nc = length(params.border_erosion);
+    disk = cell(Nc,1);
+    for nc = 1:Nc
+        disk{nc} = strel('disk', round(border_erosion(nc)));
+    end
+  end
+
+  fprintf('\n Median filtering over %i pixels rdius & gaussian blur of %f sigma for %i images :    ', Msize, Gsd, Nz)
+  for nz = 1:Nz
+    filename = files{nz};
+    [filepath, fname, fileext] = fileparts(filename);
+    new_name = fullfile(out_path, [fname fileext]);
+
+    im = imread(filename);
+    type = class(im);
+
+    im = double(im);
+
+    imsize = size(im);
+    imsize(1:2) = imsize(1:2) + 2*marg;
+    tmp_img = zeros(imsize);
+    tmp_img(1+marg:end-marg, 1+marg:end-marg, :) = im;
+    im = tmp_img;
+
+    clear tmp_img;
+
+    im = median_mex(im, Msize);
+    im = gaussian_mex(im, Gsd);
+
+    if (borders)
+      if (size(im, 3) > 1)
+        ref = rgb2gray(im);
+      else
+        ref = img;
+      end
+
+      if (max(ref(:)) > 0)
+        ref = imfill(ref);
+        ref = (ref > mean(ref(:)));
+
+        for nc = 1:size(im, 3)
+          if nc <= length(border_erosion) && border_erosion(nc) > 0
+            tmp_ref = imerode(ref, disk{nc});
+            im_c = im(:, :, nc);
+            im_c(tmp_ref==0) = 0;
+            im(:,:,nc) = im_c;
+          end
+        end
+
+        clear tmp_ref im_c;
+      end
+
+      clear ref;
+    end
+
+    imwrite(cast(im, type), new_name, 'TIFF');
+
+    new_names{nk} = new_name;
+    fprintf('\b\b\b%3d', nz)
+  end
+
+  clear im;
+
+  tmp_stack = write_stack(new_names);
+  dir_out = '_filtered';
+
+  [tmp_stack, out_path] = get_filenames(tmp_stack, dir_out);
+
+  Nc = length(tmp_stack);
+  threshs = zeros([1 Nc]);
+
+  if (isempty(params.sparse_thresholds))
+    params.sparse_thresholds = NaN([1, Nc]);
+  end
+
+  fprintf('\n Z-gaussian blur of %f sigma for %i channels :    ', Gsd, Nc);
+  for i=1:Nc
+    filename = tmp_stack{i};
+    [filepath, fname, fileext] = fileparts(filename);
+    new_name = fullfile(out_path, [fname fileext]);
+
+    [stk, threshs(i), type] = load_sparse_stack(filename, params.sparse_thresholds(i));
+    stk = gaussian_sparse_mex(stk, 3, Gsd, threshs(i));
+
+    write_stack(new_name, stk, type, num2str(threshs(i)));
+    stk_files{i} = new_name;
+
+    fprintf('\b\b\b%3d', i)
+  end
+
+  params.sparse_thresholds = threshs;
+  params.filename = stk_files;
+
+%{
 smooth_file = ['temp' filesep file(1:end-4) '_smoothed.tif'];
 im = imread(smooth_file, 'Index', 1);
 Nx = size(im, 1);
@@ -133,5 +244,5 @@ else %% loading already filtered images
 end % filt
 
 fprintf('\n')
-
+%}
 %%%
