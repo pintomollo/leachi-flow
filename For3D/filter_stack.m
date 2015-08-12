@@ -101,7 +101,7 @@ function params = filter_stack(params)
 
     imwrite(cast(im, type), new_name, 'TIFF');
 
-    new_names{nk} = new_name;
+    new_names{nz} = new_name;
     fprintf('\b\b\b%3d', nz)
   end
 
@@ -110,6 +110,7 @@ function params = filter_stack(params)
   tmp_stack = write_stack(new_names);
   dir_out = '_filtered';
 
+  tmp_dir = out_path;
   [tmp_stack, out_path] = get_filenames(tmp_stack, dir_out);
 
   Nc = length(tmp_stack);
@@ -126,13 +127,15 @@ function params = filter_stack(params)
     new_name = fullfile(out_path, [fname fileext]);
 
     [stk, threshs(i), type] = load_sparse_stack(filename, params.sparse_thresholds(i));
-    stk = gaussian_sparse_mex(stk, 3, Gsd, threshs(i));
+    stk = imssmooth(stk, 3, Gsd, threshs(i));
 
     write_stack(new_name, stk, type, num2str(threshs(i)));
     stk_files{i} = new_name;
 
     fprintf('\b\b\b%3d', i)
   end
+
+  delete(tmp_dir, 's');
 
   params.sparse_thresholds = threshs;
   params.filename = stk_files;

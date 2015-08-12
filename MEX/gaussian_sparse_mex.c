@@ -141,7 +141,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
           break;
         }
       }
-      sum = dot/sum;
+      //sum = dot/sum;
+      sum = dot;
 
       // If the value satisfies the threshold, store it !
       if (sum > thresh) {
@@ -190,7 +191,8 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
             break;
           }
         }
-        sum = dot/sum;
+        //sum = dot/sum;
+        sum = dot;
 
         // Maybe store it ?
         if (sum > thresh) {

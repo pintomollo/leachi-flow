@@ -71,13 +71,14 @@ for ic = 1:nc
     end
 end
 
-subplot(121)
+%subplot(121)
+figure;
 hold on
 plot(fliplr(mean_val))
 plot(fliplr(I_fit),':')
 xlabel('z plane')
 ylabel('mean fluorescent intensity')
-title(['Equalizing ' file], 'interpreter', 'none')
+title('Equalizing', 'interpreter', 'none')
 
 im_eq = zeros(nx, ny, nc);
 mean_eq = zeros(nz, nc);
@@ -101,7 +102,7 @@ for iz = 1:nz
     
     imwrite(cast(im_eq, type), new_name, 'TIFF');
 
-    new_names{nk} = new_name;
+    new_names{iz} = new_name;
 
     fprintf('\b\b\b%3d', iz)
 end
