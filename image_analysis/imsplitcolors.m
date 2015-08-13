@@ -1,41 +1,83 @@
-function img = imsplitcolors(img, dist)
+function [img, nhist] = imsplitcolors(img, dist)
 
+  nhist = [];
+  imax = [];
   if (nargin == 1)
     dist = 5;
+  elseif (numel(dist) > 1)
+    if (numel(dist) > 3)
+      nhist = dist;
+      dist = 5;
+    else
+      imax = dist;
+      dist = 5;
+    end
   end
 
-  nbins = 255;
+  if (size(img, 3) < 3)
+    if (~isempty(nhist) || ~isempty(imax))
+      warning('Input arguments are not consistent.');
+      img = [];
+      nhist = [];
+      return;
+    end
 
-  if (~isa(img, 'uint8'))
-    img = uint8(img*255);
+    nhist = img;
+    img = [];
   end
 
-  [h,w,c] = size(img);
+  if (isempty(nhist))
+    nbins = 255;
+    nhist = zeros(nbins, 1);
+  else
+    nhist = nhist(:);
+    nbins = length(nhist);
+  end
 
-  img = rgb_hsv_mex(img);
+  compute_split = isempty(imax);
 
-  n2 = imsplitcolors_mex(img, zeros(nbins, 1));
-  n2 = [n2; n2];
+  if (~isempty(img))
+    if (~isa(img, 'uint8'))
+      img = uint8(img*255);
+    end
 
-  n2 = colfilt(n2, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
+    img = rgb_hsv_mex(img);
 
-  [xmax, imax] = local_extrema(n2, dist);
+    if (compute_split)
+      nhist = imsplitcolors_mex(img, nhist);
+    end
+  end
 
-  goods = (imax > dist & imax <= length(n2) - dist);
-  xmax = xmax(goods);
-  imax = imax(goods);
+  if (nargout==1)
+    if (compute_split)
+      nhist = [nhist; nhist];
 
-  [imax, indxs] = unique(mod(imax, nbins));
-  xmax = xmax(indxs);
+      nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
 
-  [xmax, indxs] = sort(xmax);
-  imax = imax(indxs(end:-1:1));
+      [xmax, imax] = local_extrema(nhist, dist);
 
-  imax = (imax(1:min(3, end))-1)/nbins;
+      goods = (imax > dist & imax <= length(nhist) - dist);
+      xmax = xmax(goods);
+      imax = imax(goods);
 
-  img = imsplitcolors_mex(img, imax);
+      [imax, indxs] = unique(mod(imax, nbins));
+      xmax = xmax(indxs);
 
-  img = rgb_hsv_mex(img);
+      [xmax, indxs] = sort(xmax);
+      imax = imax(indxs(end:-1:1));
+
+      imax = (imax(1:min(3, end))-1)/nbins;
+      imax = [imax ones(1, 3-length(imax))*imax(1)];
+    end
+
+    if (~isempty(img))
+      img = imsplitcolors_mex(img, imax);
+
+      img = rgb_hsv_mex(img);
+    else
+      img = imax;
+    end
+  end
 
   return;
 end

@@ -19,11 +19,6 @@ function new_names = adjust_tif(files)
       im = imread(filename);
 
       [filepath, fname, fileext] = fileparts(filename);
-      out_path = fullfile(filepath, dir_out);
-
-      if ~isdir(out_path)
-        mkdir(out_path);
-      end
       new_name = fullfile(out_path, [fname fileext]);
 
       fprintf('%s\n', new_name);
@@ -47,7 +42,7 @@ function new_names = adjust_tif(files)
         im(:,:,c) = tmp_img;
       end
 
-      imwrite(im, new_name, 'Compression', 'none')
+      imwrite(im, new_name, 'Compression', 'none');
 
       new_names{i} = new_name;
   end

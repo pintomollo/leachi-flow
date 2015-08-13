@@ -127,7 +127,7 @@ function params = filter_stack(params)
     new_name = fullfile(out_path, [fname fileext]);
 
     [stk, threshs(i), type] = load_sparse_stack(filename, params.sparse_thresholds(i));
-    stk = imssmooth(stk, 3, Gsd, threshs(i));
+    stk = imssmooth(stk, 3, Gsd, threshs(i)/2);
 
     write_stack(new_name, stk, type, num2str(threshs(i)));
     stk_files{i} = new_name;
@@ -135,7 +135,7 @@ function params = filter_stack(params)
     fprintf('\b\b\b%3d', i)
   end
 
-  delete(tmp_dir, 's');
+  rmdir(tmp_dir, 's');
 
   params.sparse_thresholds = threshs;
   params.filename = stk_files;

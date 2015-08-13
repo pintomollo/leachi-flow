@@ -55,8 +55,8 @@ end
 
 if isempty(params.filename), return, end % cancel by user
 
-Nsampling = floor(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
-if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
+%Nsampling = floor(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
+%if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
 
 %{
 %% select files
@@ -244,7 +244,8 @@ for nf = 1:Nf
         end % if thresholds(nf, nc) == -1
     end % for nc = 1:Nc
     
-    voxel_size = (pixel_size*Nsampling)^2*slice_width*1e-9; % convert from um3 to mm3
+    %voxel_size = (pixel_size*Nsampling)^2*slice_width*1e-9; % convert from um3 to mm3
+    voxel_size = (pixel_size)^2*slice_width*1e-9; % convert from um3 to mm3
     for nc = 1:Nc
         vals = stk(:, :, :, nc);
         volume_c = sum(vals(:) > thresholds(nf, nc));
@@ -287,7 +288,8 @@ for nf = 1:Nf
     camlight, lighting gouraud
     
     %% axes
-    xy_calib = pixel_size*Nsampling; % um
+    %xy_calib = pixel_size*Nsampling; % um
+    xy_calib = pixel_size; % um
     z_calib = slice_width;
     daspect([1/xy_calib 1/xy_calib 1/z_calib])
     if (pixel_size > 1), axe_unit = 1000; axe_calib = 1; % um => 1 mm
