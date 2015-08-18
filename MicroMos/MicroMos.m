@@ -570,7 +570,13 @@ function [FileName] = MicroMos(varargin)
   end
   fname = [fname ImageFormat];
 
-  imwrite(Mosaic, fname, ImageFormat(2:end));
+  if strcmp(ImageFormat(1:4), '.tif')
+    strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(1)));
+    info = imfinfo(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]), ImageFormat(2:end));
+    imwrite(Mosaic, fname, ImageFormat(2:end), 'Description', info.ImageDescription);
+  else
+    imwrite(Mosaic, fname, ImageFormat(2:end));
+  end
   clear Mosaic
 
   if (nargout > 0)

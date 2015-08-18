@@ -27,6 +27,8 @@ function parameters = For3D(varargin)
     end
   end
 
+  parameters = get_parameters(parameters);
+
   % Resample the images first !
   parameters = resample_tif(parameters);
 
@@ -46,6 +48,54 @@ function parameters = For3D(varargin)
   if (nargout == 0)
     clear parameters;
   end
+
+  return;
+end
+
+function params = get_parameters(params)
+
+  files = get_filenames(params.filename);
+
+  N = length(files);
+  if (N == 0)
+    [fname, pathname] = uigetfile('*.*', 'Select one of the section that you want to reconstruct.');
+
+    if isequal(fname,0)
+      error('User canceled the selection.');
+    else
+      [filepath, fname, fileext] = fileparts(fname);
+      new_name = fullfile(pathname, fullfile(filepath, ['*' fileext]));
+
+      files = get_filenames(new_name);
+      N = length(files);
+
+      if (N > 0)
+        params.filename = new_name;
+      else
+        error('No valid image selected.');
+      end
+    end
+  end
+
+  info = imfinfo(files{1});
+
+  if (isfield(info, 'ImageDescription'))
+    xval = regexp(info.ImageDescription, 'XCalibrationMicrons=([\d\.]+)', 'tokens');
+
+    if (~isempty(xval))
+      yval = regexp(info.ImageDescription, 'YCalibrationMicrons=([\d\.]+)', 'tokens');
+
+      if (~isempty(yval))
+        resol = 0.5*(str2double(xval{1}) + str2double(yval{1}));
+
+        if (isfinite(resol))
+          params.pixel_size = resol;
+        end
+      end
+    end
+  end
+
+  params = edit_options(params);
 
   return;
 end
