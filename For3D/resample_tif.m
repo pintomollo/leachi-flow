@@ -29,6 +29,9 @@ function params = resample_tif(params)
     filename = files{i};
     im = imread(filename);
 
+    [filepath, fname, fileext] = fileparts(filename);
+    new_name = fullfile(out_path, [fname fileext]);
+
     im = imresize(im, insample);
 
     imwrite(im, new_name, 'Compression', 'none');

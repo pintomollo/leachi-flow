@@ -1,6 +1,7 @@
-function new_names = register_stack(files)
+function new_names = register_stack(files, min_frac)
 
-  if nargin<1, files = '*.tif'; end
+  if nargin<1, files = '*.tif'; min_frac=100; end
+  if nargin<2, min_frac=100; end
 
   new_names = {};
   dir_out = '_registered';
@@ -22,6 +23,10 @@ function new_names = register_stack(files)
   center = ceil(N/2);
 
   filename = files{center};
+  [filepath, fname, fileext] = fileparts(filename);
+  new_name = fullfile(out_path, [fname fileext]);
+  copyfile(filename, new_name);
+
   im = imread(filename);
   im = imfillborder(im);
 
@@ -43,72 +48,154 @@ function new_names = register_stack(files)
     w = wf;
   end
 
+  minsize = ceil(max(h,w)/min_frac)^2;
+  hdil = strel('disk', 5);
+
+  th = graythresh(im(:))*max(im(:));
+  mask = (im > th);
+  mask = bwareaopen(mask, minsize);
+  mask = imdilate(mask, hdil);
+
+  if (any(mask(:)))
+    im(~mask) = 0;
+  end
+
+  anchor = fullfile(out_path, 'anchor.tiff');
   target = fullfile(out_path, 'target.tiff');
   source = fullfile(out_path, 'source.tiff');
 
-  imwrite(im, target, 'TIFF');
-  [m,s] = mymean(im(:));
-  corr1 = (im(:) - m) / s;
-  ns = 1/numel(im);
+  imwrite(im, anchor, 'TIFF');
+  copyfile(anchor, target);
 
-  command1 = '-align -file "';
-  command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "' target ...
-              '" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -rigidBody ' ...
+  command1 =  '-align -file "';
+  command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "'];
+  command3 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -rigidBody ' ...
               num2str(w/2) ' ' num2str(h/2) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
               num2str(w/2) ' ' num2str(h/4) ' ' num2str(w/2) ' ' num2str(h/4) ' ' ...
               num2str(w/2) ' ' num2str(3*h/4) ' ' num2str(w/2) ' ' num2str(3*h/4) ...
               ' -hideOutput'];
 
   new_names = files;
-  corrs = ones(N, 1);
+  new_names{center} = new_name;
 
-  for i = 1:N % loop over images to resize images
+  for i = center+1:N % loop over images to resize images
     filename = files{i};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
 
     disp(fname);
 
-    if (i==center)
-      copyfile(filename, new_name);
-      corrs(i) = sum(corr1 .* corr1)*ns;
-    else
+    im = imread(filename);
+    im = imfillborder(im);
+    orig_im = im;
 
-      im = imread(filename);
-      im = imfillborder(im);
-      orig_im = im;
-
-      if (is_rgb)
-        im = rgb2gray(im);
-      end
-
-      if (ratio < 1)
-        im = imresize(im, ratio);
-      end
-
-      imwrite(im, source, 'TIFF');
-      [m,s] = mymean(im(:));
-      im = (im(:) - m) / s;
-
-      corrs(i) = sum(corr1 .* im)*ns;
-
-      turboReg.run(java.lang.String([command1 source command2]));
-      spts = turboReg.getSourcePoints();
-      tpts = turboReg.getTargetPoints();
-
-      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
-
-      if (ratio < 1)
-        H(1:2,3) = H(1:2,3) / ratio;
-      end
-
-      orig_im = myimtransform(orig_im, 'affine', H, [wf hf], [0 0]);
-      imwrite(imfillborder(orig_im), new_name, 'TIFF');
+    if (is_rgb)
+      im = rgb2gray(im);
     end
+
+    if (ratio < 1)
+      im = imresize(im, ratio);
+    end
+
+    th = graythresh(im(:))*max(im(:));
+    mask = (im > th);
+    mask = bwareaopen(mask, minsize);
+    mask = imdilate(mask, hdil);
+
+    if (any(mask(:)))
+      im(~mask) = 0;
+    end
+
+    imwrite(im, source, 'TIFF');
+
+    turboReg.run(java.lang.String([command1 source command2 target command3]));
+    spts = turboReg.getSourcePoints();
+    tpts = turboReg.getTargetPoints();
+
+    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+
+    if (ratio < 1)
+      H(1:2,3) = H(1:2,3) / ratio;
+    end
+
+    im = myimtransform(orig_im, 'affine', H, [wf hf], [0 0]);
+    im = imfillborder(im);
+    imwrite(im, new_name, 'TIFF');
+
+    if (is_rgb)
+      im = rgb2gray(im);
+    end
+
+    if (ratio < 1)
+      im = imresize(im, ratio);
+    end
+
+    imwrite(im, target, 'TIFF');
+
+    new_names{i} = new_name;
+  end
+
+  copyfile(anchor, target);
+
+  for i = center-1:-1:1
+    filename = files{i};
+    [filepath, fname, fileext] = fileparts(filename);
+    new_name = fullfile(out_path, [fname fileext]);
+
+    disp(fname);
+
+    im = imread(filename);
+    im = imfillborder(im);
+    orig_im = im;
+
+    if (is_rgb)
+      im = rgb2gray(im);
+    end
+
+    if (ratio < 1)
+      im = imresize(im, ratio);
+    end
+
+    th = graythresh(im(:))*max(im(:));
+    mask = (im > th);
+    mask = bwareaopen(mask, minsize);
+    mask = imdilate(mask, hdil);
+
+    if (any(mask(:)))
+      im(~mask) = 0;
+    end
+
+    imwrite(im, source, 'TIFF');
+
+    turboReg.run(java.lang.String([command1 source command2 target command3]));
+    spts = turboReg.getSourcePoints();
+    tpts = turboReg.getTargetPoints();
+
+    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+
+    if (ratio < 1)
+      H(1:2,3) = H(1:2,3) / ratio;
+    end
+
+    im = myimtransform(orig_im, 'affine', H, [wf hf], [0 0]);
+    im = imfillborder(im);
+    imwrite(im, new_name, 'TIFF');
+
+    if (is_rgb)
+      im = rgb2gray(im);
+    end
+
+    if (ratio < 1)
+      im = imresize(im, ratio);
+    end
+
+    imwrite(im, target, 'TIFF');
+
     new_names{i} = new_name;
   end
 
   delete(target);
+  delete(anchor);
   if (N>1)
     delete(source);
   end

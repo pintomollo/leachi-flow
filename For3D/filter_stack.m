@@ -118,6 +118,11 @@ function params = filter_stack(params)
 
   if (isempty(params.sparse_thresholds))
     params.sparse_thresholds = NaN([1, Nc]);
+  elseif (numel(params.sparse_thresholds) ~= Nc)
+    tmp = params.sparse_thresholds(1:min(Nc,end));
+    tmp = tmp(:).';
+    tmp = [tmp NaN([1, Nc-length(tmp)])];
+    params.sparse_thresholds = tmp;
   end
 
   fprintf('\n Z-gaussian blur of %f sigma for %i channels :    ', Gsd, Nc);
