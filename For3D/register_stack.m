@@ -201,6 +201,7 @@ function new_names = register_stack(files, min_frac)
 
   function [img, pts] = im2reference(img, prev_pts)
 
+    img = adjust_tif(img);
     th = graythresh(img(:))*max(img(:));
     mask = (img > th);
     mask = imclose(mask, hdil);
