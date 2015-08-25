@@ -79,23 +79,26 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
 %}
 
   files = params.filename;
-  new_names = {};
-  dir_out = '_resampled';
+  %new_names = {};
+  %dir_out = '_resampled';
 
-  [files, out_path] = get_filenames(files, dir_out);
+  %[files, out_path] = get_filenames(files, dir_out);
+  [files] = get_filenames(files);
 
   Nf = length(files);
   if (Nf == 0), disp('nada??'), return, end
 
-  new_names = files;
+  thresholds = params.thresholds;
+  %new_names = files;
 
   im = imread(files{1});
-  [Nx, Ny, Nc] = size(im);
-  Nz = Nf;
+  [Nx, Ny, Nz] = size(im);
+  Nc = Nf;
+  nf = 1;
 
 %% loop/files
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for nf = 1:Nf
+%for nf = 1:Nf
     
     %{
     file = files(nf).name;
@@ -170,14 +173,21 @@ for nf = 1:Nf
     % % % % %         fprintf('\n')
     % % % % %     end
     
+    volume_c = zeros(nf, nc);
+
     %% thresholds auto
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     for nc = 1:Nc
+        [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+
         if thresholds(nf, nc) == -1
             fprintf('finding automatic threshold %g. Iteration...', nc)
-            vals = stk(:, :, :, nc);
-            T1 = graythresh(vals)*max(vals(:));
-            T2 = opthr(reshape(vals, Nx_out, Ny_out*Nz_out));
+
+            T1 = mygraythresh(stk, type);
+            T2 = full(opthr(reshape(stk, Nx, [])));
+            %vals = stk(:, :, :, nc);
+            %T1 = graythresh(vals)*max(vals(:));
+            %T2 = opthr(reshape(vals, Nx_out, Ny_out*Nz_out));
             
             if Nc>1
                 switch nc % tricky combination, might be optimized for a given dataset, or set manually
@@ -220,8 +230,9 @@ for nf = 1:Nf
             %% plot thresholds
             col = 'rgb';
             vol = zeros(255, 1);
-            vals = vals(:);
-            for th = 1:255, vol(th) = sum(vals<th); end
+            stk = stk(:);
+            for th = 1:255, vol(th) = sum(stk<th); end
+            volume_c(nc) = sum(stk > thresholds(nf, nc));
             
             th = round(thresholds(nf, nc));
             if th>0
@@ -247,9 +258,9 @@ for nf = 1:Nf
     %voxel_size = (pixel_size*Nsampling)^2*slice_width*1e-9; % convert from um3 to mm3
     voxel_size = (pixel_size)^2*slice_width*1e-9; % convert from um3 to mm3
     for nc = 1:Nc
-        vals = stk(:, :, :, nc);
-        volume_c = sum(vals(:) > thresholds(nf, nc));
-        fprintf('Channel %i: threshold = %.0f, volume = %i voxels = %.2f mm3\n', nc, thresholds(nf, nc), volume_c, volume_c*voxel_size)
+        %vals = stk(:, :, :, nc);
+        %volume_c = sum(vals(:) > thresholds(nf, nc));
+        fprintf('Channel %i: threshold = %.0f, volume = %i voxels = %.2f mm3\n', nc, thresholds(nf, nc), volume_c(nc), volume_c(nc)*voxel_size)
     end
     
     % % % % %     if detect_IHC % extra smoothing?
@@ -271,17 +282,20 @@ for nf = 1:Nf
     %%  plot isosurf 
     for nc = 1:Nc
         fprintf('generating surface for channel %i...\n', nc)
-        vals = squeeze(stk(:, :, :, nc));
-        p(nc) = patch(isosurface(xx, yy, zz, vals, thresholds(nf, nc), 'verbose'));
+
+        [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+
+        %vals = squeeze(stk(:, :, :, nc));
+        p(nc) = patch(isosurface(xx, yy, zz, stk, thresholds(nf, nc), 'verbose'));
         fprintf('rendering surface for channel %i...\n', nc)
-        isonormals(xx, yy, zz, vals, p(nc))
+        isonormals(xx, yy, zz, stk, p(nc))
         if size(clr, 1)>1
             set(p(nc), 'FaceColor', clr(nc, :), 'EdgeColor', 'none', 'FaceAlpha', transparency(nc))
         else
             set(p(nc), 'FaceColor', clr(nc), 'EdgeColor', 'none', 'FaceAlpha', transparency(nc))
         end
     end
-    clear xx yy zz vals stk
+    clear xx yy zz stk
     
     %% 3D volume
     view(3); axis tight, grid on
@@ -339,7 +353,7 @@ for nf = 1:Nf
     end
     fprintf('\n'), toc % close(Video3D);
     % % % % % %     end %     if isempty(dir(fig_file))
-end % /files
+%end % /files
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%

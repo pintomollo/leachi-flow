@@ -16,9 +16,9 @@ function load_jars()
   warning_state = warning('off');
 
   % Add the jars
-  fprintf(1, 'Loading .jar files: ')
+  fprintf(1, ' Loading .jar files:     ')
   add_to_classpath(classpath, fullfile(curr_directory,'jars'));
-  fprintf(1, ' done !\n');
+  fprintf(1, '\b\b\b\bdone\n');
 
   % Switch warning back to initial settings
   warning(warning_state)
@@ -33,7 +33,7 @@ function add_to_classpath(classpath, directory)
   jarlist = dir(fullfile(directory,'*.jar'));
   path_= cell(0);
   for i = 1:length(jarlist)
-      fprintf(1, '.');
+      fprintf('\b\b\b%3d', i);
       if not_yet_in_classpath(classpath, jarlist(i).name)
           path_{length(path_) + 1} = fullfile(directory,jarlist(i).name);
       end

@@ -40,13 +40,15 @@ function params = resample_tif(params)
   resampling = params.Nsampling*(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
   invsample = 1/resampling;
 
-  disp('Resampling images...');
+  fprintf(' Resampling images :     ');
 
   files = files(indx);
   N = length(files);
   new_names = files;
 
   for i = 1:N % loop over images to resize images
+    fprintf('\b\b\b%3d',i);
+
     filename = files{i};
     im = imread(filename);
 
@@ -59,6 +61,7 @@ function params = resample_tif(params)
 
     new_names{i} = new_name;
   end
+  fprintf(1, '\b\b\b\bdone\n');
 
   params.filename = new_names;
   params.pixel_size = params.pixel_size * resampling;

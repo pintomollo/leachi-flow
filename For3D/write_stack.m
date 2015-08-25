@@ -47,7 +47,7 @@ function new_stack = write_stack(files, data, type, meta)
       tagstruct.ImageDescription = meta;
     end
 
-    disp('Writing stack to disk...');
+    fprintf(' Writing planes of stack to disk :    1');
 
     if (exist(files, 'file'))
       delete(files);
@@ -60,10 +60,10 @@ function new_stack = write_stack(files, data, type, meta)
     else
       tiffobj.write(cast(data(:,:,1), type));
     end
-    fprintf('.');
 
     try
       for n = 2:c % loop over images to resize images
+        fprintf('\b\b\b%3d', n);
 
         tiffobj.writeDirectory();
         tiffobj.setTag(tagstruct);
@@ -73,8 +73,6 @@ function new_stack = write_stack(files, data, type, meta)
         else
           tiffobj.write(cast(data(:,:,n), type));
         end
-
-        fprintf('.');
       end
     catch exception
       tiffobj.close();
@@ -84,7 +82,7 @@ function new_stack = write_stack(files, data, type, meta)
 
     tiffobj.close();
 
-    fprintf(' done !\n');
+    fprintf('\b\b\b\bdone\n');
 
   else
 
@@ -98,7 +96,7 @@ function new_stack = write_stack(files, data, type, meta)
     N = length(files);
     if (N == 0), disp('nada??'), return, end
 
-    disp('Reconstructing stack...');
+    fprintf(' Reconstructing stack from planes :    1');
 
     filename = files{1};
     info = imfinfo(filename);
@@ -137,10 +135,11 @@ function new_stack = write_stack(files, data, type, meta)
 
       new_stack{i,2} = tiffobj;
     end
-    fprintf('.');
 
     try
       for n = 2:N % loop over images to resize images
+        fprintf('\b\b\b%3d', n);
+
         filename = files{n};
         im = imread(filename);
 
@@ -151,8 +150,6 @@ function new_stack = write_stack(files, data, type, meta)
           tiffobj.setTag(tagstruct);
           tiffobj.write(im(:,:,i));
         end
-
-        fprintf('.');
       end
     catch exception
       for i = 1:c
@@ -166,7 +163,7 @@ function new_stack = write_stack(files, data, type, meta)
       new_stack{i, 2}.close();
     end
 
-    fprintf(' done !\n');
+    fprintf('\b\b\b\bdone\n');
 
     new_stack = new_stack(:,1);
   end

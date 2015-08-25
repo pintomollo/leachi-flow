@@ -51,8 +51,10 @@ function params = filter_stack(params)
     end
   end
 
-  fprintf('\n Median filtering over %i pixels rdius & gaussian blur of %f sigma for %i images :    ', Msize, Gsd, Nz)
+  fprintf(' Median filtering over %i pixels rdius & gaussian blur of %f sigma for %i images :     ', Msize, Gsd, Nz)
   for nz = 1:Nz
+    fprintf('\b\b\b%3d', nz);
+
     filename = files{nz};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
@@ -102,10 +104,11 @@ function params = filter_stack(params)
     imwrite(cast(im, type), new_name, 'TIFF');
 
     new_names{nz} = new_name;
-    fprintf('\b\b\b%3d', nz)
   end
 
   clear im;
+
+  fprintf('\b\b\b\bdone\n');
 
   tmp_stack = write_stack(new_names);
   dir_out = '_filtered';
@@ -125,8 +128,10 @@ function params = filter_stack(params)
     params.sparse_thresholds = tmp;
   end
 
-  fprintf('\n Z-gaussian blur of %f sigma for %i channels :    ', Gsd, Nc);
+  fprintf(' Z-gaussian blur of %f sigma for %i channels :     ', Gsd, Nc);
   for i=1:Nc
+    fprintf('\b\b\b%3d', i);
+
     filename = tmp_stack{i};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
@@ -137,10 +142,11 @@ function params = filter_stack(params)
     write_stack(new_name, stk, type, num2str(threshs(i)));
     stk_files{i} = new_name;
 
-    fprintf('\b\b\b%3d', i)
   end
 
   rmdir(tmp_dir, 's');
+
+  fprintf('\b\b\b\bdone\n');
 
   params.sparse_thresholds = threshs;
   params.filename = stk_files;

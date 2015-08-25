@@ -1,5 +1,7 @@
 function parameters = For3D(varargin)
 
+  fprintf('For3D pipeline :\n')
+
   % Inputs processing
   if (length(varargin) > 0 && isstruct(varargin{1}))
     parameters = update_structure(varargin{1}, 'For3D');
@@ -73,6 +75,8 @@ function params = get_parameters(params)
   % If none, ask for some
   N = length(files);
   if (N == 0)
+    fprintf(' Select an image from the sections to reconstruct in 3D : ');
+
     [fname, pathname] = uigetfile('*.*', 'Select one of the section that you want to reconstruct.');
 
     if isequal(fname,0)
@@ -92,6 +96,7 @@ function params = get_parameters(params)
       end
     end
   end
+  fprintf('thanks !\n');
 
   % Try reading the metadata
   info = imfinfo(files{1});

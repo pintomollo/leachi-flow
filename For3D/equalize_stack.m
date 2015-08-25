@@ -48,15 +48,17 @@ nc = size(im, 3);
 nz = length(files);
 mean_val = zeros(nz, nc);
 
-fprintf(' Computing mean of image    ')
+fprintf(' Computing mean of images :     ')
 for iz = 1:nz
+    fprintf('\b\b\b%3d',iz)
+
     im = imread(files{iz});
     for ic = 1:nc
         im_c = im(:, :, ic);
         mean_val(iz, ic) = mean(im_c(:));
     end
-    fprintf('\b\b\b%3d',iz)
 end
+fprintf(1, '\b\b\b\bdone\n');
 type = class(im);
 
 order = 2;
@@ -72,6 +74,7 @@ for ic = 1:nc
 end
 
 %subplot(121)
+%{
 figure;
 hold on
 plot(fliplr(mean_val))
@@ -79,13 +82,16 @@ plot(fliplr(I_fit),':')
 xlabel('z plane')
 ylabel('mean fluorescent intensity')
 title('Equalizing', 'interpreter', 'none')
+%}
 
 im_eq = zeros(nx, ny, nc);
 mean_eq = zeros(nz, nc);
 %if isempty(dir('temp')), mkdir('temp'), end
 
-fprintf('\n Equalizing image    ')
+fprintf(' Equalizing images :     ');
 for iz = 1:nz
+    fprintf('\b\b\b%3d',iz);
+
     filename = files{iz};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
@@ -104,13 +110,17 @@ for iz = 1:nz
 
     new_names{iz} = new_name;
 
-    fprintf('\b\b\b%3d', iz)
+    %fprintf('\b\b\b%3d', iz)
 end
+fprintf(1, '\b\b\b\bdone\n');
 
+%{
 plot(fliplr(mean_eq), '--')
 a = axis; axis([a(1) a(2) 0 a(4)])
 drawnow expose
 pause(1)
+%}
+
 %     saveas(gcf, ['3D' filesep file '_fluo_profil.fig'])
 
 %%%

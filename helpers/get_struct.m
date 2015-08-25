@@ -109,8 +109,8 @@ function mystruct = get_struct(type, nstruct)
                         'thresholds', [-1 -1 -1], ... % Red Green Blue thresholds (-1=auto)
                         'sparse_thresholds', [], ...  % The value thresholds used to create a sparse image
                         'pixel_size', 6.5, ...        % Pixel size (um)
-                        'colorize', false, ...        % Split the colors of the stack into RGB channels ?
-                        'min_fraction', 100, ...          % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
+                        'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
+                        'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
                         'Nsampling', 1, ...           % The sampling rate
                         'slice_width', 22, ...        % Section thickness (um)
                         'alpha', 0.2, ...             % Equalization factor (0=none, 1=full)

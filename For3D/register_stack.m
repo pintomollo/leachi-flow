@@ -11,14 +11,14 @@ function new_names = register_stack(files, min_frac)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
-  disp('Registering stack...');
-
   try
     load_jars();
     turboReg = TurboReg_;
   catch
     error('Registration:register_stack', 'TurboReg is not working properly, please follow the instructions from install_leachi_flow to fix this issue.');
   end
+
+  fprintf(' Registering images pairwise :   .');
 
   center = ceil(N/2);
 
@@ -81,11 +81,13 @@ function new_names = register_stack(files, min_frac)
   new_names{center} = new_name;
 
   for i = center+1:N % loop over images to resize images
+    fprintf('\b\b\b%3d', i);
+
     filename = files{i};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
 
-    disp(fname);
+    %disp(fname);
 
     im = imread(filename);
     im = imfillborder(im);
@@ -137,11 +139,13 @@ function new_names = register_stack(files, min_frac)
   copyfile(anchor, target);
 
   for i = center-1:-1:1
+    fprintf('\b\b\b%3d', i);
+
     filename = files{i};
     [filepath, fname, fileext] = fileparts(filename);
     new_name = fullfile(out_path, [fname fileext]);
 
-    disp(fname);
+    %disp(fname);
 
     im = imread(filename);
     im = imfillborder(im);
@@ -195,7 +199,7 @@ function new_names = register_stack(files, min_frac)
   if (N>1)
     delete(source);
   end
-  disp('Done !');
+  fprintf('\b\b\b\bdone\n');
 
   return;
 

@@ -28,8 +28,10 @@ function new_names = resize_tif(files, Amax, Bmax)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
-  disp('Resizing images...');
+  %disp('Resizing images...');
+  fprintf(' Parsing images to find the maximum size : ');
 
+  pmsg = '';
   if (Amax == 0)
       A = zeros(N, 1); B = A;
 
@@ -37,17 +39,26 @@ function new_names = resize_tif(files, Amax, Bmax)
           filename = files{i};
           im = imread(filename);
           [A(i), B(i), ~] = size(im); % ! lines & columns, not width & height !
-          fprintf('%s, %i, %i\n', filename, A(i), B(i))
+          %fprintf('%s, %i, %i\n', filename, A(i), B(i))
+          msg = sprintf('%i x %i', A(i), B(i));
+          fprintf([repmat('\b', 1, length(pmsg)) msg]);
+          pmsg = msg;
       end
   % % %     filenames = sort_nat(filenames);
       Amax = max(A);
       Bmax = max(B);
-      fprintf('max size: %i, %i\n\n', Amax, Bmax)
+      %fprintf('max size: %i, %i\n\n', Amax, Bmax)
+
+      msg = sprintf('%i x %i is the max size\n', Amax, Bmax);
+      fprintf([repmat('\b', 1, length(pmsg)) msg]);
   end
 
   new_names = files;
 
+  fprintf(' Resizing images to the max size :     ');
   for i = 1:N % loop over images to resize images
+      fprintf('\b\b\b%3d', i);
+
       filename = files{i};
       im = imread(filename);
 
@@ -56,7 +67,7 @@ function new_names = resize_tif(files, Amax, Bmax)
 
       new_name = fullfile(out_path, [fname fileext]);
 
-      fprintf('%s\n', new_name);
+      %fprintf('%s\n', new_name);
 
       if (~exist(new_name, 'file'))
         if (a < Amax || b < Bmax)
@@ -76,6 +87,7 @@ function new_names = resize_tif(files, Amax, Bmax)
       end
       new_names{i} = new_name;
   end
+  fprintf('\b\b\b\bdone\n');
 
   return;
 end
