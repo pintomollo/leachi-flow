@@ -79,14 +79,21 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
 %}
 
   files = params.filename;
+  detect_IHC = params.detect_IHC;
+  pixel_size = params.pixel_size;
+  slice_width = params.slice_width;
+  transparency = params.transparency;
   %new_names = {};
-  %dir_out = '_resampled';
 
-  %[files, out_path] = get_filenames(files, dir_out);
-  [files] = get_filenames(files);
+  dir_out = '_3D';
+
+  [files, out_path] = get_filenames(files, dir_out);
 
   Nf = length(files);
   if (Nf == 0), disp('nada??'), return, end
+
+  
+  fig_file = fullfile(out_path, 'img.fig');
 
   thresholds = params.thresholds;
   %new_names = files;
@@ -173,12 +180,13 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
     % % % % %         fprintf('\n')
     % % % % %     end
     
-    volume_c = zeros(nf, nc);
+    volume_c = zeros(nf, Nc);
 
     %% thresholds auto
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     for nc = 1:Nc
         [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+        Nz = size(stk, 3);
 
         if thresholds(nf, nc) == -1
             fprintf('finding automatic threshold %g. Iteration...', nc)
@@ -241,7 +249,7 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
                 hold on, axis tight
                 semilogy([th th], [min(vol) vol(th)], 'color', col(nc))
                 xlabel('threshold value'), ylabel('volume')
-                title(['Testing threshold for ' file], 'interpreter', 'none')
+                title(['Testing threshold for ' nc], 'interpreter', 'none')
                 
                 subplot(224)
                 diffv = diff(vol);
@@ -272,7 +280,8 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
     %% ****** generate 3D view ******
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     fprintf('computing 3D...\n')
-    [xx, yy, zz] = meshgrid(1:Ny_out, 1:Nx_out, 1:Nz_out);
+    %[xx, yy, zz] = meshgrid(1:Ny_out, 1:Nx_out, 1:Nz_out);
+    [xx, yy, zz] = meshgrid(single(1:Ny), single(1:Nx), single(1:Nz));
     
     h = figure('Color', 'w', 'Position', [80 80 560*2 420*2]); % for larger frames
     
@@ -286,9 +295,12 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
         [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
 
         %vals = squeeze(stk(:, :, :, nc));
-        p(nc) = patch(isosurface(xx, yy, zz, stk, thresholds(nf, nc), 'verbose'));
+        [face, vertex] = MarchingCubes(xx, yy, zz, stk, thresholds(nf, nc));
+        p(nc) = patch('Faces', face, 'Vertices', vertex);
+        %p(nc) = patch(isosurface(xx, yy, zz, stk, thresholds(nf, nc), 'verbose'));
         fprintf('rendering surface for channel %i...\n', nc)
-        isonormals(xx, yy, zz, stk, p(nc))
+        %isonormals(xx, yy, zz, stk, p(nc))
+
         if size(clr, 1)>1
             set(p(nc), 'FaceColor', clr(nc, :), 'EdgeColor', 'none', 'FaceAlpha', transparency(nc))
         else
@@ -308,7 +320,7 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
     daspect([1/xy_calib 1/xy_calib 1/z_calib])
     if (pixel_size > 1), axe_unit = 1000; axe_calib = 1; % um => 1 mm
     elseif detect_IHC, axe_unit = 100; axe_calib = 10; % 100 um, grad every 10 lines, hence every mm
-    elseif strfind(filename, 'testis'), axe_unit = 1000; axe_calib = 10; % 1 mm, grad every 10 lines, hence every 10 mm
+    %elseif strfind(filename, 'testis'), axe_unit = 1000; axe_calib = 10; % 1 mm, grad every 10 lines, hence every 10 mm
     else axe_unit = 1; axe_calib = 1;
     end
     
@@ -330,7 +342,7 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
     set(gca, 'XTicklabel', Xticklbl, 'YTicklabel', Yticklbl, 'ZTicklabel', Zticklbl)
     set(gca, 'FontSize', 16)
     
-    if strfind(file, '_no_corner'), plot_3D_corner(Nx, Ny, Nz), end
+    %%%%%%if strfind(file, '_no_corner'), plot_3D_corner(Nx, Ny, Nz), end
     
     saveas(h, fig_file) % axis off, saveas(h, [file_out '.png']), axis on
     
@@ -341,14 +353,14 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % using saveas (or imwrite, writeVideo, 40% faster but requires no screensaver, no other window on top..)
     az = 0; el = 90;
-    if isempty(dir(dir_out)), mkdir(dir_out), end
+    %if isempty(dir(dir_out)), mkdir(dir_out), end
     fprintf('saving view   '), tic % Video3D = VideoWriter([file '.avi']); Video3D.FrameRate = 7; open(Video3D);
     for i = 0:45
         view(az-2*i, el-2*i)
         % %         frame = getframe(h); writeVideo(Video3D, frame);
         % %         if i == 0, imwrite(uint8(frame.cdata), file_out, 'tiff', 'Compression', 'none')
         % %         else imwrite(uint8(frame.cdata), file_out, 'tiff', 'Compression', 'none', 'writemode', 'append'), end
-        saveas(h, [dir_out filesep file_out num2str(i, '%02i') '.png']);
+        saveas(h, fullfile(out_path, ['img' num2str(i, '%02i') '.png']));
         fprintf('\b\b\b%3d', i)
     end
     fprintf('\n'), toc % close(Video3D);

@@ -105,6 +105,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
     memcpy(table, mxGetPr(prhs[1]), nbins*sizeof(double)); 
 
+    /// Need to to the 2D version if 2D table provided, sum only i+npix then
+    /// If 3D, sum 1
+
     for (i=0; i < npix; i++) {
       dind = img[i]*nbins;
       indx = dind == nbins ? dind-1 : floor(dind);

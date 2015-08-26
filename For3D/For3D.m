@@ -32,29 +32,57 @@ function parameters = For3D(varargin)
   % First make sure the parameters are correct
   parameters = get_parameters(parameters);
 
+  % Get the working directory
+  [workdir, junk, junk] = fileparts(parameters.filename);
+  savename = fullfile(workdir, 'myFor3D.mat');
+
+  % Saving the progress
+  save(savename, 'parameters');
+
   % Then adjust the image into a proper stack
   parameters.filename = resize_tif(parameters.filename);
 
+  % Saving the progress
+  save(savename, 'parameters');
+
   % Then align the stack
   parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
+
+  % Saving the progress
+  save(savename, 'parameters');
 
   % Smooth the volume and the intensity of the organ
   parameters.filename = smooth_slices(parameters.filename);
   parameters.filename = equalize_stack(parameters.filename, parameters.alpha);
 
+  % Saving the progress
+  save(savename, 'parameters');
+
   % Then resample the images to the proper resolution
   parameters = resample_tif(parameters);
+
+  % Saving the progress
+  save(savename, 'parameters');
 
   % Adjust them to fit an expected sparse matrix
   parameters.filename = adjust_tif(parameters.filename);
 
+  % Saving the progress
+  save(savename, 'parameters');
+
   % The splitting of colors stuff
   if (parameters.colorize)
     parameters.filename = colorize_stack(parameters.filename);
+
+    % Saving the progress
+    save(savename, 'parameters');
   end
 
   % Filter the stack
   parameters = filter_stack(parameters);
+
+  % Saving the progress
+  save(savename, 'parameters');
 
   % Reconstruct the volume
   %rendering_3D(parameters);

@@ -48,6 +48,8 @@ function [img, nhist] = imsplitcolors(img, dist)
     end
   end
 
+  keyboard
+
   if (nargout==1)
     if (compute_split)
       nhist = [nhist; nhist];

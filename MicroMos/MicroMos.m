@@ -205,6 +205,9 @@ function [FileName] = MicroMos(varargin)
          tmp_img = imread(fullfile(parameters.ImageFolder, ImagesList(i,1).name));
          Field = imvignette(tmp_img, Field);
       end
+
+      clear tmp_img
+
       Field = imvignette(Field);
       Field = fPixelAccuracy(Field);
       Field = Field./mean(Field(:));
@@ -245,6 +248,11 @@ function [FileName] = MicroMos(varargin)
 
       referenceFrame = fPixelAccuracy(referenceFrame);
   end
+
+  [nrows, ncols, nchannels] = size(referenceFrame);
+  base = referenceFrame;
+
+  clear referenceFrame;
 
   %GLOBAL registration matrices loading:
   if parameters.flag_ComputeRegistrations ~= 1
@@ -421,7 +429,8 @@ function [FileName] = MicroMos(varargin)
     end
   end
 
-  [nrows, ncols, nchannels] = size(referenceFrame);
+  clear base
+
   is_rgb = (nchannels~=1);
 
   % MOSAIC CREATION
@@ -518,6 +527,8 @@ function [FileName] = MicroMos(varargin)
 
   Mosaic = Mosaic(goody, goodx, :);
 
+  clear unregistered goods goodx goody
+
   ImageIndexs = parameters.ImageIndexs(Indeces);
   parameters.ImageIndexs = ImageIndexs;
   parameters.Registrations = MatricesGLOBAL;
@@ -561,7 +572,8 @@ function [FileName] = MicroMos(varargin)
   end
 
   if (parameters.flag_AdjustIntensityValues)
-    Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+    %Mosaic = imadjust(Mosaic, stretchlim(Mosaic));
+    Mosaic = imnorm(Mosaic);
   end
 
   fname = parameters.ImageFolder;
