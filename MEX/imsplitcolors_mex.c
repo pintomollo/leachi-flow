@@ -9,17 +9,25 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   int i, indx;
   mwSize w, h, npix, nbins, ndim;
   const mwSize *dims;
-  double r = 0.0, g = 1.0/3.0, b = 2.0/3.0, val, t0, t1, t2, d0, d1, d2, dind;
-  double *img, *table;
+  double r = 0.0, g = 1.0/3.0, b = 2.0/3.0, val, t0, t1, t2, d0, d1, d2, hind, sind, vind;
+  double *img, *table, *hist;
 
   // Check for proper number of input and output arguments
-  if (nrhs != 2) {
+  if (nrhs < 2) {
     mexErrMsgIdAndTxt("MATLAB:imsplitcolors:invalidInputs",
-        "Not the correct number of input arguments (2 required) !");
+        "Not the correct number of input arguments (2 minimum required) !");
+
+  } else if (nrhs == 2) {
+    table = mxGetPr(prhs[1]);
+    hist = NULL;
+
+  } else {
+    table = mxGetPr(prhs[1]);
+    hist = mxGetPr(prhs[2]);
   }
 
   // Ensure the types of the two first arrays at least
-  if (!mxIsDouble(prhs[0]) || !mxIsDouble(prhs[1])) {
+  if (!mxIsDouble(prhs[0]) || (table!=NULL && !mxIsDouble(prhs[1])) || (hist!=NULL && !mxIsDouble(prhs[2]))) {
     mexErrMsgIdAndTxt("MATLAB:imsplitcolors:invalidInputs",
         "Input arguments must be of type double.");
   }
@@ -27,13 +35,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // Get the number of pixels and the image
   npix = mxGetNumberOfElements(prhs[0]) / 3;
 
-  // Get the number of bins and the counts table
-  nbins = mxGetNumberOfElements(prhs[1]);
-
   // Then we need to split the colors
-  if (nbins <= 3) {
+  if (hist==NULL || mxIsEmpty(prhs[2])) {
 
-    table = mxGetPr(prhs[1]);
+    nbins = mxGetNumberOfElements(prhs[1]);
+
     t0 = table[0];
     t1 = nbins > 1 ? table[1] : t0;
     t2 = nbins > 2 ? table[2] : t0;
@@ -42,7 +48,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     dims = mxGetDimensions(prhs[0]);
 
     // Prepare the output, allocating the memory
-    //if ((plhs[0] = mxCreateDoubleMatrix(npix, 3, mxREAL)) == NULL) {
     if ((plhs[0] = mxCreateNumericArray(ndim, dims, mxDOUBLE_CLASS, mxREAL)) == NULL) {
       mexErrMsgIdAndTxt("MATLAB:imsplitcolors:memoryAllocation",
         "Memory allocation failed !");
@@ -92,26 +97,52 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     // The image
     img = mxGetPr(prhs[0]);
 
-    /* Get the size of the image. */
-    h = mxGetM(prhs[1]);
-    w = mxGetN(prhs[1]);
+    // Get the number of bins
+    nbins = mxGetNumberOfElements(prhs[2]);
+    ndim = mxGetNumberOfDimensions(prhs[2]);
+    dims = mxGetDimensions(prhs[2]);
 
     // Prepare the output, allocating the memory
-    if ((plhs[0] = mxCreateDoubleMatrix(h, w, mxREAL)) == NULL) {
+    if ((plhs[0] = mxCreateNumericArray(ndim, dims, mxDOUBLE_CLASS, mxREAL)) == NULL) {
       mexErrMsgIdAndTxt("MATLAB:imsplitcolors:memoryAllocation",
         "Memory allocation failed !");
     }
     table = mxGetPr(plhs[0]);
 
-    memcpy(table, mxGetPr(prhs[1]), nbins*sizeof(double)); 
+    memcpy(table, mxGetPr(prhs[2]), nbins*sizeof(double)); 
 
-    /// Need to to the 2D version if 2D table provided, sum only i+npix then
-    /// If 3D, sum 1
+    if (dims[0]==1 || dims[1]==1) {
 
-    for (i=0; i < npix; i++) {
-      dind = img[i]*nbins;
-      indx = dind == nbins ? dind-1 : floor(dind);
-      table[indx] += img[i + npix] * img [i + npix + npix];
+      for (i=0; i < npix; i++) {
+        hind = img[i]*nbins;
+        hind = hind == nbins ? hind-1 : floor(hind);
+        table[(int)hind] += img[i + npix] * img [i + npix + npix];
+      }
+    } else if (ndim < 3) {
+
+      for (i=0; i < npix; i++) {
+        hind = img[i]*dims[0];
+        hind = hind == dims[0] ? hind-1 : floor(hind);
+
+        vind = img[i + npix + npix]*dims[1];
+        vind = vind == dims[1] ? vind-1 : floor(vind);
+
+        table[(int)(hind + vind*dims[0])] += img[i + npix];
+      }
+    } else {
+
+      for (i=0; i < npix; i++) {
+        hind = img[i]*dims[0];
+        hind = hind == dims[0] ? hind-1 : floor(hind);
+
+        sind = img[i + npix]*dims[1];
+        sind = sind == dims[1] ? sind-1 : floor(sind);
+
+        vind = img[i + npix + npix]*dims[2];
+        vind = vind == dims[2] ? vind-1 : floor(vind);
+
+        table[(int)(hind + sind*dims[0] + vind*(dims[0]*dims[1]))]++;
+      }
     }
   }
 

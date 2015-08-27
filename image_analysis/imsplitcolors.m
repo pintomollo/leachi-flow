@@ -1,18 +1,19 @@
-function [img, nhist] = imsplitcolors(img, dist)
+function [img, nhist] = imsplitcolors(img, imax, nhist)
 
-  nhist = [];
-  imax = [];
+  dist = 5;
   if (nargin == 1)
-    dist = 5;
-  elseif (numel(dist) > 1)
-    if (numel(dist) > 3)
-      nhist = dist;
-      dist = 5;
-    else
-      imax = dist;
-      dist = 5;
-    end
+    imax = [];
+    nhist = [];
+  elseif (nargin == 2)
+    nhist = [];
   end
+
+  if (numel(imax) == 1)
+    dist = imax;
+    imax = [];
+  end
+
+  %%% Need to fix inputs
 
   if (size(img, 3) < 3)
     if (~isempty(nhist) || ~isempty(imax))
@@ -44,7 +45,7 @@ function [img, nhist] = imsplitcolors(img, dist)
     img = rgb_hsv_mex(img);
 
     if (compute_split)
-      nhist = imsplitcolors_mex(img, nhist);
+      nhist = imsplitcolors_mex(img, [], nhist);
     end
   end
 
