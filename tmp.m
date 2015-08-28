@@ -1,4 +1,19 @@
-function tmp(num)
+function tmp
+
+  ssize = [512 416 34];
+
+  for i=1:1000
+    vals = rand(ssize);
+    vals(vals < 0.5) = 0;
+
+    vals = sparse(vals(:));
+    vals = ndSparse(vals, ssize);
+
+    vals = imssmooth(vals, 2, 0.5);
+    fprintf('.');
+  end
+
+  return;
 
   files = dir('flow*.mat');
   for i=1:length(files)
