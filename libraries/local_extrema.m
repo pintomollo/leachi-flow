@@ -47,6 +47,7 @@ if ~isempty(inan)
 end
 
 % Difference between subsequent elements:
+x = x(:);
 dx = differentiator(x, 'super');
 
 % Local maxima and minima for windowing

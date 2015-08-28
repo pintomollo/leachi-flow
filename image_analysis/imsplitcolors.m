@@ -29,7 +29,8 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
 
   if (isempty(nhist))
     nbins = 255;
-    nhist = zeros(nbins, 1);
+    %nhist = zeros(nbins, 1);
+    nhist = zeros(nbins, nbins);
   else
     nhist = nhist(:);
     nbins = length(nhist);
@@ -49,15 +50,20 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     end
   end
 
-  keyboard
-
   if (nargout==1)
     if (compute_split)
       nhist = [nhist; nhist];
 
-      nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
+      %kernel = ones(2*dist+1, 1);
+      kernel = ones(2*dist+1);
+      kernel = kernel/numel(kernel);
 
-      [xmax, imax] = local_extrema(nhist, dist);
+      nhist = convn(nhist, kernel, 'same');
+      %nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
+
+      [xmax, imax] = find_extrema(nhist, dist);
+
+      keyboard
 
       goods = (imax > dist & imax <= length(nhist) - dist);
       xmax = xmax(goods);
