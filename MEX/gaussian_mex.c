@@ -10,7 +10,9 @@
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   /* Declare a few variables. */
-  int h, w;
+  mwSize h, w, c, dims[3];
+  const mwSize *size;
+  int j, offset_img;
   double *img, sigma;
 
   /* No flexibility here, we want both the image and sigma ! */
@@ -23,22 +25,37 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   /* Get sigma. */
   sigma = mxGetScalar(prhs[1]);
 
-  /* Get the size of the image. */
-  h = mxGetM(prhs[0]);
-  w = mxGetN(prhs[0]);
+  // The size of the image
+  size = mxGetDimensions(prhs[0]);
+  h = size[0];
+  w = size[1];
+  c = mxGetNumberOfElements(prhs[0]) / (h*w);
+
+  // Prepare the output
+  dims[0] = h;
+  dims[1] = w;
+  dims[2] = c;
+
+  // Some temporary values
+  offset_img = h*w;
+
+  // Create the array
+  plhs[0] = mxCreateNumericArray(3, dims, mxDOUBLE_CLASS, mxREAL);
 
   /* Create the output image on which we'll work directly. */
-  plhs[0] = mxCreateDoubleMatrix(h, w, mxREAL);
   img = mxGetPr(plhs[0]);
 
   /* Copy the input to the working image. */
-  memcpy(img, mxGetPr(prhs[0]), h*w*sizeof(double)); 
+  memcpy(img, mxGetPr(prhs[0]), h*w*c*sizeof(double)); 
 
   /* Verify that sigma is valid, and let's go ! */
   if (sigma <= 0) {
     mexWarnMsgTxt("Gaussian smoothing with invalid sigma !");
   } else {
-    gaussian_smooth(img, w, h, sigma);
+    for (j=0; j < c; j++) {
+      gaussian_smooth(img, w, h, sigma);
+      img += offset_img;
+    }
   }
 
   return;

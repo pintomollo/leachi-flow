@@ -107,11 +107,15 @@ function mystruct = get_struct(type, nstruct)
       mystruct = struct('filename', '*.tif', ...      % Filename (default: all tif files)
                         'detect_IHC', 0, ...          % Detect IHC staining (1=yes 0=no)
                         'thresholds', [-1 -1 -1], ... % Red Green Blue thresholds (-1=auto)
+                        'sparse_thresholds', [], ...  % The value thresholds used to create a sparse image
                         'pixel_size', 6.5, ...        % Pixel size (um)
+                        'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
+                        'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
+                        'Nsampling', 1, ...           % The sampling rate
                         'slice_width', 22, ...        % Section thickness (um)
                         'alpha', 0.2, ...             % Equalization factor (0=none, 1=full)
                         'transparency', [1/3 1/20 1/20], ... % Red Green Blue transparency ratio, use [1/3 1/3 1/10] for LN, for same transparency in red and green
-                        'border_erosion', [0 0]);     % Red Green border erosion (um, ref=Blue)
+                        'border_erosion', [0 0 0]);     % Red Green border erosion (um, ref=Blue)
 
     case 'fitting'
       mystruct = struct('init_noise', 0, ...
@@ -225,7 +229,7 @@ function mystruct = get_struct(type, nstruct)
                         'PCscaleFactor', 1, ... % to speed up the computational processes. Image rescale factor applyed to optionally resize the images. The value must be a positive integer. E.g.: ceil(2) to obtain half-sized images than the original images. 1 (suggested) means: rescaling not active.
                         'flag_ComputeRegistrations', 1, ... % 0 for loading an external registration matrix to stitch the images. In case, the registration matrix must be saved as 3x3xn (n=number of images to be registered) Matlab matrix in the folder named: "REGISTRATIONMATRIX".
                         'InterpolationMode', 'bilinear', ... % interpolation used to warp the image to be stitched. It can be: 'bicubic' or 'bilinear' (suggested) or 'nearest'.
-                        'flag_LookUpTable', 1, ... % to use a 256 levels Look-Up-Table to map the grey levels into a single RGB conversion.
+                        'flag_LookUpTable', 0, ... % to use a 256 levels Look-Up-Table to map the grey levels into a single RGB conversion.
                         'flag_AdjustIntensityValues', 1, ... % to adjust the image intensity values
                         'ScaleFactor', 1, ... % to speed up the computational processes. Image rescale factor applyed to optionally resize the images. The value must be a positive integer. E.g.: ceil(2) to obtain half-sized images than the original images. 1 (suggested) means: rescaling not active.
                         'PixelAccuracy', 0); % (by default: 0). Pixel-accuracy of the output mosaic. 0 = double precision (slower computation, higher precision), 1 = single precision (faster computation, lower precision). If your computer have not enough memory to build the mosaic, we suggest to try to set this parameter at the value 1 (single precision).

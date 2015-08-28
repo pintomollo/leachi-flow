@@ -55,8 +55,8 @@ end
 
 if isempty(params.filename), return, end % cancel by user
 
-Nsampling = floor(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
-if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
+%Nsampling = floor(params.slice_width/params.pixel_size/1.5); % assuming ideally dz = 1.5dx for resoluting voxel after sampling.
+%if Nsampling < 1, Nsampling = 1; end % Thymus (screen capture at 2x): floor(22/6.5/1.5) = 2, Thymus (3x): floor(22/4.33/1.5) = 3, LN (8x): floor(22/2.6/1.5) = 5
 
 %{
 %% select files
@@ -79,23 +79,33 @@ thresholds = repmat(thresholds, Nf, 1); % allowing giving different values / fil
 %}
 
   files = params.filename;
-  new_names = {};
-  dir_out = '_resampled';
+  detect_IHC = params.detect_IHC;
+  pixel_size = params.pixel_size;
+  slice_width = params.slice_width;
+  transparency = params.transparency;
+  %new_names = {};
+
+  dir_out = '_3D';
 
   [files, out_path] = get_filenames(files, dir_out);
 
   Nf = length(files);
   if (Nf == 0), disp('nada??'), return, end
 
-  new_names = files;
+  
+  fig_file = fullfile(out_path, 'img.fig');
+
+  thresholds = params.thresholds;
+  %new_names = files;
 
   im = imread(files{1});
-  [Nx, Ny, Nc] = size(im);
-  Nz = Nf;
+  [Nx, Ny, Nz] = size(im);
+  Nc = Nf;
+  nf = 1;
 
 %% loop/files
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for nf = 1:Nf
+%for nf = 1:Nf
     
     %{
     file = files(nf).name;
@@ -170,14 +180,22 @@ for nf = 1:Nf
     % % % % %         fprintf('\n')
     % % % % %     end
     
+    volume_c = zeros(nf, Nc);
+
     %% thresholds auto
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     for nc = 1:Nc
+        [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+        Nz = size(stk, 3);
+
         if thresholds(nf, nc) == -1
             fprintf('finding automatic threshold %g. Iteration...', nc)
-            vals = stk(:, :, :, nc);
-            T1 = graythresh(vals)*max(vals(:));
-            T2 = opthr(reshape(vals, Nx_out, Ny_out*Nz_out));
+
+            T1 = mygraythresh(stk, type);
+            T2 = full(opthr(reshape(stk, Nx, [])));
+            %vals = stk(:, :, :, nc);
+            %T1 = graythresh(vals)*max(vals(:));
+            %T2 = opthr(reshape(vals, Nx_out, Ny_out*Nz_out));
             
             if Nc>1
                 switch nc % tricky combination, might be optimized for a given dataset, or set manually
@@ -220,8 +238,9 @@ for nf = 1:Nf
             %% plot thresholds
             col = 'rgb';
             vol = zeros(255, 1);
-            vals = vals(:);
-            for th = 1:255, vol(th) = sum(vals<th); end
+            stk = stk(:);
+            for th = 1:255, vol(th) = sum(stk<th); end
+            volume_c(nc) = sum(stk > thresholds(nf, nc));
             
             th = round(thresholds(nf, nc));
             if th>0
@@ -230,7 +249,7 @@ for nf = 1:Nf
                 hold on, axis tight
                 semilogy([th th], [min(vol) vol(th)], 'color', col(nc))
                 xlabel('threshold value'), ylabel('volume')
-                title(['Testing threshold for ' file], 'interpreter', 'none')
+                title(['Testing threshold for ' nc], 'interpreter', 'none')
                 
                 subplot(224)
                 diffv = diff(vol);
@@ -244,11 +263,12 @@ for nf = 1:Nf
         end % if thresholds(nf, nc) == -1
     end % for nc = 1:Nc
     
-    voxel_size = (pixel_size*Nsampling)^2*slice_width*1e-9; % convert from um3 to mm3
+    %voxel_size = (pixel_size*Nsampling)^2*slice_width*1e-9; % convert from um3 to mm3
+    voxel_size = (pixel_size)^2*slice_width*1e-9; % convert from um3 to mm3
     for nc = 1:Nc
-        vals = stk(:, :, :, nc);
-        volume_c = sum(vals(:) > thresholds(nf, nc));
-        fprintf('Channel %i: threshold = %.0f, volume = %i voxels = %.2f mm3\n', nc, thresholds(nf, nc), volume_c, volume_c*voxel_size)
+        %vals = stk(:, :, :, nc);
+        %volume_c = sum(vals(:) > thresholds(nf, nc));
+        fprintf('Channel %i: threshold = %.0f, volume = %i voxels = %.2f mm3\n', nc, thresholds(nf, nc), volume_c(nc), volume_c(nc)*voxel_size)
     end
     
     % % % % %     if detect_IHC % extra smoothing?
@@ -260,7 +280,8 @@ for nf = 1:Nf
     %% ****** generate 3D view ******
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     fprintf('computing 3D...\n')
-    [xx, yy, zz] = meshgrid(1:Ny_out, 1:Nx_out, 1:Nz_out);
+    %[xx, yy, zz] = meshgrid(1:Ny_out, 1:Nx_out, 1:Nz_out);
+    [xx, yy, zz] = meshgrid(single(1:Ny), single(1:Nx), single(1:Nz));
     
     h = figure('Color', 'w', 'Position', [80 80 560*2 420*2]); % for larger frames
     
@@ -270,29 +291,36 @@ for nf = 1:Nf
     %%  plot isosurf 
     for nc = 1:Nc
         fprintf('generating surface for channel %i...\n', nc)
-        vals = squeeze(stk(:, :, :, nc));
-        p(nc) = patch(isosurface(xx, yy, zz, vals, thresholds(nf, nc), 'verbose'));
+
+        [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+
+        %vals = squeeze(stk(:, :, :, nc));
+        [face, vertex] = MarchingCubes(xx, yy, zz, stk, thresholds(nf, nc));
+        p(nc) = patch('Faces', face, 'Vertices', vertex);
+        %p(nc) = patch(isosurface(xx, yy, zz, stk, thresholds(nf, nc), 'verbose'));
         fprintf('rendering surface for channel %i...\n', nc)
-        isonormals(xx, yy, zz, vals, p(nc))
+        %isonormals(xx, yy, zz, stk, p(nc))
+
         if size(clr, 1)>1
             set(p(nc), 'FaceColor', clr(nc, :), 'EdgeColor', 'none', 'FaceAlpha', transparency(nc))
         else
             set(p(nc), 'FaceColor', clr(nc), 'EdgeColor', 'none', 'FaceAlpha', transparency(nc))
         end
     end
-    clear xx yy zz vals stk
+    clear xx yy zz stk
     
     %% 3D volume
     view(3); axis tight, grid on
     camlight, lighting gouraud
     
     %% axes
-    xy_calib = pixel_size*Nsampling; % um
+    %xy_calib = pixel_size*Nsampling; % um
+    xy_calib = pixel_size; % um
     z_calib = slice_width;
     daspect([1/xy_calib 1/xy_calib 1/z_calib])
     if (pixel_size > 1), axe_unit = 1000; axe_calib = 1; % um => 1 mm
     elseif detect_IHC, axe_unit = 100; axe_calib = 10; % 100 um, grad every 10 lines, hence every mm
-    elseif strfind(filename, 'testis'), axe_unit = 1000; axe_calib = 10; % 1 mm, grad every 10 lines, hence every 10 mm
+    %elseif strfind(filename, 'testis'), axe_unit = 1000; axe_calib = 10; % 1 mm, grad every 10 lines, hence every 10 mm
     else axe_unit = 1; axe_calib = 1;
     end
     
@@ -314,7 +342,7 @@ for nf = 1:Nf
     set(gca, 'XTicklabel', Xticklbl, 'YTicklabel', Yticklbl, 'ZTicklabel', Zticklbl)
     set(gca, 'FontSize', 16)
     
-    if strfind(file, '_no_corner'), plot_3D_corner(Nx, Ny, Nz), end
+    %%%%%%if strfind(file, '_no_corner'), plot_3D_corner(Nx, Ny, Nz), end
     
     saveas(h, fig_file) % axis off, saveas(h, [file_out '.png']), axis on
     
@@ -325,19 +353,19 @@ for nf = 1:Nf
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % using saveas (or imwrite, writeVideo, 40% faster but requires no screensaver, no other window on top..)
     az = 0; el = 90;
-    if isempty(dir(dir_out)), mkdir(dir_out), end
+    %if isempty(dir(dir_out)), mkdir(dir_out), end
     fprintf('saving view   '), tic % Video3D = VideoWriter([file '.avi']); Video3D.FrameRate = 7; open(Video3D);
     for i = 0:45
         view(az-2*i, el-2*i)
         % %         frame = getframe(h); writeVideo(Video3D, frame);
         % %         if i == 0, imwrite(uint8(frame.cdata), file_out, 'tiff', 'Compression', 'none')
         % %         else imwrite(uint8(frame.cdata), file_out, 'tiff', 'Compression', 'none', 'writemode', 'append'), end
-        saveas(h, [dir_out filesep file_out num2str(i, '%02i') '.png']);
+        saveas(h, fullfile(out_path, ['img' num2str(i, '%02i') '.png']));
         fprintf('\b\b\b%3d', i)
     end
     fprintf('\n'), toc % close(Video3D);
     % % % % % %     end %     if isempty(dir(fig_file))
-end % /files
+%end % /files
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%

@@ -2,54 +2,64 @@ function new_names = adjust_tif(files)
 
   if nargin<1, files = '*.tif'; end
 
-  new_names = {};
-  dir_out = '_adjusted'; % '../resized';
+  if (isnumeric(files))
 
-  [files, out_path] = get_filenames(files, dir_out);
+    new_names = adjust_img(files);
+  else
 
-  N = length(files);
-  if (N == 0), disp('nada??'), return, end
+    new_names = {};
+    dir_out = '_adjusted'; % '../resized';
 
-  disp('Adjust images pixel values...');
+    [files, out_path] = get_filenames(files, dir_out);
 
-  new_names = files;
+    N = length(files);
+    if (N == 0), disp('nada??'), return, end
 
-  for i = 1:N % loop over images to resize images
-      filename = files{i};
-      im = imread(filename);
+    fprintf(' Adjusting the pixel values of the images :     ');
 
-      [filepath, fname, fileext] = fileparts(filename);
-      out_path = fullfile(filepath, dir_out);
+    new_names = files;
 
-      if ~isdir(out_path)
-        mkdir(out_path);
-      end
-      new_name = fullfile(out_path, [fname fileext]);
+    for i = 1:N % loop over images to resize images
+        fprintf('\b\b\b%3d', i);
 
-      fprintf('%s\n', new_name);
+        filename = files{i};
+        im = imread(filename);
 
-      [im, bkgs] = imfillborder(im);
+        [filepath, fname, fileext] = fileparts(filename);
+        new_name = fullfile(out_path, [fname fileext]);
 
-      %border_rows = [im(1,:,:) im(end,:,:)];
-      %border_cols = [im(:,1,:); im(:,end,:)];
+        im = adjust_img(im);
 
-      is_white = (mean(bkgs) > mean(im(:)));
-      if is_white
-        mval = max(im(:));
-        im = mval - im;
-        bkgs = mval - bkgs;
-      end % invert if white bkground
+        imwrite(im, new_name, 'Compression', 'none');
 
-      for c = 1:size(im,3)
-        tmp_img = im(:,:,c) - bkgs(c);
-        tmp_img(tmp_img < 0) = 0;
-        tmp_img = imnorm(tmp_img);
-        im(:,:,c) = tmp_img;
-      end
+        new_names{i} = new_name;
+    end
 
-      imwrite(im, new_name, 'Compression', 'none')
+    fprintf('\b\b\b\bdone\n');
+  end
 
-      new_names{i} = new_name;
+  return;
+end
+
+function img = adjust_img(img)
+
+  [img, bkgs] = imfillborder(img);
+
+  %border_rows = [im(1,:,:) im(end,:,:)];
+  %border_cols = [im(:,1,:); im(:,end,:)];
+
+  is_white = (mean(bkgs) > mean(img(:)));
+  if is_white
+    mval = max(img(:));
+    img = mval - img;
+    bkgs = mval - bkgs;
+  end % invert if white bkground
+
+  for c = 1:size(img,3)
+    tmp_img = img(:,:,c) - bkgs(c);
+    tmp_img(tmp_img < 0) = 0;
+    tmp_img = imnorm(tmp_img);
+    img(:,:,c) = tmp_img;
   end
 
   return;

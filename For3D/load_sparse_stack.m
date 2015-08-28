@@ -1,4 +1,4 @@
-function [all_mats, threshs] = load_sparse_stack(files, threshs)
+function [all_mats, threshs, type] = load_sparse_stack(files, threshs)
 
   if nargin<1
     files = '*.tif';
@@ -64,30 +64,8 @@ function [all_mats, threshs] = load_sparse_stack(files, threshs)
     all_mats = all_mats{1};
   end
 
-  return;
-end
-
-function [idx] = mygraythresh(counts)
-
-  % Variables names are chosen to be similar to the formulas in
-  % the Otsu paper.
-  p = counts / sum(counts);
-  omega = cumsum(p);
-  mu = cumsum(p .* (1:length(counts))');
-  mu_t = mu(end);
-
-  sigma_b_squared = (mu_t * omega - mu).^2 ./ (omega .* (1 - omega));
-
-  % Find the location of the maximum value of sigma_b_squared.
-  % The maximum may extend over several bins, so average together the
-  % locations.  If maxval is NaN, meaning that sigma_b_squared is all NaN,
-  % then return 0.
-  maxval = max(sigma_b_squared);
-  isfinite_maxval = isfinite(maxval);
-  if isfinite_maxval
-    idx = mean(find(sigma_b_squared == maxval)) - 1;
-  else
-    idx = 0;
+  if (nargout>2)
+    type = class(img);
   end
 
   return;

@@ -35,23 +35,25 @@ function new_names = smooth_slices(files)
   std_j = zeros(Nk, 1);
   %background_val = zeros(Nk, 3);
 
-  fprintf('filtering %i images for axial smoothing', Nk);
+  fprintf(' Computing the images intensity barycenter for axial smoothing :     ');
 
   for nk = 1:Nk
+      fprintf('\b\b\b%3d', nk);
+
       im = double(imread(files{nk}));
       %border_rows = squeeze([im(1,:,:) im(end,:,:)]);
       %border_cols = squeeze([im(:,1,:); im(:,end,:)]);
       %background_val(nk, :) = mean([border_rows; border_cols]);
       border_rows = [im(1,:,:) im(end,:,:)];
       border_cols = [im(:,1,:); im(:,end,:)];
-      
+
       is_white = (mean([border_rows(:); border_cols(:)]) > mean(im(:)));
 
       %% image pretreatment
       %im = medfilt2(sum(im, 3)); % summing all channels to 'get all signal' (ponder color sum??)
       im = median_mex(sum(im, 3)); % summing all channels to 'get all signal' (ponder color sum??)
       if is_white, im = max(im(:)) - im; end % invert if white bkground
-      
+
       [Ni, Nj] = size(im);
       ii = (1:Ni)';
       jj = (1:Nj);
@@ -62,19 +64,19 @@ function new_names = smooth_slices(files)
       % center and width computed for relevant values (above threshold <=> in the organ)
       val_i = mean(im, 2);
       val_j = mean(im);
-      
+
       %% find typical size: barycenter & std (ponder by image values)
       i_bary(nk) = sum(val_i .* ii) / sum(val_i); % mean = ib = sum(Ii*i)/sum(Ii)
       j_bary(nk) = sum(val_j .* jj) / sum(val_j);
       std_i(nk) = sqrt(sum(val_i .* (ii - i_bary(nk)).^2) / sum(val_i)); % std = sqrt(sum(Ii * (i-ib)^2) / sum(Ii))
       std_j(nk) = sqrt(sum(val_j .* (jj - j_bary(nk)).^2) / sum(val_j));
-      
+
       %{
       if mod(nk, 5) == 0 % show only some, to save time..
           imshow(uint8(im/3)), title(['section ' num2str(nk) ', all channels summed']), hold on
           colormap(gray)
           plot(val_i, ii, 'r', jj, val_j, 'm', j_bary(nk), i_bary(nk), 'yo')
-          
+
           xe = j_bary(nk)-std_j(nk);
           ye = i_bary(nk)-std_i(nk);
           we = 2*std_j(nk);
@@ -87,8 +89,8 @@ function new_names = smooth_slices(files)
   end
 
   %% smooth shape descriptors => scaling factors
-  smooth_i_bary = smooth(i_bary); % using smooth, instead of expecting a spheroid shape
-  smooth_j_bary = smooth(j_bary);
+  smooth_i_bary = smooth(i_bary, 'loess'); % using smooth, instead of expecting a spheroid shape
+  smooth_j_bary = smooth(j_bary, 'loess');
   smooth_std_i = smooth(std_i);
   smooth_std_j = smooth(std_j);
   i_scale = smooth_std_i ./ std_i; % scale = size_out / size_in
@@ -106,7 +108,12 @@ function new_names = smooth_slices(files)
   warning off images:imshow:magnificationMustBeFitForDockedFigure
   %}
 
+  fprintf('\b\b\b\bdone\n');
+  fprintf(' Applying the axial smoothing :     ');
+
   for nk = 1:Nk
+      fprintf('\b\b\b%3d', nk);
+
       filename = files{nk};
       [filepath, fname, fileext] = fileparts(filename);
       new_name = fullfile(out_path, [fname fileext]);
@@ -153,9 +160,8 @@ function new_names = smooth_slices(files)
       %else imwrite(uint8(im_corr), smooth_file, 'tiff', 'Compression', 'none', 'writemode', 'append')
       %end %     file_out = [dir_out filesep file(1:end-4) '_smoothed' num2str(nk, '%03i') '.tif']; imwrite(uint8(im_corr), file_out, 'tiff', 'Compression', 'none')    %     bfsave(im,'myMultipageFile.tif', 'XYCZT')
 
-      fprintf('.');
   end
-  fprintf(' done!\n');
+  fprintf('\b\b\b\bdone\n');
 
   %%%
 
