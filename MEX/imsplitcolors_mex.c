@@ -2,14 +2,19 @@
 #include <string.h>
 #include "mex.h"
 
+#ifndef __SQR__
+#define __SQR__(A)        ((A) * (A))
+#endif
+
 // Bilinear interpolation, main interface
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
   // Declare variable
   int i, indx;
-  mwSize w, h, npix, nbins, ndim;
+  mwSize npix, nbins, ndim;
   const mwSize *dims;
-  double r = 0.0, g = 1.0/3.0, b = 2.0/3.0, val, t0, t1, t2, d0, d1, d2, hind, sind, vind;
+  double r = 0.0, g = 1.0/3.0, b = 2.0/3.0, val, hind, sind, vind;
+  double h0, h1, h2, s0, s1, s2, v0, v1, v2, d0, d1, d2, t0, t1, t2;
   double *img, *table, *hist;
 
   // Check for proper number of input and output arguments
@@ -38,12 +43,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
   // Then we need to split the colors
   if (hist==NULL || mxIsEmpty(prhs[2])) {
 
-    nbins = mxGetNumberOfElements(prhs[1]);
-
-    t0 = table[0];
-    t1 = nbins > 1 ? table[1] : t0;
-    t2 = nbins > 2 ? table[2] : t0;
-
+    // Get the dimensions of the output
     ndim = mxGetNumberOfDimensions(prhs[0]);
     dims = mxGetDimensions(prhs[0]);
 
@@ -54,41 +54,186 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
     }
     img = mxGetPr(plhs[0]);
 
+    // Initialize the output with the original image
     memcpy(img, mxGetPr(prhs[0]), npix*3*sizeof(double)); 
 
-    for (i=0; i < npix; i++) {
-      val = img[i];
+    // Get the size of the mapping table
+    nbins = mxGetM(prhs[1]);
+    ndim = mxGetN(prhs[1]);
 
-      d0 = val - t0;
-      d1 = val - t1;
-      d2 = val - t2;
+    // Map only using the H component
+    if (ndim == 1) {
 
-      d0 = d0 > 0.5 ? d0 - 1 : d0;
-      d1 = d1 > 0.5 ? d1 - 1 : d1;
-      d2 = d2 > 0.5 ? d2 - 1 : d2;
+      // Get the 3 values to be mapped
+      h0 = table[0];
+      h1 = nbins > 1 ? table[1] : h0;
+      h2 = nbins > 2 ? table[2] : h0;
 
-      d0 = d0 < -0.5 ? d0 + 1 : d0;
-      d1 = d1 < -0.5 ? d1 + 1 : d1;
-      d2 = d2 < -0.5 ? d2 + 1 : d2;
+      // Loop over every pixel
+      for (i=0; i < npix; i++) {
 
-      if (fabs(d0) <= fabs(d1)) {
-        if (fabs(d0) <= fabs(d2)) {
-          val = d0 + r;
+        // The current value
+        val = img[i];
+
+        // Its distance to the target ones
+        d0 = val - h0;
+        d1 = val - h1;
+        d2 = val - h2;
+
+        // Compensate for the periodicity of H
+        d0 = d0 > 0.5 ? d0 - 1 : d0;
+        d1 = d1 > 0.5 ? d1 - 1 : d1;
+        d2 = d2 > 0.5 ? d2 - 1 : d2;
+
+        d0 = d0 < -0.5 ? d0 + 1 : d0;
+        d1 = d1 < -0.5 ? d1 + 1 : d1;
+        d2 = d2 < -0.5 ? d2 + 1 : d2;
+
+        // Check which one it needs to be assigned to
+        if (fabs(d0) <= fabs(d1)) {
+          if (fabs(d0) <= fabs(d2)) {
+            val = d0 + r;
+          } else {
+            val = d2 + b;
+          }
         } else {
-          val = d2 + b;
+          if (fabs(d1) <= fabs(d2)) {
+            val = d1 + g;
+          } else {
+            val = d2 + b;
+          }
         }
-      } else {
-        if (fabs(d1) <= fabs(d2)) {
-          val = d1 + g;
-        } else {
-          val = d2 + b;
-        }
+
+        val = val > 1 ? val - 1 : val;
+        val = val < 0 ? val + 1 : val;
+
+        img[i] = val;
       }
 
-      val = val > 1 ? val - 1 : val;
-      val = val < 0 ? val + 1 : val;
+    // Here we have both H and V
+    } else if (ndim == 2) {
 
-      img[i] = val;
+      h0 = table[0];
+      h1 = nbins > 1 ? table[1] : h0;
+      h2 = nbins > 2 ? table[2] : h0;
+
+      v0 = table[nbins];
+      v1 = nbins > 1 ? table[nbins+1] : v0;
+      v2 = nbins > 2 ? table[nbins+2] : v0;
+
+      for (i=0; i < npix; i++) {
+        val = img[i];
+
+        d0 = val - h0;
+        d1 = val - h1;
+        d2 = val - h2;
+
+        d0 = d0 > 0.5 ? d0 - 1 : d0;
+        d1 = d1 > 0.5 ? d1 - 1 : d1;
+        d2 = d2 > 0.5 ? d2 - 1 : d2;
+
+        d0 = d0 < -0.5 ? d0 + 1 : d0;
+        d1 = d1 < -0.5 ? d1 + 1 : d1;
+        d2 = d2 < -0.5 ? d2 + 1 : d2;
+
+        // We use SQR instead of fabs here
+        t0 = __SQR__(d0);
+        t1 = __SQR__(d1);
+        t2 = __SQR__(d2);
+
+        // Now the V component as well
+        val = img[i + npix + npix];
+
+        // Add to the distance
+        t0 += __SQR__(val - v0);
+        t1 += __SQR__(val - v1);
+        t2 += __SQR__(val - v2);
+
+        if (t0 <= t1) {
+          if (t0 <= t2) {
+            val = d0 + r;
+          } else {
+            val = d2 + b;
+          }
+        } else {
+          if (t1 <= t2) {
+            val = d1 + g;
+          } else {
+            val = d2 + b;
+          }
+        }
+
+        val = val > 1 ? val - 1 : val;
+        val = val < 0 ? val + 1 : val;
+
+        img[i] = val;
+      }
+
+    // Same but for H, S and V now
+    } else {
+
+      h0 = table[0];
+      h1 = nbins > 1 ? table[1] : h0;
+      h2 = nbins > 2 ? table[2] : h0;
+
+      s0 = table[nbins];
+      s1 = nbins > 1 ? table[nbins+1] : s0;
+      s2 = nbins > 2 ? table[nbins+2] : s0;
+
+      v0 = table[2*nbins];
+      v1 = nbins > 1 ? table[2*nbins+1] : v0;
+      v2 = nbins > 2 ? table[2*nbins+2] : v0;
+
+      for (i=0; i < npix; i++) {
+        val = img[i];
+
+        d0 = val - h0;
+        d1 = val - h1;
+        d2 = val - h2;
+
+        d0 = d0 > 0.5 ? d0 - 1 : d0;
+        d1 = d1 > 0.5 ? d1 - 1 : d1;
+        d2 = d2 > 0.5 ? d2 - 1 : d2;
+
+        d0 = d0 < -0.5 ? d0 + 1 : d0;
+        d1 = d1 < -0.5 ? d1 + 1 : d1;
+        d2 = d2 < -0.5 ? d2 + 1 : d2;
+
+        t0 = __SQR__(d0);
+        t1 = __SQR__(d1);
+        t2 = __SQR__(d2);
+
+        val = img[i + npix];
+
+        t0 += __SQR__(val - s0);
+        t1 += __SQR__(val - s1);
+        t2 += __SQR__(val - s2);
+
+        val = img[i + npix + npix];
+
+        t0 += __SQR__(val - v0);
+        t1 += __SQR__(val - v1);
+        t2 += __SQR__(val - v2);
+
+        if (t0 <= t1) {
+          if (t0 <= t2) {
+            val = d0 + r;
+          } else {
+            val = d2 + b;
+          }
+        } else {
+          if (t1 <= t2) {
+            val = d1 + g;
+          } else {
+            val = d2 + b;
+          }
+        }
+
+        val = val > 1 ? val - 1 : val;
+        val = val < 0 ? val + 1 : val;
+
+        img[i] = val;
+      }
     }
 
   // Otherwise, we need to bin the colors

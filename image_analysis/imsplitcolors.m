@@ -13,8 +13,6 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     imax = [];
   end
 
-  %%% Need to fix inputs
-
   if (size(img, 3) < 3)
     if (~isempty(nhist) || ~isempty(imax))
       warning('Input arguments are not consistent.');
@@ -29,8 +27,7 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
 
   if (isempty(nhist))
     nbins = 255;
-    %nhist = zeros(nbins, 1);
-    nhist = zeros(nbins, nbins);
+    nhist = zeros(nbins, 1);
   else
     nhist = nhist(:);
     nbins = length(nhist);
@@ -54,8 +51,18 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     if (compute_split)
       nhist = [nhist; nhist];
 
-      %kernel = ones(2*dist+1, 1);
-      kernel = ones(2*dist+1);
+      ssize = size(nhist);
+      ndim = length(ssize);
+
+      if (ndim == 2 && (ssize(1) == 1 || ssize(2) == 1))
+        ndim = 1;
+        ssize = ssize(1);
+      end
+
+      dist = [dist(:).' ones(1, ndim-length(dist))*dist(1)];
+      dist = dist(1:ndim);
+
+      kernel = ones([2*dist+1 ones(1, 2-length(dist))]);
       kernel = kernel/numel(kernel);
 
       nhist = convn(nhist, kernel, 'same');
@@ -63,20 +70,19 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
 
       [xmax, imax] = find_extrema(nhist, dist);
 
-      keyboard
-
-      goods = (imax > dist & imax <= length(nhist) - dist);
+      goods = (all(bsxfun(@gt, imax, dist+1), 2) & ...
+               all(bsxfun(@lt, imax, ssize - dist), 2));
       xmax = xmax(goods);
-      imax = imax(goods);
+      imax = imax(goods, :);
 
-      [imax, indxs] = unique(mod(imax, nbins));
+      [imax, indxs] = unique(bsxfun(@mod, imax, nbins), 'rows');
       xmax = xmax(indxs);
 
       [xmax, indxs] = sort(xmax);
-      imax = imax(indxs(end:-1:1));
+      imax = imax(indxs(end:-1:1),:);
 
-      imax = (imax(1:min(3, end))-1)/nbins;
-      imax = [imax ones(1, 3-length(imax))*imax(1)];
+      imax = (imax(1:min(3, end),:)-1)/nbins;
+      imax = [imax; bsxfun(@times, ones(3-size(imax,1), ndim), imax(1,:))];
     end
 
     if (~isempty(img))

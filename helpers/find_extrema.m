@@ -12,6 +12,8 @@ function [xmax, imax] = find_extrema(x, nneigh)
     ndim = 1;
   end
 
+  x(isnan(x)) = min(x(:));
+
   nneigh = [nneigh(:).' ones(1, ndim-length(nneigh))*nneigh(1)];
   nneigh = nneigh(1:ndim);
 
@@ -44,10 +46,10 @@ function [xmax, imax] = dd_extrema(x, nneigh)
   maxpos = maxpos(nneigh(1)+1:end-nneigh(1), nneigh(1)+1:end-nneigh(1));
 
   [i,j] = find(maxpos);
-  imax = x(maxpos);
+  imax = [i(:), j(:)];
 
-  xmax = [i(:), j(:)];
-  imax = imax(:);
+  xmax = x(maxpos);
+  xmax = xmax(:);
 
   return;
 end

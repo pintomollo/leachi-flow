@@ -71,6 +71,24 @@ function [FileName] = MicroMos(varargin)
     end
   end
 
+  % Get the location of the mosaic
+  if (isempty(parameters.ImageFolder))
+    fprintf(' Select the folder containing the mosaic to reconstruct : ');
+
+    [dirname] = uigetdir('Movies', 'Select the mosaic you want to reconstruct.');
+
+    if isequal(dirname,0)
+      error('User canceled the selection.');
+    else
+      parameters.ImageFolder = dirname;
+    end
+    fprintf('thanks !\n');
+  end
+
+  % Ask a confirmation from the user
+  parameters = edit_options(parameters);
+  drawnow;
+
   %% PARAMETERS SETTTING
   GLOBAL = eye(3,3);
   MatricesGLOBAL = GLOBAL;

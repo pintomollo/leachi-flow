@@ -123,8 +123,9 @@ function params = get_parameters(params)
         error('No valid image selected.');
       end
     end
+
+    fprintf('thanks !\n');
   end
-  fprintf('thanks !\n');
 
   % Try reading the metadata
   info = imfinfo(files{1});
