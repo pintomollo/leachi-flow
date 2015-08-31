@@ -1,4 +1,4 @@
-function install_leachi_flow
+function install_leachi_flow(recompile)
 % INSTALL_LEACHI_FLOW adds the required directories to the matlabpath
 % and handles the directories structure and the dependent libraries. It also
 % compiles the required MEX libraries, hence a C/C++ compiler is requried.
@@ -6,6 +6,11 @@ function install_leachi_flow
 % Wilson lab, University of Otago
 % Simon Blanchoud
 % 28.01.2015
+
+  % By default, do not recompile everything
+  if (nargin == 0)
+    recompile = false;
+  end
 
   % Start by moving inside the leachi_flow folder
   cell_folder = which('install_leachi_flow');
@@ -115,7 +120,7 @@ function install_leachi_flow
   cd('MEX')
 
   % Try to compile the necessary MEX files
-  if (exist('median_mex') ~= 3)
+  if (recompile || exist('median_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -127,7 +132,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('gaussian_mex') ~= 3)
+  if (recompile || exist('gaussian_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -139,7 +144,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('gaussian_sparse_mex') ~= 3)
+  if (recompile || exist('gaussian_sparse_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -151,7 +156,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('bilinear_mex') ~= 3)
+  if (recompile || exist('bilinear_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -163,7 +168,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('imsplitcolors_mex') ~= 3)
+  if (recompile || exist('imsplitcolors_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -175,7 +180,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('imwarp_mex') ~= 3)
+  if (recompile || exist('imwarp_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -187,7 +192,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('cluster_vector_mex') ~= 3)
+  if (recompile || exist('cluster_vector_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -199,7 +204,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('dsegment') ~= 3)
+  if (recompile || exist('dsegment') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -211,7 +216,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('draw_gaussians_mex') ~= 3)
+  if (recompile || exist('draw_gaussians_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -223,7 +228,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('draw_bumps_mex') ~= 3)
+  if (recompile || exist('draw_bumps_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;
@@ -235,7 +240,7 @@ function install_leachi_flow
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (exist('rgb_hsv_mex') ~= 3)
+  if (recompile || exist('rgb_hsv_mex') ~= 3)
     try
       if (~did_setup)
         mex -setup;

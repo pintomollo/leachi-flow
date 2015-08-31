@@ -48,8 +48,10 @@ function [FileName] = MicroMos(varargin)
   if (length(varargin) > 0 && isstruct(varargin{1}))
     parameters = update_structure(varargin{1}, 'MicroMos');
     varargin(1) = [];
+    do_check = false;
   else
     parameters = get_struct('MicroMos');
+    do_check = true;
   end
 
   % Now we check that the parameters were provided in pairs
@@ -83,11 +85,15 @@ function [FileName] = MicroMos(varargin)
       parameters.ImageFolder = dirname;
     end
     fprintf('thanks !\n');
+
+    do_check = true;
   end
 
   % Ask a confirmation from the user
-  parameters = edit_options(parameters);
-  drawnow;
+  if (do_check)
+    parameters = edit_options(parameters);
+    drawnow;
+  end
 
   %% PARAMETERS SETTTING
   GLOBAL = eye(3,3);
