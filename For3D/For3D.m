@@ -41,6 +41,7 @@ function parameters = For3D(varargin)
 
   % Then adjust the image into a proper stack
   parameters.filename = resize_tif(parameters.filename);
+  parameters.filename = clean_borders(parameters.filename);
 
   % Saving the progress
   save(savename, 'parameters');

@@ -18,7 +18,7 @@ function new_names = register_stack(files, min_frac)
     error('Registration:register_stack', 'TurboReg is not working properly, please follow the instructions from install_leachi_flow to fix this issue.');
   end
 
-  fprintf(' Registering images pairwise :   .');
+  fprintf(' Registering images pairwise :    .');
 
   center = ceil(N/2);
 
@@ -211,7 +211,6 @@ function new_names = register_stack(files, min_frac)
     mask = imclose(mask, hdil);
     mask = bwareaopen(mask, minsize);
     mask = imdilate(mask, hdil);
-    mask = mask & imfill(~(mask | outer), 'holes');
 
     if (nargin > 1)
       prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));

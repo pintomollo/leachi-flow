@@ -130,7 +130,7 @@ function params = filter_stack(params)
 
   fprintf(' Z-gaussian blur of %f sigma for %i channels :     ', Gsd, Nc);
   for i=1:Nc
-    fprintf('\b\b\b%3d', i);
+    fprintf('\n  %d :', i);
 
     filename = tmp_stack{i};
     [filepath, fname, fileext] = fileparts(filename);
@@ -146,7 +146,7 @@ function params = filter_stack(params)
 
   rmdir(tmp_dir, 's');
 
-  fprintf('\b\b\b\bdone\n');
+  fprintf('\n  done !\n');
 
   params.sparse_thresholds = threshs;
   params.filename = stk_files;

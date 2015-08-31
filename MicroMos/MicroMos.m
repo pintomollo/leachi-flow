@@ -183,6 +183,9 @@ function [FileName] = MicroMos(varargin)
 
       %clear StringNameImage1 PositionsUnderScores PositionLastUnderScores PositionsPoints
   end 
+  if isnan(parameters.ImageIndexs)
+    parameters.ImageIndexs = [];
+  end
   if isempty(parameters.ImageIndexs)
       LengthImagesList = length(ImagesList);
       for i = 1:LengthImagesList

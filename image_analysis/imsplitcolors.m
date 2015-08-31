@@ -1,6 +1,6 @@
 function [img, nhist] = imsplitcolors(img, imax, nhist)
 
-  dist = 5;
+  dist = 10;
   if (nargin == 1)
     imax = [];
     nhist = [];
@@ -70,11 +70,14 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
 
       [xmax, imax] = find_extrema(nhist, dist);
 
-      keyboard
+      goods = (imax(:,1) > dist(1)+1) & (imax(:,1) < ssize(1) - dist(1));
+      %goods = (all(bsxfun(@gt, imax, dist+1), 2) & ...
+      %         all(bsxfun(@lt, imax, ssize - dist), 2));
 
-      %goods = (imax(:,1) > dist(1)+1) & (imax(:,1) < ssize(1) - dist(1));
-      goods = (all(bsxfun(@gt, imax, dist+1), 2) & ...
-               all(bsxfun(@lt, imax, ssize - dist), 2));
+      if (ndim > 1)
+        goods = goods & (imax(:,end) / ssize(2) < 0.91);
+      end
+
       xmax = xmax(goods);
       imax = imax(goods, :);
 

@@ -77,7 +77,6 @@ function new_names = resize_tif(files, Amax, Bmax)
 
           im2 = zeros(Amax, Bmax, c, class(im));
           im2(a0+1:a0+a, b0+1:b0+b, :) = im;
-          im2 = imfillborder(im2);
 
           imwrite(im2, new_name, 'Compression', 'none')
 
