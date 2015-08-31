@@ -29,8 +29,7 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     nbins = 255;
     nhist = zeros(nbins, 1);
   else
-    nhist = nhist(:);
-    nbins = length(nhist);
+    nbins = size(nhist);
   end
 
   compute_split = isempty(imax);
@@ -65,11 +64,15 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
       kernel = ones([2*dist+1 ones(1, 2-length(dist))]);
       kernel = kernel/numel(kernel);
 
+      norig = nhist;
       nhist = convn(nhist, kernel, 'same');
       %nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
 
       [xmax, imax] = find_extrema(nhist, dist);
 
+      keyboard
+
+      %goods = (imax(:,1) > dist(1)+1) & (imax(:,1) < ssize(1) - dist(1));
       goods = (all(bsxfun(@gt, imax, dist+1), 2) & ...
                all(bsxfun(@lt, imax, ssize - dist), 2));
       xmax = xmax(goods);
@@ -81,7 +84,7 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
       [xmax, indxs] = sort(xmax);
       imax = imax(indxs(end:-1:1),:);
 
-      imax = (imax(1:min(3, end),:)-1)/nbins;
+      imax = bsxfun(@rdivide, imax(1:min(3, end),:)-1, nbins);
       imax = [imax; bsxfun(@times, ones(3-size(imax,1), ndim), imax(1,:))];
     end
 

@@ -17,21 +17,20 @@ function [xmax, imax] = find_extrema(x, nneigh)
   nneigh = [nneigh(:).' ones(1, ndim-length(nneigh))*nneigh(1)];
   nneigh = nneigh(1:ndim);
 
-  switch ndim
-    case 1
-      [xmax, imax] = local_extrema(x, nneigh);
-    case 2
-      [xmax, imax] = dd_extrema(x, nneigh);
-    otherwise
-      %% I was thinking to use the 
-      error('not yet implemented');
-      [xmax, imax] = nd_extrema(x, nneigh);
+  if (ndim == 1)
+    [xmax, imax] = local_extrema(x, nneigh);
+  else
+    [xmax, imax] = nd_extrema(x, nneigh);
+
+    cols = cell(ndim, 1);
+    [cols{:}] = ind2sub(ssize, imax);
+    imax = cat(2, cols{:});
   end
 
   return;
 end
 
-function [xmax, imax] = dd_extrema(x, nneigh)
+function [xmax, imax] = nd_extrema(x, nneigh)
 
   nneigh = 2*nneigh;
   kernel = true(nneigh+1);
@@ -39,50 +38,24 @@ function [xmax, imax] = dd_extrema(x, nneigh)
   maxval = imdilate(x, kernel);
   maxpos = (x == maxval);
 
-  maxpos = padarray(maxpos, nneigh, false, 'both');
+  maxval = maxval(maxpos);
 
-  maxpos = bwmorph(imclose(maxpos, kernel), 'shrink', Inf);
+  bw = imdilate(maxpos, kernel);
 
-  maxpos = maxpos(nneigh(1)+1:end-nneigh(1), nneigh(1)+1:end-nneigh(1));
+  labels = labelmatrix(bwconncomp(bw));
+  labels = double(labels(maxpos));
 
-  [i,j] = find(maxpos);
-  imax = [i(:), j(:)];
+  maxdis = bwdist(~bw);
+  maxdis(maxpos) = maxdis(maxpos) + rand(sum(maxpos(:)), 1);
+  maxdis = maxdis(maxpos);
 
-  xmax = x(maxpos);
-  xmax = xmax(:);
+  maxpos = find(maxpos);
 
-  return;
-end
+  [maxval, indxs] = sortrows([labels -maxval -maxdis]);
+  firsts = (diff([0; maxval(:, 1)]) > 0);
 
-function [xmax, imax] = nd_extrema(x, nneigh)
-
-  kernel = true(2*nneigh+1);
-
-  shrink = true(ones(1, ndim)*3);
-  shrink(ceil(end/2)) = false;
-
-  maxval = imdilate(x, kernel);
-  bw = (x == maxval);
-
-  pts = false(size(bw));
-  niter = sum(bw(:));
-
-  pts = imclose(pts, kernel);
-
-  for i=1:niter
-    step = imerode(bw, shrink);
-    areas = imdilate(step, kernel);
-
-    pts = (pts | (bw & (~areas)));
-
-    if (~any(step(:)) || ~any(xor(step(:),bw(:))))
-      break;
-    end
-
-    bw = step;
-  end
-
-  %% Then bwlabel, loop over them, pickup the maxs, use bwdist to chose centered pixel
+  imax = maxpos(indxs(firsts));
+  xmax = -maxval(firsts, 2);
 
   return;
 end
