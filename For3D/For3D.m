@@ -37,38 +37,46 @@ function parameters = For3D(varargin)
   savename = fullfile(workdir, 'myFor3D.mat');
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Then adjust the image into a proper stack
   parameters.filename = resize_tif(parameters.filename);
+  parameters.file_log{end+1} = parameters.filename;
   parameters.filename = clean_borders(parameters.filename);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Then align the stack
   parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Smooth the volume and the intensity of the organ
   parameters.filename = smooth_slices(parameters.filename);
+  parameters.file_log{end+1} = parameters.filename;
   parameters.filename = equalize_stack(parameters.filename, parameters.alpha);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Then resample the images to the proper resolution
   parameters = resample_tif(parameters);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Adjust them to fit an expected sparse matrix
   parameters.filename = adjust_tif(parameters.filename);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % The splitting of colors stuff
@@ -76,6 +84,7 @@ function parameters = For3D(varargin)
     parameters.filename = colorize_stack(parameters.filename);
 
     % Saving the progress
+    parameters.file_log{end+1} = parameters.filename;
     save(savename, 'parameters');
   end
 
@@ -83,6 +92,7 @@ function parameters = For3D(varargin)
   parameters = filter_stack(parameters);
 
   % Saving the progress
+  parameters.file_log{end+1} = parameters.filename;
   save(savename, 'parameters');
 
   % Reconstruct the volume

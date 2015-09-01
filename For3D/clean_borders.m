@@ -13,6 +13,7 @@ function new_names = clean_borders(files)
   fprintf(' Cleaning image borders :     ');
 
   hdil = strel('disk', 5);
+  new_names = files;
 
   for i = 1:N % loop over images to resize images
     fprintf('\b\b\b%3d', i);
