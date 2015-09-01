@@ -1,4 +1,4 @@
-function [F,V,col] = MarchingCubes(x,y,z,c,iso,colors)
+function [F,V,col] = MarchingCubes(c,iso,colors)
 
 % [F,V] = MarchingCubes(X,Y,Z,C,ISO)
 % [F,V,COL] = MarchingCubes(X,Y,Z,C,ISO,COLORS)
@@ -23,25 +23,21 @@ function [F,V,col] = MarchingCubes(x,y,z,c,iso,colors)
 % Revised 30 September, 2011 to add code by Oliver Woodford for removing 
 % duplicate vertices. 
 
-PlotFlag = 1;               % 1=plot isosurface, 0=do not plot
+PlotFlag = 0;               % 1=plot isosurface, 0=do not plot
 calc_cols = false;
 lindex = 4;
 
 [edgeTable, triTable] = GetTables();
 
-if ((nargin ~= 5 && nargin ~= 6) || (nargout ~= 2 && nargout ~= 3))
+if ((nargin ~= 2 && nargin ~= 3) || (nargout ~= 2 && nargout ~= 3))
     error('wrong number of input and/or output arguments');
 end
 
-if (ndims(x) ~= 3 || ndims(y) ~= 3 || ndims(z) ~= 3 || ndims(c) ~= 3)
-    error('x, y, z, c must be matrices of dim 3');
+if (ndims(c) ~= 3)
+    error('c must be a matrix of dim 3');
 end
 
-if (any(size(x) ~= size(y)) || any(size(y) ~= size(z)) || any(size(z) ~= size(c)))
-    error('x, y, z, c must be the same size');
-end
-
-if (any(size(x) < [2 2 2]))
+if (any(size(c) < [2 2 2]))
     error('grid size must be at least 2x2x2');
 end
 
@@ -49,7 +45,7 @@ if (~isscalar(iso))
     error('iso needs to be scalar value');
 end
 
-if ( nargin == 6 )
+if ( nargin == 3 )
     if (size(colors) ~= size(c))
         error( 'color must be matrix of same size as c');
     end
@@ -57,21 +53,21 @@ if ( nargin == 6 )
     lindex = 5;
 end
 
-n = size(c) - 1; % number of cubes along each direction of image
-
+nc = size(c);
+ncc = nc - 1; % number of cubes along each direction of image
 
 % for each cube, assign which edges are intersected by the isosurface
 
-cc = zeros(n(1),n(2),n(3),'uint16'); % 3d array of 8-bit vertex codes
+cc = zeros(ncc,'uint16'); % 3d array of 8-bit vertex codes
 
-vertex_idx = {1:n(1), 1:n(2), 1:n(3); ...
-    2:n(1)+1, 1:n(2), 1:n(3); ...
-    2:n(1)+1, 2:n(2)+1, 1:n(3); ...
-    1:n(1), 2:n(2)+1, 1:n(3); ...
-    1:n(1), 1:n(2), 2:n(3)+1; ...
-    2:n(1)+1, 1:n(2), 2:n(3)+1; ...
-    2:n(1)+1, 2:n(2)+1, 2:n(3)+1; ...
-    1:n(1), 2:n(2)+1, 2:n(3)+1 };
+vertex_idx = {1:ncc(1), 1:ncc(2), 1:ncc(3); ...
+    2:ncc(1)+1, 1:ncc(2), 1:ncc(3); ...
+    2:ncc(1)+1, 2:ncc(2)+1, 1:ncc(3); ...
+    1:ncc(1), 2:ncc(2)+1, 1:ncc(3); ...
+    1:ncc(1), 1:ncc(2), 2:ncc(3)+1; ...
+    2:ncc(1)+1, 1:ncc(2), 2:ncc(3)+1; ...
+    2:ncc(1)+1, 2:ncc(2)+1, 2:ncc(3)+1; ...
+    1:ncc(1), 2:ncc(2)+1, 2:ncc(3)+1 };
 
 for ii=1:8                             % loop thru vertices of all cubes
     idx = c(vertex_idx{ii, :}) > iso;  % which cubes have vtx ii > iso
@@ -87,44 +83,60 @@ if isempty(id)            % all voxels are above or below iso
     return
 end
 
+ccedge = [cedge(id), id];
+clear cedge;
+%keyboard
 
 % calculate the list of intersection points
 xyz_off = [1, 1, 1; 2, 1, 1; 2, 2, 1; 1, 2, 1; 1, 1, 2;  2, 1, 2; 2, 2, 2; 1, 2, 2];
 edges = [1 2; 2 3; 3 4; 4 1; 5 6; 6 7; 7 8; 8 5; 1 5; 2 6; 3 7; 4 8];
-offset = sub2ind(size(c), xyz_off(:, 1), xyz_off(:, 2), xyz_off(:, 3)) -1;
-pp = zeros(length(id), lindex, 12);
-ccedge = [cedge(id), id];
+offset = sub2ind(nc, xyz_off(:, 1), xyz_off(:, 2), xyz_off(:, 3)) -1;
+%pp = zeros(length(id), lindex, 12);
+pp = ndSparse(sparse(length(id), lindex * 12), [length(id) lindex 12]);
 ix_offset=0;
 for jj=1:12
     id__ = logical(bitget(ccedge(:, 1), jj)); % used for logical indexing
     id_ = ccedge(id__, 2);
-    [ix iy iz] = ind2sub(size(cc), id_);
-    id_c = sub2ind(size(c), ix, iy, iz);
+    [ix, iy, iz] = ind2sub(ncc, id_);
+    id_c = sub2ind(nc, ix, iy, iz);
     id1 = id_c + offset(edges(jj, 1));
     id2 = id_c + offset(edges(jj, 2));
+
+    [iy, ix, iz] = ind2sub(nc, id1);
+    [iy2, ix2, iz2] = ind2sub(nc, id2);
+
     if ( calc_cols )
-      pp(id__, 1:5, jj) = [InterpolateVertices(iso, x(id1), y(id1), z(id1), ...
-        x(id2), y(id2), z(id2), c(id1), c(id2), colors(id1), colors(id2)), ...
+      %pp(id__, 1:5, jj) = [InterpolateVertices(iso, x(id1), y(id1), z(id1), ...
+      %  x(id2), y(id2), z(id2), c(id1), c(id2), colors(id1), colors(id2)), ...
+      %  (1:size(id_, 1))' + ix_offset ];
+      pp(id__, 1:5, jj) = [InterpolateVertices(iso, single(ix), single(iy), single(iz), ...
+        single(ix2), single(iy2), single(iz2), c(id1), c(id2), colors(id1), colors(id2)), ...
         (1:size(id_, 1))' + ix_offset ];
     else
-        pp(id__, 1:4, jj) = [InterpolateVertices(iso, x(id1), y(id1), z(id1), ...
-        x(id2), y(id2), z(id2), c(id1), c(id2)), ...
+      %pp(id__, 1:4, jj) = [InterpolateVertices(iso, x(id1), y(id1), z(id1), ...
+      %  x(id2), y(id2), z(id2), c(id1), c(id2)), ...
+      %  (1:size(id_, 1))' + ix_offset ];
+      pp(id__, 1:4, jj) = [InterpolateVertices(iso, single(ix), single(iy), single(iz), ...
+        single(ix2), single(iy2), single(iz2), c(id1), c(id2)), ...
         (1:size(id_, 1))' + ix_offset ];
     end
     ix_offset = ix_offset + size(id_, 1);
 end
 
+%keyboard
+
 % calculate the triangulation from the point list
-F = [];
+F = NaN(0,3);
+npp = size(pp);
 tri = triTable(cc(id)+1, :);
 for jj=1:3:15
     id_ = find(tri(:, jj)>0);
     V = [id_, lindex*ones(size(id_, 1), 1),tri(id_, jj:jj+2) ];
     if ( ~ isempty(V) )
-        p1 = sub2ind(size(pp), V(:,1), V(:,2), V(:,3));
-        p2 = sub2ind(size(pp), V(:,1), V(:,2), V(:,4));
-        p3 = sub2ind(size(pp), V(:,1), V(:,2), V(:,5));
-        F = [F; pp(p1), pp(p2), pp(p3)];
+        p1 = sub2ind(npp, V(:,1), V(:,2), V(:,3));
+        p2 = sub2ind(npp, V(:,1), V(:,2), V(:,4));
+        p3 = sub2ind(npp, V(:,1), V(:,2), V(:,5));
+        F = [F; [pp(p1), pp(p2), pp(p3)]];
     end
 end
 
@@ -146,6 +158,8 @@ M = [true; any(diff(V), 2)];
 V = V(M,:);
 I(I) = cumsum(M);
 F = I(F);
+
+%keyboard
 
 if PlotFlag
     figure('color',[1 1 1])
@@ -176,6 +190,7 @@ if ( any(id) )
         p(id, 4) = col1(id);
     end
 end
+
 nid = ~id;
 if any(nid)
     mu(nid) = (isolevel - valp1(nid)) ./ (valp2(nid) - valp1(nid));

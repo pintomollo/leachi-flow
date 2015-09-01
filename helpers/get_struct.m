@@ -111,6 +111,7 @@ function mystruct = get_struct(type, nstruct)
                         'pixel_size', 6.5, ...        % Pixel size (um)
                         'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
                         'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
+                        'min_volume', 100, ...        % Minimum fraction of the volume occupied by an object for it to be included in the reconstruction (1/N)
                         'Nsampling', 1, ...           % The sampling rate
                         'slice_width', 22, ...        % Section thickness (um)
                         'alpha', 0.2, ...             % Equalization factor (0=none, 1=full)

@@ -86,7 +86,7 @@ function parameters = For3D(varargin)
   save(savename, 'parameters');
 
   % Reconstruct the volume
-  %rendering_3D(parameters);
+  rendering_3D(parameters);
 
   if (nargout == 0)
     clear parameters;
