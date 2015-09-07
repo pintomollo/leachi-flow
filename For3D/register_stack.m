@@ -59,14 +59,16 @@ function new_names = register_stack(files, min_frac)
   outer([1:minrad+1 end-minrad:end],:) = true;
   outer(:, [1:minrad+1 end-minrad:end]) = true;
 
-  [im, pts1] = im2reference(im);
+  [im, pts0] = im2reference(im);
 
   anchor = fullfile(out_path, 'anchor.tiff');
   target = fullfile(out_path, 'target.tiff');
   source = fullfile(out_path, 'source.tiff');
 
   imwrite(im, anchor, 'TIFF');
+
   copyfile(anchor, target);
+  pts1 = pts0;
 
   command1 =  '-align -file "';
   command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "'];
@@ -137,6 +139,7 @@ function new_names = register_stack(files, min_frac)
   end
 
   copyfile(anchor, target);
+  pts1 = pts0;
 
   for i = center-1:-1:1
     fprintf('\b\b\b%3d', i);

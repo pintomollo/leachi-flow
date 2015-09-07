@@ -178,6 +178,15 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
             count = count + 1;
           end
 
+        % We use a simple text-field for ND cell arrays that cannot be edited
+        case 'lock'
+          hControl = uicontrol('Parent', hPanel, ...
+                        'Units', 'pixels',  ...
+                        'Position', [180 count*50 + 20 180 40], ...
+                        'String', 'Sorry, cell arrays of cells cannot be edited',  ...
+                        'Style', 'text',  ...
+                        'Tag', myvals{i,1});
+
         % We use a push button to edit the underlying structure recursively
         case 'button'
           hControl = uicontrol('Parent', hPanel, ...
@@ -320,8 +329,8 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
         switch values{i,3}
           case 'cell'
             goods = ~cellfun('isempty', val);
-            grow = any(goods, 1);
-            gcol = any(goods, 2);
+            gcol = any(goods, 1);
+            grow = any(goods, 2);
             val = val(grow, gcol);
           case 'num'
             [tmp, correct] = mystr2double(val);
@@ -337,6 +346,22 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
             end
 
             val = tmp;
+          case 'bool'
+            if (ischar(val))
+              [tmp, correct] = mystr2double(val);
+
+              % Enforce the data type
+              while (~correct)
+                answer = inputdlg(['''' values{i,1} ''' is not a valid number, do you want to correct it ?'], 'Correct a numerical value', 1, {val});
+                if (isempty(answer))
+                  [tmp, correct] = mystr2double(values{i, 2});
+                else
+                  [tmp, correct] = mystr2double(answer{1});
+                end
+              end
+
+              val = logical(tmp);
+            end
           case 'func'
             [tmp, correct] = mystr2func(val);
 
@@ -452,23 +477,32 @@ function [name, values] = parse_struct(mystruct)
           values{i, 4} = 'table';
 
           tmp_cell = repmat({''}, size(val)+5);
-          tmp_cell(1:numel(val)) = cellfun(@(x){func2str(x)}, val);
+          tmp_cell(1:size(val,1), 1:size(val,2)) = cellfun(@(x){func2str(x)}, val);
           values{i, 2} = tmp_cell;
-        else
+        elseif (~any(cellfun('isclass', val, 'cell')))
           values{i, 3} = 'cell';
           values{i, 4} = 'table';
 
           tmp_cell = repmat({''}, size(val)+5);
-          tmp_cell(1:numel(val)) = val;
+          tmp_cell(1:size(val,1), 1:size(val,2)) = val;
           values{i, 2} = tmp_cell;
+        else
+          values{i, 3} = 'cell';
+          values{i, 4} = 'lock';
         end
       case 'struct'
         values{i, 3} = 'struct';
         values{i, 4} = 'button';
       case 'logical'
-        values{i, 3} = 'bool';
-        values{i, 4} = 'checkbox';
-        values{i, 2} = double(values{i, 2});
+        if (numel(values{i,2})>1)
+          values{i, 3} = 'bool';
+          values{i, 4} = 'edit';
+          values{i, 2} = num2str(values{i,2}(:).');
+        else
+          values{i, 3} = 'bool';
+          values{i, 4} = 'checkbox';
+          values{i, 2} = double(values{i, 2});
+        end
       case 'function_handle'
         values{i, 3} = 'func';
         values{i, 4} = 'edit';

@@ -104,7 +104,7 @@ function mystruct = get_struct(type, nstruct)
                         'movie_show_reconstruction', false);% Do we display the reconstructed image using the detected spots ?
 
     case 'For3D'
-      mystruct = struct('filename', '*.tif', ...      % Filename (default: all tif files)
+      mystruct = struct('filename', {{'*.tif'}}, ...  % Filename (default: all tif files)
                         'file_log', {{}}, ...
                         'detect_IHC', false, ...      % Detect IHC staining (1=yes 0=no)
                         'thresholds', [-1 -1 -1], ... % Red Green Blue thresholds (-1=auto)

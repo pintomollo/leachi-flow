@@ -1,11 +1,13 @@
 function parameters = For3D(varargin)
 
+  continued = false;
   fprintf('For3D pipeline :\n')
 
   % Inputs processing
   if (length(varargin) > 0 && isstruct(varargin{1}))
     parameters = update_structure(varargin{1}, 'For3D');
     varargin(1) = [];
+    continued = true;
   else
     parameters = get_struct('For3D');
   end
@@ -31,69 +33,91 @@ function parameters = For3D(varargin)
 
   % First make sure the parameters are correct
   parameters = get_parameters(parameters);
+  ndone = length(parameters.file_log);
 
   % Get the working directory
-  [workdir, junk, junk] = fileparts(parameters.filename);
+  [workdir, junk, junk] = fileparts(parameters.filename{1});
+  if (continued)
+    [workdir, junk, junk] = fileparts(workdir);
+  end
   savename = fullfile(workdir, 'myFor3D.mat');
 
   % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
+  if (~continued || ndone<1)
+    parameters.file_log{end+1} = parameters.filename;
+    save(savename, 'parameters');
+  end
 
   % Then adjust the image into a proper stack
-  parameters.filename = resize_tif(parameters.filename);
-  parameters.file_log{end+1} = parameters.filename;
-  parameters.filename = clean_borders(parameters.filename);
+  if (~continued || ndone<2)
+    parameters.filename = resize_tif(parameters.filename);
+    parameters.file_log{end+1} = parameters.filename;
+  end
+  if (~continued || ndone<3)
+    parameters.filename = clean_borders(parameters.filename);
+    parameters.file_log{end+1} = parameters.filename;
 
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
+    % Saving the progress
+    save(savename, 'parameters');
+  end
 
   % Then align the stack
-  parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
-
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
-
-  % Smooth the volume and the intensity of the organ
-  parameters.filename = smooth_slices(parameters.filename);
-  parameters.file_log{end+1} = parameters.filename;
-  parameters.filename = equalize_stack(parameters.filename, parameters.alpha);
-
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
-
-  % Then resample the images to the proper resolution
-  parameters = resample_tif(parameters);
-
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
-
-  % Adjust them to fit an expected sparse matrix
-  parameters.filename = adjust_tif(parameters.filename);
-
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
-
-  % The splitting of colors stuff
-  if (parameters.colorize)
-    parameters.filename = colorize_stack(parameters.filename);
+  if (~continued || ndone<4)
+    parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
 
     % Saving the progress
     parameters.file_log{end+1} = parameters.filename;
     save(savename, 'parameters');
   end
 
-  % Filter the stack
-  parameters = filter_stack(parameters);
+  % Smooth the volume and the intensity of the organ
+  if (~continued || ndone<5)
+    parameters.filename = smooth_slices(parameters.filename);
+    parameters.file_log{end+1} = parameters.filename;
+  end
+  if (~continued || ndone<6)
+    parameters.filename = equalize_stack(parameters.filename, parameters.alpha);
+    parameters.file_log{end+1} = parameters.filename;
 
-  % Saving the progress
-  parameters.file_log{end+1} = parameters.filename;
-  save(savename, 'parameters');
+    % Saving the progress
+    save(savename, 'parameters');
+  end
+
+  % Then resample the images to the proper resolution
+  if (~continued || ndone<7)
+    parameters = resample_tif(parameters);
+
+    % Saving the progress
+    parameters.file_log{end+1} = parameters.filename;
+    save(savename, 'parameters');
+  end
+
+  % Adjust them to fit an expected sparse matrix
+  if (~continued || ndone<8)
+    parameters.filename = adjust_tif(parameters.filename);
+    parameters.file_log{end+1} = parameters.filename;
+
+    % Saving the progress
+    save(savename, 'parameters');
+  end
+
+  % The splitting of colors stuff
+  if (parameters.colorize && (~continued || (ndone<8+parameters.colorize)))
+    parameters.filename = colorize_stack(parameters.filename);
+    parameters.file_log{end+1} = parameters.filename;
+
+    % Saving the progress
+    save(savename, 'parameters');
+  end
+
+  % Filter the stack
+  if (~continued || (ndone<9+parameters.colorize))
+    parameters = filter_stack(parameters);
+    parameters.file_log{end+1} = parameters.filename;
+
+    % Saving the progress
+    save(savename, 'parameters');
+  end
 
   % Reconstruct the volume
   rendering_3D(parameters);
@@ -129,7 +153,7 @@ function params = get_parameters(params)
 
       % Keep them only if there are some
       if (N > 0)
-        params.filename = new_name;
+        params.filename = files;
       else
         error('No valid image selected.');
       end

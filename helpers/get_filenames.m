@@ -11,6 +11,10 @@ function [files, out_path] = get_filenames(files, dir_out)
     dir_out = '';
   end
 
+  if (iscell(files) && length(files)==1)
+    files = files{1};
+  end
+
   if (~iscell(files))
     [filepath, filename, fileext] = fileparts(files);
     ls = dir(files);

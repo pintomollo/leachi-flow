@@ -88,6 +88,7 @@ function myprint(fid, variable, spacer, prefix)
 
   % Keep track of the prefix
   orig_prefix = prefix;
+  conv_bool = {'false', 'true'};
 
   % Empty variables are a bit different that the others
   if (isempty(variable))
@@ -101,8 +102,12 @@ function myprint(fid, variable, spacer, prefix)
       % we hard-code the corresponding index into the prefix and we use
       % myprint recursively to print the content of each cell.
       case 'cell'
+        ssize = size(variable);
+        cols = cell(1, length(ssize));
         for i=1:numel(variable)
-          myprint(fid, variable{i}, spacer, [prefix '{' num2str(i) '}']);
+          [cols{:}] = ind2sub(ssize, i);
+          indxs = sprintf('%d,', cols{:});
+          myprint(fid, variable{i}, spacer, [prefix '{' indxs(1:end-1) '}']);
         end
 
       % For the structures, we run through the fields and call recursively
@@ -114,7 +119,6 @@ function myprint(fid, variable, spacer, prefix)
         for i=1:numel(variable)
 
           % Modify the prefix in case of an array
-          %if (numel(variable) > 1)
           if (~isempty(orig_prefix))
             prefix = [orig_prefix '(' num2str(i) ')'];
           end
@@ -146,36 +150,17 @@ function myprint(fid, variable, spacer, prefix)
           fprintf(fid, '%d ', ssize);
           fprintf(fid, ']\n');
         end
-        %{
-        if (ndims(variable) == 2)
-          fprintf(fid, [prefix spacer '[']);
-          for i = 1:size(variable, 1)
-            fprintf(fid, '%e ', variable(i,:));
-            fprintf(fid, '; ');
-          end
-          fprintf(fid, ']\n');
-        elseif (ndims(variable) == 3)
-          fprintf(fid, [prefix spacer 'cat(3']);
-          for j = 1:size(variable, 3)
-            fprintf(fid, ', [');
-            for i = 1:size(variable, 1)
-              fprintf(fid, '%e ', variable(i,:));
-              fprintf(fid, '; ');
-            end
-            fprintf(fid, ']');
-          end
-          fprintf(fid, ']\n');
-        else
-        end
-        %}
 
       % Print logicals as binary values
       case 'logical'
         if (numel(variable) == 1)
-          fprintf(fid, [prefix spacer '%d\n'], variable);
+          fprintf(fid, [prefix spacer '%s\n'], conv_bool{variable+1});
         else
+          ssize = size(variable);
           fprintf(fid, [prefix spacer '[']);
-          fprintf(fid, '%d ', variable);
+          fprintf(fid, '%s ', conv_bool{variable+1});
+          fprintf(fid, ']#[');
+          fprintf(fid, '%d ', ssize);
           fprintf(fid, ']\n');
         end
 
