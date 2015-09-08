@@ -111,6 +111,7 @@ function mystruct = get_struct(type, nstruct)
                         'sparse_thresholds', [], ...  % The value thresholds used to create a sparse image
                         'pixel_size', 6.5, ...        % Pixel size (um)
                         'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
+                        'smoothing_span', 0.25, ...   % The percentage of datapoints spanned when smoothing
                         'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
                         'min_volume', 20, ...         % Minimum fraction of the volume occupied by an object for it to be included in the reconstruction (1/N)
                         'Nsampling', 1, ...           % The sampling rate

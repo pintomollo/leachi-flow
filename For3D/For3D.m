@@ -72,7 +72,7 @@ function parameters = For3D(varargin)
 
   % Smooth the volume and the intensity of the organ
   if (~continued || ndone<5)
-    parameters.filename = smooth_slices(parameters.filename);
+    parameters.filename = smooth_slices(parameters.filename, parameters.smoothing_span);
     parameters.file_log{end+1} = parameters.filename;
   end
   if (~continued || ndone<6)

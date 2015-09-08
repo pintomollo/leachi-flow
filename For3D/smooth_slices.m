@@ -1,4 +1,4 @@
-function new_names = smooth_slices(files)
+function new_names = smooth_slices(files, smoothing_span)
 
 %% function smooth_slices(file)
 %
@@ -15,7 +15,8 @@ function new_names = smooth_slices(files)
 %
 % (c) AS 2014
 
-  if nargin<1, files = '*.tif'; end
+  if nargin<1, files = '*.tif'; smoothing_span = 0.25; end
+  if nargin<2, smoothing_span = 0.25; end
 
   new_names = {};
   dir_out = '_smoothed';
@@ -89,10 +90,11 @@ function new_names = smooth_slices(files)
   end
 
   %% smooth shape descriptors => scaling factors
-  smooth_i_bary = smooth(i_bary, 'loess'); % using smooth, instead of expecting a spheroid shape
-  smooth_j_bary = smooth(j_bary, 'loess');
-  smooth_std_i = smooth(std_i);
-  smooth_std_j = smooth(std_j);
+  nspan = max(ceil(smoothing_span*Nk), 11);
+  smooth_i_bary = smooth(i_bary, nspan, 'loess'); % using smooth, instead of expecting a spheroid shape
+  smooth_j_bary = smooth(j_bary, nspan, 'loess');
+  smooth_std_i = smooth(std_i, nspan, 'loess');
+  smooth_std_j = smooth(std_j, nspan, 'loess');
   i_scale = smooth_std_i ./ std_i; % scale = size_out / size_in
   j_scale = smooth_std_j ./ std_j;
 
@@ -102,10 +104,12 @@ function new_names = smooth_slices(files)
   subplot(2,3,2), plot([j_bary, smooth_j_bary]), title('j bary')
   subplot(2,3,4), plot([std_i, smooth_std_i]), title('std i')
   subplot(2,3,5), plot([std_j, smooth_std_j]), title('std j')
-  subplot(2,3,3), plot(kk, i_scale*100, 'r', kk, j_scale*100, 'm', kk, ones(Nk)*100, 'k:')
+  %%subplot(2,3,3), plot(kk, i_scale*100, 'r', kk, j_scale*100, 'm', kk, ones(Nk)*100, 'k:')
   legend({'corr i', 'corr j'})
   figure(gcf), pause(.1)
   warning off images:imshow:magnificationMustBeFitForDockedFigure
+
+  keyboard
   %}
 
   fprintf('\b\b\b\bdone\n');
