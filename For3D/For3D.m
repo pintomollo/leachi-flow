@@ -183,7 +183,9 @@ function params = get_parameters(params)
   end
 
   % Ask a confirmation from the user
+  fprintf(' Confirm the parameter values of the experiment : ');
   params = edit_options(params);
+  fprintf('thanks !\n');
   drawnow;
 
   return;
