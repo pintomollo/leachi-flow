@@ -167,10 +167,10 @@ function params = get_parameters(params)
 
   % For now on, I look only for one field
   if (isfield(info, 'ImageDescription'))
-    xval = regexp(info.ImageDescription, 'XCalibrationMicrons=([\d\.]+)', 'tokens');
+    xval = regexp(info(1).ImageDescription, 'XCalibrationMicrons=([\d\.]+)', 'tokens');
 
     if (~isempty(xval))
-      yval = regexp(info.ImageDescription, 'YCalibrationMicrons=([\d\.]+)', 'tokens');
+      yval = regexp(info(1).ImageDescription, 'YCalibrationMicrons=([\d\.]+)', 'tokens');
 
       if (~isempty(yval))
         resol = 0.5*(str2double(xval{1}) + str2double(yval{1}));

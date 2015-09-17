@@ -63,14 +63,11 @@ dir_out = '_3D';
 Nc = length(files);
 if (Nc == 0), disp('nada??'), return, end
 
-im = imread(files{1});
-[Nx, Ny, Nz] = size(im);
-
 %% thresholds auto
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for nc = 1:Nc
     [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
-    Nz = size(stk, 3);
+    [Nx, Ny, Nz] = size(stk);
 
     if thresholds(nc) == -1
         fprintf('finding automatic threshold %g. Iteration...', nc)
@@ -137,8 +134,16 @@ for nc = 1:Nc
 
     fprintf('saving surface for channel %i...\n', nc);
 
-    stlwrite(fullfile(out_path, ['volume_iso' num2str(thresholds(nc)) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
+    stlwrite(fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
 
+    if (params.mesh_reduction > 0 && params.mesh_reduction < 1)
+      %% Might be too greedy on memory
+      [face, vertex] = reducepatch(face, vertex, params.mesh_reduction, 'fast');
+
+      fprintf('saving simplified surface for channel %i...\n', nc);
+
+      stlwrite(fullfile(out_path, ['volume_red' num2str(params.mesh_reduction) '_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
+    end
 end
 
 return
