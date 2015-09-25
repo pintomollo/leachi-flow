@@ -129,6 +129,8 @@ for nc = 1:Nc
 
     [face, vertex] = MarchingCubes(stk, thresholds(nc));
 
+    clear stk junk type;
+
     vertex = bsxfun(@times, vertex, pixels);
     vertex = bsxfun(@minus, vertex, mean(vertex));
 
@@ -137,8 +139,11 @@ for nc = 1:Nc
     stlwrite(fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
 
     if (params.mesh_reduction > 0 && params.mesh_reduction < 1)
-      %% Might be too greedy on memory
-      [face, vertex] = reducepatch(face, vertex, params.mesh_reduction, 'fast');
+      if size(vertex,2)==2
+        vertex(:,3) = 0*vertex(:,1);
+      end
+      reduction = ceil(size(face, 1)*params.mesh_reduction);
+      [face, vertex] = reducep(double(face), double(vertex), double(reduction), 0.0);
 
       fprintf('saving simplified surface for channel %i...\n', nc);
 

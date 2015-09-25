@@ -31,7 +31,7 @@ function [files, out_path] = get_filenames(files, dir_out)
     files = cell([N 1]);
 
     for i = 1:N
-      files{i} = fullfile(filepath, ls(i).name);
+      files{i} = absolutepath(fullfile(filepath, ls(i).name));
     end
   end
 
