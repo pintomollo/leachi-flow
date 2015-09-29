@@ -139,7 +139,12 @@ for nc = 1:Nc
     stlwrite(fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
 
     if (params.mesh_reduction > 0 && params.mesh_reduction < 1)
-      [face, vertex] = reducepatch(face, vertex, params.mesh_reduction, 'fast');
+      %[face, vertex] = reducepatch(face, vertex, params.mesh_reduction, 'fast');
+      face = face.';
+      vertex = vertex.';
+      [face, vertex] = oocs_mex(face, vertex, params.mesh_resolution);
+      face = face.';
+      vertex = vertex.';
 
       fprintf('saving simplified surface for channel %i...\n', nc);
 

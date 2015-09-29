@@ -113,7 +113,7 @@ function mystruct = get_struct(type, nstruct)
                         'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
                         'smoothing_span', 0.25, ...   % The percentage of datapoints spanned when smoothing
                         'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
-                        'mesh_reduction', 0.25, ...    % The fraction of mesh faces used to produce the reduced 3D mesh
+                        'mesh_resolution', -100, ...  % The resolution of the mesh (um/fraction if <0) used to produce the reduced 3D mesh
                         'min_volume', 20, ...         % Minimum fraction of the volume occupied by an object for it to be included in the reconstruction (1/N)
                         'Nsampling', 1, ...           % The sampling rate
                         'slice_width', 22, ...        % Section thickness (um)
