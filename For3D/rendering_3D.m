@@ -1,4 +1,4 @@
-function rendering_3D(params)
+function params = rendering_3D(params)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% function rendering_3D(params)
@@ -45,112 +45,106 @@ function rendering_3D(params)
 %% Department of Pathology and Immunology, Faculty of Medicine, University of Geneva, Switzerland
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% parameters
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-if nargin==0
-  params = get_struct('For3D');
-end
+  %% parameters
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  if nargin==0
+    params = get_struct('For3D');
+  end
 
-if isempty(params.filename), return, end % cancel by user
+  if isempty(params.filename), return, end % cancel by user
 
-files = params.filename;
-thresholds = params.thresholds;
+  files = params.filename;
+  thresholds = params.thresholds;
 
-dir_out = '_3D';
+  dir_out = '_3D';
 
-[files, out_path] = get_filenames(files, dir_out);
+  [files, out_path] = get_filenames(files, dir_out);
 
-Nc = length(files);
-if (Nc == 0), disp('nada??'), return, end
+  Nc = length(files);
+  if (Nc == 0), disp('nada??'), return, end
 
-%% thresholds auto
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for nc = 1:Nc
-    [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
-    [Nx, Ny, Nz] = size(stk);
+  new_names = files;
 
-    if thresholds(nc) == -1
-        fprintf('finding automatic threshold %g. Iteration...', nc)
+  %% thresholds auto
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  for nc = 1:Nc
+      [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+      [Nx, Ny, Nz] = size(stk);
 
-        T1 = mygraythresh(stk, type);
-        T2 = full(opthr(reshape(stk, Nx, [])));
-        
-        if Nc>1
-            switch nc % tricky combination, might be optimized for a given dataset, or set manually
-                case 1 % red
-                    if params.detect_IHC
-                        a1 = 0.3; a2 =0.7;
-                    else % intermediate threshold to get only medulla, avoiding non spe cortex
-                        a1 = 0.7; a2 =0.3;
-                    end
-                    T = min((a1*T1 + a2*T2), 255);
-                    fprintf('Red threshold computation: T1 = %.1f, T2 = %.1f, %g*T1 + %g*T2 = %.1f\r', T1, T2, a1, a2, T)
-                    thresholds(nc) = T;
-                    
-                case 2 % green 
-                    if params.detect_IHC
-                        a1 = 0.3; a2 =0.7; a3 = 2;
-                        T = min((a1*T1 + a2*T2)*a3, 255);
-                        fprintf('Green threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
-                    else % low threshold to get all staining
-                        T = T2; %/2;
-                        fprintf('Green threshold computation:  T = %.1f\r', T)
-                    end
-                    thresholds(nc) = T;
-                    
-                case 3 % blue 
-                    if params.detect_IHC
-                        T = T2;
-                        fprintf('Blue threshold computation:  T = %.1f\r', T2)
-                    else % high threshold to get only capsule
-                        a1 = 0.8; a2 =0.2; a3 = 1.5;
-                        T = min((a1*T1 + a2*T2)*a3, 255); % (0.8*T1 + 0.2*T2)*1.5;
-                        fprintf('Blue threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
-                    end
-                    thresholds(nc) = T;
-            end
-        else % gray, Nc = 1
-            thresholds = mean([T1 T2]);
-        end
-    end % if thresholds(nf, nc) == -1
-end % for nc = 1:Nc
+      if thresholds(nc) == -1
+          fprintf('finding automatic threshold %g. Iteration...', nc)
 
-%% ****** generate 3D view ******
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-fprintf('computing 3D...\n')
+          T1 = mygraythresh(stk, type);
+          T2 = full(opthr(reshape(stk, Nx, [])));
+          
+          if Nc>1
+              switch nc % tricky combination, might be optimized for a given dataset, or set manually
+                  case 1 % red
+                      if params.detect_IHC
+                          a1 = 0.3; a2 =0.7;
+                      else % intermediate threshold to get only medulla, avoiding non spe cortex
+                          a1 = 0.7; a2 =0.3;
+                      end
+                      T = min((a1*T1 + a2*T2), 255);
+                      fprintf('Red threshold computation: T1 = %.1f, T2 = %.1f, %g*T1 + %g*T2 = %.1f\r', T1, T2, a1, a2, T)
+                      thresholds(nc) = T;
+                      
+                  case 2 % green 
+                      if params.detect_IHC
+                          a1 = 0.3; a2 =0.7; a3 = 2;
+                          T = min((a1*T1 + a2*T2)*a3, 255);
+                          fprintf('Green threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
+                      else % low threshold to get all staining
+                          T = T2; %/2;
+                          fprintf('Green threshold computation:  T = %.1f\r', T)
+                      end
+                      thresholds(nc) = T;
+                      
+                  case 3 % blue 
+                      if params.detect_IHC
+                          T = T2;
+                          fprintf('Blue threshold computation:  T = %.1f\r', T2)
+                      else % high threshold to get only capsule
+                          a1 = 0.8; a2 =0.2; a3 = 1.5;
+                          T = min((a1*T1 + a2*T2)*a3, 255); % (0.8*T1 + 0.2*T2)*1.5;
+                          fprintf('Blue threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
+                      end
+                      thresholds(nc) = T;
+              end
+          else % gray, Nc = 1
+              thresholds = mean([T1 T2]);
+          end
+      end % if thresholds(nf, nc) == -1
+  end % for nc = 1:Nc
 
-pixels = [params.pixel_size params.pixel_size(1)*ones(1,2-length(params.pixel_size)) params.slice_width];
+  %% ****** generate 3D view ******
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  fprintf('computing 3D...\n')
 
-%%  plot isosurf 
-for nc = 1:Nc
-    fprintf('generating surface for channel %i...\n', nc)
+  pixels = [params.pixel_size params.pixel_size(1)*ones(1,2-length(params.pixel_size)) params.slice_width];
 
-    [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
+  %%  plot isosurf 
+  for nc = 1:Nc
+      fprintf('generating surface for channel %i...\n', nc)
 
-    [face, vertex] = MarchingCubes(stk, thresholds(nc));
+      [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
 
-    clear stk junk type;
+      [face, vertex] = MarchingCubes(stk, thresholds(nc));
 
-    vertex = bsxfun(@times, vertex, pixels);
-    vertex = bsxfun(@minus, vertex, mean(vertex));
+      clear stk junk type;
 
-    fprintf('saving surface for channel %i...\n', nc);
+      vertex = bsxfun(@times, vertex, pixels);
+      vertex = bsxfun(@minus, vertex, mean(vertex));
 
-    stlwrite(fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
+      new_name = fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']);
 
-    if (params.mesh_reduction > 0 && params.mesh_reduction < 1)
-      %[face, vertex] = reducepatch(face, vertex, params.mesh_reduction, 'fast');
-      face = face.';
-      vertex = vertex.';
-      [face, vertex] = oocs_mex(face, vertex, params.mesh_resolution);
-      face = face.';
-      vertex = vertex.';
+      fprintf('saving surface for channel %i...\n', nc);
 
-      fprintf('saving simplified surface for channel %i...\n', nc);
+      stlwrite(new_name, face, vertex);
+      new_names{nc} = new_name;
+  end
 
-      stlwrite(fullfile(out_path, ['volume_red' num2str(params.mesh_reduction) '_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']), face, vertex);
-    end
-end
+  params.filename = new_names;
 
-return
+  return
 

@@ -120,7 +120,16 @@ function parameters = For3D(varargin)
   end
 
   % Reconstruct the volume
-  rendering_3D(parameters);
+  if (~continued || (ndone<10+parameters.colorize))
+    parameters = rendering_3D(parameters);
+    parameters.file_log{end+1} = parameters.filename;
+
+    % Saving the progress
+    save(savename, 'parameters');
+  end
+
+  % Simplify the produced mesh
+  simplify_mesh(parameters);
 
   if (nargout == 0)
     clear parameters;
