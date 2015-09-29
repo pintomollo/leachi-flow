@@ -92,7 +92,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
   mwSize nfaces, nvertices, nnewf, nnewv;
   int sub1, sub2, sub3, i, id, clust_id=0, curr_f=0;
   int c1[3], c2[3], c3[3], sizes[3], pad_size;
-  double step = -100, istep, lambda = 0.5, thresh = 1e-3, val1, val2, val3;
+  double step = -100, hstep, istep, lambda = 0.5, thresh = 1e-3, val1, val2, val3;
   double v1[3], v2[3], v3[3], n[4], Qs[9], tmp1[4], tmp2[4], tmp3[4];
   double e1[3], e2[3], e3[3], m1[4], m2[4], m3[4], Qb1[9], Qb2[9], Qb3[9];
   double *face, *vertex, *tf, *tv, *tq, *tnf, *new_vertices, *new_faces, *quadrics;
@@ -168,11 +168,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     step = -__MAX__(__MAX__(maxs[0]-mins[0], maxs[1]-mins[1]), maxs[2]-maxs[2])/step;
   }
   istep = 1 / step;
+  hstep = step/2;
 
   // Shift the whole by half a space
-  mins[0] -= step/2;
-  mins[1] -= step/2;
-  mins[2] -= step/2;
+  mins[0] -= hstep;
+  mins[1] -= hstep;
+  mins[2] -= hstep;
 
   // Get the dimension of the mapping cube by getting the indexes of the max point
   get_shifted_vector(maxs, maxs, mins);
@@ -445,9 +446,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     //   where v is the center of the current cluster
 
     // Get the current center of the cluster
-    v1[0] = tv[0] - step/2;
-    v1[1] = tv[1] - step/2;
-    v1[2] = tv[2] - step/2;
+    v1[0] = tv[0] - hstep;
+    v1[1] = tv[1] - hstep;
+    v1[2] = tv[2] - hstep;
 
     // The b part of the quadric
     b[0] = -tq[6];
@@ -481,6 +482,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 
     // V*E*U'*(b-A*v)
     prod33(v2, V, E);
+
+    // Filter out out-of-range values
+    v2[0] = fabs(v2[0])>hstep ? 0 : v2[0];
+    v2[1] = fabs(v2[1])>hstep ? 0 : v2[1];
+    v2[2] = fabs(v2[2])>hstep ? 0 : v2[2];
 
     // The shifted x !
     tv[0] = v1[0] + v2[0] + mins[0];
