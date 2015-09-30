@@ -76,9 +76,12 @@ end
 [faces, vertices, options] = parseInputs(varargin{:});
 asciiMode = strcmp( options.mode ,'ascii');
 
+varargin = [];
+
 % Create the facets
 facets = single(vertices');
 facets = reshape(facets(:,faces'), 3, 3, []);
+clear faces vertices
 
 % Compute their normals
 V1 = squeeze(facets(:,2,:) - facets(:,1,:));

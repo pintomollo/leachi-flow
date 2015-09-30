@@ -21,7 +21,7 @@ function simplify_mesh(params)
 
       filename = files{nc};
       [filepath, fname, fileext] = fileparts(filename);
-      new_name = fullfile(out_path, [fname '_res' params.mesh_resolution fileext]);
+      new_name = fullfile(out_path, [fname '_res' num2str(params.mesh_resolution) fileext]);
 
       fprintf('Loading STL surface for channel %i...\n', nc);
 
@@ -37,5 +37,5 @@ function simplify_mesh(params)
 
       fprintf('saving simplified surface for channel %i...\n', nc);
 
-      stlwrite(fullfile(out_path, new_name, face, vertex);
+      stlwrite(new_name, face, vertex);
   end

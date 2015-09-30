@@ -173,7 +173,11 @@ function params = get_parameters(params)
   end
 
   % Try reading the metadata
-  info = imfinfo(files{1});
+  try
+    info = imfinfo(files{1});
+  catch
+    info = struct();
+  end
 
   % For now on, I look only for one field
   if (isfield(info, 'ImageDescription'))

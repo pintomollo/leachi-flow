@@ -144,6 +144,7 @@ function params = rendering_3D(params)
       new_names{nc} = new_name;
   end
 
+  params.thresholds = thresholds;
   params.filename = new_names;
 
   return
