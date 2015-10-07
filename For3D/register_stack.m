@@ -51,15 +51,17 @@ function new_names = register_stack(files, min_frac)
   xx = repmat(single([1:w]), h, 1);
   yy = repmat(single([1:h]).', 1, w);
 
-  minrad = ceil(max(h,w)/min_frac);
-  minsize = (minrad^2);
-  hdil = strel('disk', ceil(minrad/20));
+  [minrad, minsize, hdil] = im2reference([h w], min_frac);
+  %minrad = ceil(max(h,w)/min_frac);
+  %minsize = (minrad^2);
+  %hdil = strel('disk', ceil(minrad/20));
 
-  outer = false([h w]);
-  outer([1:minrad+1 end-minrad:end],:) = true;
-  outer(:, [1:minrad+1 end-minrad:end]) = true;
+  %outer = false([h w]);
+  %outer([1:minrad+1 end-minrad:end],:) = true;
+  %outer(:, [1:minrad+1 end-minrad:end]) = true;
 
-  [im, pts0] = im2reference(im);
+  %[im, pts0] = im2reference(im);
+  [im, pts0] = get_landmarks(im);
 
   anchor = fullfile(out_path, 'anchor.tiff');
   target = fullfile(out_path, 'target.tiff');
@@ -103,7 +105,8 @@ function new_names = register_stack(files, min_frac)
       im = imresize(im, ratio);
     end
 
-    [im, pts2] = im2reference(im, pts1);
+    %[im, pts2] = im2reference(im, pts1);
+    [im, pts2] = get_landmarks(im, pts1);
 
     imwrite(im, source, 'TIFF');
 
@@ -131,7 +134,8 @@ function new_names = register_stack(files, min_frac)
       im = imresize(im, ratio);
     end
 
-    [im, pts1] = im2reference(im);
+    %[im, pts1] = im2reference(im);
+    [im, pts1] = get_landmarks(im);
 
     imwrite(im, target, 'TIFF');
 
@@ -162,7 +166,8 @@ function new_names = register_stack(files, min_frac)
       im = imresize(im, ratio);
     end
 
-    [im, pts2] = im2reference(im, pts1);
+    %[im, pts2] = im2reference(im, pts1);
+    [im, pts2] = get_landmarks(im, pts1);
 
     imwrite(im, source, 'TIFF');
 
@@ -190,7 +195,8 @@ function new_names = register_stack(files, min_frac)
       im = imresize(im, ratio);
     end
 
-    [im, pts1] = im2reference(im);
+    %[im, pts1] = im2reference(im);
+    [im, pts1] = get_landmarks(im);
 
     imwrite(im, target, 'TIFF');
 
@@ -206,6 +212,7 @@ function new_names = register_stack(files, min_frac)
 
   return;
 
+  %{
   function [img, pts] = im2reference(img, prev_pts)
 
     img = adjust_tif(img);
@@ -229,9 +236,20 @@ function new_names = register_stack(files, min_frac)
 
     return;
   end
+  %}
 
-  function [pts] = get_landmarks(areas, obj_angle)
+  function [img, pts] = get_landmarks(img, prev_pts)
 
+    [img, areas] = im2reference(img, minsize, hdil);
+
+    if (nargin > 1)
+      prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
+      [means, angle] = im2moments(areas, xx, yy, prev_angle);
+    else
+      [means, angle] = im2moments(areas, xx, yy);
+    end
+
+    %{
     x = xx(areas);
     y = yy(areas);
 
@@ -268,13 +286,15 @@ function new_names = register_stack(files, min_frac)
         angle = angle + pi;
       end
     end
+    %}
 
-    dist = h/4;
-    pts = [cos(angle) sin(angle)]*dist;
+    dist = 0.25*h;
+    pts = [cos(-angle) sin(-angle)]*dist;
 
-    pts = bsxfun(@plus, [-pts; zeros(1,2); pts], [xbar ybar]);
+    pts = bsxfun(@plus, [-pts; zeros(1,2); pts], means);
 
     %figure;imagesc(areas);hold on;scatter(pts(:,1), pts(:,2));
+    %keyboard
 
     return;
   end

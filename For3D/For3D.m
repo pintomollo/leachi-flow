@@ -61,8 +61,14 @@ function parameters = For3D(varargin)
     save(savename, 'parameters');
   end
 
-  % Then align the stack
+  % Smooth the volume of the organ
   if (~continued || ndone<4)
+    parameters.filename = smooth_slices(parameters.filename, parameters.smoothing_span);
+    parameters.file_log{end+1} = parameters.filename;
+  end
+
+  % Then align the stack
+  if (~continued || ndone<5)
     parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
 
     % Saving the progress
@@ -70,11 +76,7 @@ function parameters = For3D(varargin)
     save(savename, 'parameters');
   end
 
-  % Smooth the volume and the intensity of the organ
-  if (~continued || ndone<5)
-    parameters.filename = smooth_slices(parameters.filename, parameters.smoothing_span);
-    parameters.file_log{end+1} = parameters.filename;
-  end
+  % Smooth the intensity of the slides
   if (~continued || ndone<6)
     parameters.filename = equalize_stack(parameters.filename, parameters.alpha);
     parameters.file_log{end+1} = parameters.filename;

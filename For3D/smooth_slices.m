@@ -1,4 +1,4 @@
-function new_names = smooth_slices(files, smoothing_span)
+function new_names = smooth_slices(files, smoothing_span, min_frac)
 
 %% function smooth_slices(file)
 %
@@ -15,8 +15,9 @@ function new_names = smooth_slices(files, smoothing_span)
 %
 % (c) AS 2014
 
-  if nargin<1, files = '*.tif'; smoothing_span = 0.25; end
-  if nargin<2, smoothing_span = 0.25; end
+  if nargin<1, files = '*.tif'; smoothing_span = 0.25; min_frac = 50; end
+  if nargin<2, smoothing_span = 0.25; min_frac = 50; end
+  if nargin<3, min_frac = 50; end
 
   new_names = {};
   dir_out = '_smoothed';
@@ -30,10 +31,40 @@ function new_names = smooth_slices(files, smoothing_span)
 
   new_names = files;
 
-  i_bary = zeros(Nk, 1);
-  j_bary = zeros(Nk, 1);
-  std_i = zeros(Nk, 1);
-  std_j = zeros(Nk, 1);
+  im = imread(files{1});
+  im = imfillborder(im);
+
+  [hf,wf,c] = size(im);
+
+  is_rgb = (c>1);
+  if (is_rgb)
+    im = rgb2gray(im);
+  end
+
+  max_space = java.lang.Runtime.getRuntime.maxMemory;
+  ratio = max_space / (30*2*hf*wf);
+
+  if (ratio < 1)
+    im = imresize(im, ratio);
+    [h,w,c] = size(im);
+  else
+    h = hf;
+    w = wf;
+  end
+
+  xx = repmat(single([1:w]), h, 1);
+  yy = repmat(single([1:h]).', 1, w);
+
+  [minrad, minsize, hdil] = im2reference([h w], min_frac);
+
+  means = zeros(Nk, 2);
+  angles = zeros(Nk, 1);
+  stds = zeros(Nk, 2);
+
+  %i_bary = zeros(Nk, 1);
+  %j_bary = zeros(Nk, 1);
+  %std_i = zeros(Nk, 1);
+  %std_j = zeros(Nk, 1);
   %background_val = zeros(Nk, 3);
 
   fprintf(' Computing the images intensity barycenter for axial smoothing :     ');
@@ -41,6 +72,21 @@ function new_names = smooth_slices(files, smoothing_span)
   for nk = 1:Nk
       fprintf('\b\b\b%3d', nk);
 
+      im = imread(files{nk});
+      im = imfillborder(im);
+
+      if (is_rgb)
+        im = rgb2gray(im);
+      end
+
+      if (ratio < 1)
+        im = imresize(im, ratio);
+      end
+
+      [im] = im2reference(im, minsize, hdil);
+      [means(nk,:), angles(nk), stds(nk,:)] = im2moments(im, xx, yy);
+
+      %{
       im = double(imread(files{nk}));
       %border_rows = squeeze([im(1,:,:) im(end,:,:)]);
       %border_cols = squeeze([im(:,1,:); im(:,end,:)]);
@@ -71,6 +117,7 @@ function new_names = smooth_slices(files, smoothing_span)
       j_bary(nk) = sum(val_j .* jj) / sum(val_j);
       std_i(nk) = sqrt(sum(val_i .* (ii - i_bary(nk)).^2) / sum(val_i)); % std = sqrt(sum(Ii * (i-ib)^2) / sum(Ii))
       std_j(nk) = sqrt(sum(val_j .* (jj - j_bary(nk)).^2) / sum(val_j));
+      %}
 
       %{
       if mod(nk, 5) == 0 % show only some, to save time..
@@ -89,14 +136,24 @@ function new_names = smooth_slices(files, smoothing_span)
       %}
   end
 
+  if (ratio < 1)
+    means = means/ratio;
+    stds = stds/ratio;
+  end
+
   %% smooth shape descriptors => scaling factors
   nspan = max(ceil(smoothing_span*Nk), 11);
-  smooth_i_bary = smooth(i_bary, nspan, 'loess'); % using smooth, instead of expecting a spheroid shape
-  smooth_j_bary = smooth(j_bary, nspan, 'loess');
-  smooth_std_i = smooth(std_i, nspan, 'loess');
-  smooth_std_j = smooth(std_j, nspan, 'loess');
-  i_scale = smooth_std_i ./ std_i; % scale = size_out / size_in
-  j_scale = smooth_std_j ./ std_j;
+  smoothed = [smooth(stds(:,1), nspan, 'loess') smooth(stds(:,2), nspan, 'loess')];
+  scaling = stds ./ smoothed;
+  %smooth_i_bary = smooth(i_bary, nspan, 'loess'); % using smooth, instead of expecting a spheroid shape
+  %smooth_j_bary = smooth(j_bary, nspan, 'loess');
+  %smooth_std_i = smooth(std_i, nspan, 'loess');
+  %smooth_std_j = smooth(std_j, nspan, 'loess');
+  %i_scale = smooth_std_i ./ std_i; % scale = size_out / size_in
+  %j_scale = smooth_std_j ./ std_j;
+
+  xx = repmat(single([1:wf]), hf, 1);
+  yy = repmat(single([1:hf]).', 1, wf);
 
   %{
   clf
@@ -124,13 +181,20 @@ function new_names = smooth_slices(files, smoothing_span)
 
       im = imread(filename);
       type = class(im);
-      
+
+      x = (xx-means(nk, 1))*cos(angles(nk)) - (yy-means(nk, 2))*sin(angles(nk));
+      y = (xx-means(nk, 1))*sin(angles(nk)) + (yy-means(nk, 2))*cos(angles(nk));
+
+      x_grid = double((x*scaling(nk,1)*cos(-angles(nk)) - y*scaling(nk,2)*sin(-angles(nk))) + means(nk, 1));
+      y_grid = double((x*scaling(nk,1)*sin(-angles(nk)) + y*scaling(nk,2)*cos(-angles(nk))) + means(nk, 2));
+
       %% scale image by interp - image too large => pixels smaller & vice versa
-      ii_corr = (ii - smooth_i_bary(nk)) / i_scale(nk) + i_bary(nk); % out : i_corr - <i_corr> = (i - <i>) / scale
-      jj_corr = (jj - smooth_j_bary(nk)) / j_scale(nk) + j_bary(nk);
-      [x_grid, y_grid] = meshgrid(jj_corr, ii_corr); % x = j & y = i!!
+      %ii_corr = (ii - smooth_i_bary(nk)) / i_scale(nk) + i_bary(nk); % out : i_corr - <i_corr> = (i - <i>) / scale
+      %jj_corr = (jj - smooth_j_bary(nk)) / j_scale(nk) + j_bary(nk);
+      %[x_grid, y_grid] = meshgrid(jj_corr, ii_corr); % x = j & y = i!!
+
       %im_corr = zeros(size(im)); % ([size(j_grid), 3]);
-      
+
       %{
       for nc = 1:3
           im_corr_c = interp2(im(:, :, nc), x_grid, y_grid);
@@ -138,6 +202,9 @@ function new_names = smooth_slices(files, smoothing_span)
           im_corr(:, :, nc) = im_corr_c;
       end
       %}
+
+      %keyboard
+
       im = bilinear_mex(double(im), x_grid, y_grid);
       im = imfillborder(im);
 
