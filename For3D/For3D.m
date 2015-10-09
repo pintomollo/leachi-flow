@@ -69,7 +69,7 @@ function parameters = For3D(varargin)
 
   % Then align the stack
   if (~continued || ndone<5)
-    parameters.filename = register_stack(parameters.filename, parameters.min_fraction);
+    parameters.filename = register_stack(parameters.filename, parameters.min_fraction, parameters.registration_type);
 
     % Saving the progress
     parameters.file_log{end+1} = parameters.filename;

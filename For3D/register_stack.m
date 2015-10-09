@@ -1,8 +1,17 @@
-function new_names = register_stack(files, min_frac)
+function new_names = register_stack(files, min_frac, reg_type)
 
-  if nargin<1, files = '*.tif'; min_frac=50; end
-  if nargin<2, min_frac=50; end
+  if nargin<1, files = '*.tif'; min_frac=50; reg_type = 'rigidbody';
+  elseif nargin<2, min_frac=50; reg_type = 'rigidbody';
+  elseif (nargin < 3)
+    if (ischar(min_frac))
+      reg_type = min_frac;
+      min_frac = 50;
+    else
+      reg_type = 'rigidbody';
+    end
+  end
 
+  is_affine = (reg_type(1)=='a');
   new_names = {};
   dir_out = '_registered';
 
@@ -25,10 +34,11 @@ function new_names = register_stack(files, min_frac)
   filename = files{center};
   [filepath, fname, fileext] = fileparts(filename);
   new_name = fullfile(out_path, [fname fileext]);
-  copyfile(filename, new_name);
 
   im = imread(filename);
   im = imfillborder(im);
+
+  imwrite(im, new_name, 'TIFF');
 
   [hf,wf,c] = size(im);
 
@@ -74,7 +84,14 @@ function new_names = register_stack(files, min_frac)
 
   command1 =  '-align -file "';
   command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "'];
-  command3 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -rigidBody '];
+  command3 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1)];
+
+  if (is_affine)
+    command3 = [command3 ' -affine '];
+  else
+    command3 = [command3 ' -rigidBody '];
+  end
+
   commandp = ['%f %f %f %f %f %f %f %f %f %f %f %f -hideOutput'];
 
   %            num2str(w/2) ' ' num2str(h/2) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
@@ -116,7 +133,11 @@ function new_names = register_stack(files, min_frac)
     spts = turboReg.getSourcePoints();
     tpts = turboReg.getTargetPoints();
 
-    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+    if (is_affine)
+      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+    else
+      H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+    end
 
     if (ratio < 1)
       H(1:2,3) = H(1:2,3) / ratio;
@@ -177,7 +198,11 @@ function new_names = register_stack(files, min_frac)
     spts = turboReg.getSourcePoints();
     tpts = turboReg.getTargetPoints();
 
-    H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+    if (is_affine)
+      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
+    else
+      H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+    end
 
     if (ratio < 1)
       H(1:2,3) = H(1:2,3) / ratio;
@@ -212,86 +237,27 @@ function new_names = register_stack(files, min_frac)
 
   return;
 
-  %{
-  function [img, pts] = im2reference(img, prev_pts)
-
-    img = adjust_tif(img);
-    th = graythresh(img(:))*max(img(:));
-    mask = (img > th);
-    mask = imclose(mask, hdil);
-    mask = bwareaopen(mask, minsize);
-    mask = imdilate(mask, hdil);
-
-    if (nargin > 1)
-      prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
-      [pts] = get_landmarks(mask, prev_angle);
-    else
-      [pts] = get_landmarks(mask);
-    end
-
-    if (any(mask(:)))
-      img(~mask) = 0;
-    end
-    img = imnorm(img);
-
-    return;
-  end
-  %}
-
   function [img, pts] = get_landmarks(img, prev_pts)
 
     [img, areas] = im2reference(img, minsize, hdil);
 
     if (nargin > 1)
+      if (is_affine)
+        prev_pts = [mean(prev_pts(1:2,:)); prev_pts(3,:)];
+      end
       prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
       [means, angle] = im2moments(areas, xx, yy, prev_angle);
     else
       [means, angle] = im2moments(areas, xx, yy);
     end
 
-    %{
-    x = xx(areas);
-    y = yy(areas);
-
-    xbar = mean(x);
-    ybar = mean(y);
-
-    x = x - xbar;
-    y = y - ybar;
-
-    npts = length(x);
-
-    % Calculate normalized second central moments for the region. 1/12 is
-    % the normalized second central moment of a pixel with unit length.
-    uxx = sum(x.^2)/npts + 1/12;
-    uyy = sum(y.^2)/npts + 1/12;
-    uxy = sum(x.*y)/npts;
-
-    % Calculate orientation.
-    if (uyy > uxx)
-      num = uyy - uxx + sqrt((uyy - uxx)^2 + 4*uxy^2);
-      den = 2*uxy;
+    rotmat = [cos(-angle) -sin(-angle); sin(-angle) cos(angle)];
+    if (is_affine)
+      pts = [-0.25 -0.25; -0.25 0.25; 0.25 0];
     else
-      num = 2*uxy;
-      den = uxx - uyy + sqrt((uxx - uyy)^2 + 4*uxy^2);
+      pts = [-0.25 0; 0 0; 0.25 0];
     end
-    if (num == 0) && (den == 0)
-      angle = 0;
-    else
-      angle = atan2(num, den);
-    end
-
-    if (nargin > 1)
-      if (abs(angle - obj_angle) > pi/2)
-        angle = angle + pi;
-      end
-    end
-    %}
-
-    dist = 0.25*h;
-    pts = [cos(-angle) sin(-angle)]*dist;
-
-    pts = bsxfun(@plus, [-pts; zeros(1,2); pts], means);
+    pts = bsxfun(@plus, bsxfun(@times, pts, [h w])*rotmat, means);
 
     %figure;imagesc(areas);hold on;scatter(pts(:,1), pts(:,2));
     %keyboard
@@ -300,7 +266,7 @@ function new_names = register_stack(files, min_frac)
   end
 end
 
-function Ha = AffineModel2D(x1c, x2c)
+function Ha = RigidBodyModel2D(x1c, x2c)
 
   angle = (atan2(x1c(3, 2) - x1c(2, 2), x1c(3, 1) - x1c(2, 1)) - ...
           atan2(x2c(3, 2) - x2c(2, 2), x2c(3, 1) - x2c(2, 1)));
@@ -310,6 +276,51 @@ function Ha = AffineModel2D(x1c, x2c)
   Ha = [ cosa sina x2c(1,1) - cosa*x1c(1,1) - sina*x1c(1,2); ...
         -sina cosa x2c(1,2) + sina*x1c(1,1) - cosa*x1c(1,2); ...
           0 0 1];
+
+  return;
+end
+
+function Ha = AffineModel2D(x1c, x2c)
+      
+  % A = [x1c(1,1) x1c(2,1) 1 0 0 0
+  %     0 0 0 x1c(1,1) x1c(2,1) 1
+  %     x1c(1,2) x1c(2,2) 1 0 0 0
+  %     0 0 0 x1c(1,2) x1c(2,2) 1
+  %     x1c(1,3) x1c(2,3) 1 0 0 0
+  %     0 0 0 x1c(1,3) x1c(2,3) 1];
+  A = [0 0 0 0 0 0];
+  for i=1:3
+      A = [A
+          x1c(i,:) 1 0 0 0
+          0 0 0 x1c(i,:) 1];
+  end
+  A = A(2:end,:);
+      
+  % b = [x2c(1,1)
+  %     x2c(2,1)
+  %     x2c(1,2)
+  %     x2c(2,2)
+  %     x2c(1,3)
+  %     x2c(2,3)];
+  b = 0;
+  for i=1:3
+      b = [b
+          x2c(i,:).'];
+  end
+  b = b(2:end,:);
+
+  %X è il vettore delle incognite 
+  %X = [a11
+  %     a12
+  %     a13
+  %     a21
+  %     a22
+  %     a23];
+  X = A\b;
+
+  Ha = [X(1) X(2) X(3)
+      X(4) X(5) X(6)
+      0 0 1];
 
   return;
 end
