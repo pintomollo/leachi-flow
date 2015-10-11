@@ -460,6 +460,7 @@ Initialize(varargin{:})
         %WindowButtonDownCallback2D
         
         if fIsMouseOnLegend, return; end
+        if ~strncmp(get(src, 'Pointer'), 'arrow', 5), return; end
         
         clickType = get(src, 'SelectionType');
         
