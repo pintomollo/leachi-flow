@@ -69,7 +69,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
     % Parse the list and copy its content into the channels structure
     nchannels = length(fname);
-    channels = get_struct('channel', [nchannels 1]);
+    channels = get_struct('census', [nchannels 1]);
     for i=1:nchannels
       channels(i).fname = fname{i};
     end
@@ -93,7 +93,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
   % And handle the colormaps as well
   colors = get_struct('colors');
-  color_index = 1;
 
   % Display the figure
   set(hFig,'Visible', 'on');
@@ -123,6 +122,43 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
   return;
 
+  function handle_rois(prev_indx, next_indx)
+
+    % Extract the ROIs
+    nrois = length(handles.roi);
+    if (prev_indx > 0)
+      systems = NaN(0, 2);
+      for i=1:nrois
+        systems = [systems; handles.roi{i}.getPosition(); NaN(1,2)];
+      end
+      channels(prev_indx).system = systems;
+    end
+
+    if (next_indx > 0)
+      systems = channels(next_indx).system;
+      sys = find(all(isnan(systems), 2));
+      nsys = length(sys);
+
+      prev = 1;
+      for i=1:nsys
+        curr_sys = systems(prev:sys(i)-1,:);
+        if (i > nrois)
+          handles.roi{i} = impoly(handles.axes(1), curr_sys, 'Closed', false);
+        else
+          handles.roi{i}.setPosition(curr_sys);
+        end
+        prev = sys(i)+1;
+      end
+
+      for i=nrois:-1:nsys+1
+        handles.roi{i}.delete();
+        handles.roi(i) = [];
+      end
+    end
+
+    return;
+  end
+
   function update_display(recompute)
   % The main figure of the GUI, the one responsible for the proper display
   % of its content.
@@ -140,16 +176,24 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
       return;
     end
 
+    % Here we recompute all the filtering of the frame
+    if (recompute || indx ~= handles.prev_channel)
+      % Because it takes long, display it and block the GUI
+      set(hFig, 'Name', 'Colony census (Filtering...)');
+      set(handles.all_buttons, 'Enable', 'off');
+      drawnow;
+      refresh(hFig);
+    end
+
     % If we have changed channel, we need to update the display of the buttons
     if (indx ~= handles.prev_channel)
-
-      % Get the colormap for the displayed channel
-      color_index = channels(indx).color;
 
       % Set the name of the current panel
       set(handles.uipanel,'Title', ['Image ' num2str(indx)]);
 
       set(handles.normalize,'Value', channels(indx).normalize);
+
+      handle_rois(handles.prev_channel, indx);
 
       % And setup the indexes correctly
       handles.prev_channel = indx;
@@ -157,11 +201,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
     % Here we recompute all the filtering of the frame
     if (recompute)
-      % Because it takes long, display it and block the GUI
-      set(hFig, 'Name', 'Colony census (Filtering...)');
-      set(handles.all_buttons, 'Enable', 'off');
-      drawnow;
-      refresh(hFig);
 
       % Try to avoid reloading frames as much as possible
       orig_img = imread(channels(indx).fname);
@@ -176,8 +215,8 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     end
 
     % Determine which image to display in the left panel
-    img1 = orig_img;
-    img2 = orig_img;
+    img1 = img;
+    img2 = img;
 
     % If we have already created the axes and the images, we can simply change their
     % content (i.e. CData)
@@ -202,10 +241,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
       dragzoom(handles.axes, 'on')
     end
 
-    % And set the colormap
-    colormap(hFig, colors.colormaps{color_index}(128));
-
-    if (recompute)
+    if (recompute || indx ~= handles.prev_channel)
       % Release the image
       set(hFig, 'Name', 'Colony census');
       set(handles.all_buttons, 'Enable', 'on');
@@ -251,7 +287,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
         if (~isempty(new_channel))
 
           % We provide basic default values for all fields
-          channels = get_struct('channel');
+          channels = get_struct('census');
           channels.fname = new_channel;
 
           % We update the list of available channels
@@ -279,7 +315,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     set(handles.all_buttons, 'Enable', 'off');
 
     h = impoly(handles.axes(1), 'Closed', false);
-    handles.rois(end+1) = h;
+    handles.roi{end+1} = h;
 
     % Release the GUI
     set(handles.all_buttons, 'Enable', 'on');
@@ -303,7 +339,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
       liststring = get(handles.list, 'String');
       for i=1:length(new_channel)
         % We provide basic default values for all fields
-        channels(end+1) = get_struct('channel');
+        channels(end+1) = get_struct('census');
         channels(end).fname = new_channel{i};
 
         % We update the list of available channels
@@ -462,29 +498,10 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
   % the channels structure for its standard form before releasing the GUI
   % to exit it
 
-    % Create a copy of channels in case we need to cancel
-    tmp_channels = channels;
-
-    % We need ot loop over the channels
-    nchannels = length(channels);
-
-    % Some checks to make sure the user is aware of some potential issues
-    ok = true;
-    if (ok & any(detrend, 1))
-
-      % This is a highly non-linear filtering which prevents proper
-      % signal comparison between recordings
-      answer = questdlg({'Some channels will be detrended, continue ?','', ...
-                         '(This is a quite slow and non-linear process..)'});
-      ok = strcmp(answer,'Yes');
-    end
-
     % If everything is OK, release the GUI and quit
-    if (ok)
-      is_done = true;
-      channels = tmp_channels;
-      uiresume(hFig);
-    end
+    is_done = true;
+    handle_rois(handles.current, 0);
+    uiresume(hFig);
 
     return
   end
@@ -721,7 +738,7 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
                      'experiment', hName, ...
                      'all_buttons', enabled, ...
                      'img', -1, ...
-                     'roi', [], ...
+                     'roi', {{}}, ...
                      'display', [1 1], ...
                      'prev_channel', -1, ...
                      'current', 1);
