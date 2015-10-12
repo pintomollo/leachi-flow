@@ -47,7 +47,8 @@ function new_stack = write_stack(files, data, type, meta)
       tagstruct.ImageDescription = meta;
     end
 
-    fprintf(' Writing planes of stack to disk :    1');
+    msg = sprintf(' Writing planes of stack to disk : %3d', 1);
+    fprintf(msg);
 
     if (exist(files, 'file'))
       delete(files);
@@ -82,7 +83,8 @@ function new_stack = write_stack(files, data, type, meta)
 
     tiffobj.close();
 
-    fprintf('\b\b\b\bdone\n');
+    %fprintf('\b\b\b\bdone\n');
+    fprintf([repmat('\b', 1, length(msg))]);
 
   else
 

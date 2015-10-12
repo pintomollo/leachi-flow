@@ -8,6 +8,10 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     nhist = [];
   end
 
+  if (~isnumeric(imax) || ~isfinite(imax))
+    imax = [];
+  end
+
   if (numel(imax) == 1)
     dist = imax;
     imax = [];
@@ -64,7 +68,6 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
       kernel = ones([2*dist+1 ones(1, 2-length(dist))]);
       kernel = kernel/numel(kernel);
 
-      norig = nhist;
       nhist = convn(nhist, kernel, 'same');
       %nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
 

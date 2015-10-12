@@ -105,7 +105,7 @@ function parameters = For3D(varargin)
 
   % The splitting of colors stuff
   if (parameters.colorize && (~continued || (ndone<8+parameters.colorize)))
-    parameters.filename = colorize_stack(parameters.filename);
+    [parameters.filename, parameters.splitting_colors] = colorize_stack(parameters.filename, parameters.splitting_colors);
     parameters.file_log{end+1} = parameters.filename;
 
     % Saving the progress
