@@ -11,13 +11,15 @@ function [new_names, imax] = colorize_stack(files, colors)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
+  new_names = files;
+
   if (isempty(colors) || any(~isfinite(colors(:))) || ~isnumeric(colors))
     %disp('Coloring images...');
     fprintf(' Computing the color panel of the images :     ');
 
     new_names = files;
 
-    ndist = 10;
+
     nhist = zeros(255);
 
     %filename = files{1};
@@ -30,10 +32,11 @@ function [new_names, imax] = colorize_stack(files, colors)
       filename = files{i};
       im = imread(filename);
 
-      [junk, nhist] = imsplitcolors(im, ndist, nhist);
+      [junk, nhist] = imsplitcolors(im, nhist);
     end
 
-    [imax] = imsplitcolors(nhist);
+    ndist = 10;
+    [imax] = imsplitcolors(nhist, ndist);
 
     fprintf('\b\b\b\bdone\n');
   else

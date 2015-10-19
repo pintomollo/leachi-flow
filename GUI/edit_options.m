@@ -155,10 +155,12 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
 
         % An incredibly flexible table, used for cell arrays
         case 'table'
-          ncolumns = size(myvals{i,2}, 2);
+          [nrows, ncolumns] = size(myvals{i,2});
+          curr_size = [180 count*50 + 30 min(60*ncolumns + 5 + 30*(nrows>3), 180) min(20*nrows + 5 + 30*(ncolumns>3), 80)];
           hControl = uitable('Parent', hPanel, ...
                         'Units', 'pixels',  ...
-                        'Position', [180 count*50 + 30 180 80], ...
+                        'Position', curr_size, ...
+                        'ColumnWidth', repmat({58}, 1, ncolumns), ...
                         'ColumnEditable', true(1, ncolumns), ...
                         'Data', myvals{i,2}, ...
                         'ColumnName', [], ...
@@ -167,8 +169,9 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
 
           % Because of the sliders inherent to the table, it is too wide
           % so we increase its size and move the text a bit
-          set(hText, 'Position', [20 count*50 + 50 120 30]);
-          count = count + 1;
+          set(hText, 'Position', [20 count*50 + 10 + (curr_size(end)/2) 120 30]);
+          %set(hText, 'Position', [20 count*50 + 50 120 30]);
+          count = count + (curr_size(end)>50);
 
           if (strncmp(myvals{i,3}, 'strel', 5))
             set(hControl, 'Position', [180 (count-1)*50 + 30 180 120], ...
@@ -198,7 +201,7 @@ function [mystruct, is_updated] = edit_options(mystruct, name)
                         'Tag', myvals{i,1});
       end
 
-      % We need to count how many items we display, and sotre their handlers
+      % We need to count how many items we display, and store their handlers
       count = count + 1;
       fields(i) = hControl;
     end
@@ -436,10 +439,26 @@ end
 % Convert a string to a list of double numbers
 function [values, correct] = mystr2double(value)
 
-  splits = regexp(value, '\s+', 'split');
-  values = str2double(splits);
-  nans = cellfun(@(x)(strncmpi(x, 'nan', 3)), splits);
-  correct = ~any(isnan(values) & ~nans);
+  if (iscell(value))
+    values = NaN(size(value));
+
+    correct = true;
+    for i=1:numel(value)
+      [values(i), tmp] = mystr2double(value{i});
+      correct = correct && tmp;
+    end
+  elseif (isempty(value))
+    values = NaN;
+    correct = true;
+  elseif (ischar(value))
+    splits = regexp(value, '\s+', 'split');
+    values = str2double(splits);
+    nans = cellfun(@(x)(strncmpi(x, 'nan', 3)), splits);
+    correct = ~any(isnan(values) & ~nans);
+  else
+    values = value;
+    correct = true;
+  end
 
   return;
 end
@@ -466,8 +485,13 @@ function [name, values] = parse_struct(mystruct)
 
       case {'double', 'single', 'int8', 'int16', 'int32', 'int64', 'uint8', 'uint16', 'uint32', 'uint64'}
         values{i, 3} = 'num';
-        values{i, 4} = 'edit';
-        values{i, 2} = num2str(values{i,2}(:).');
+        if (isempty(val))
+          values{i, 4} = 'edit';
+          values{i, 2} = {''};
+        else
+          values{i, 4} = 'table';
+          values{i, 2} = values{i,2};
+        end
       case 'char'
         values{i, 3} = 'char';
         values{i, 4} = 'edit';
@@ -496,8 +520,8 @@ function [name, values] = parse_struct(mystruct)
       case 'logical'
         if (numel(values{i,2})>1)
           values{i, 3} = 'bool';
-          values{i, 4} = 'edit';
-          values{i, 2} = num2str(values{i,2}(:).');
+          values{i, 4} = 'table';
+          values{i, 2} = values{i,2};
         else
           values{i, 3} = 'bool';
           values{i, 4} = 'checkbox';

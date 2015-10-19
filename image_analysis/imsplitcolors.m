@@ -65,8 +65,9 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
       dist = [dist(:).' ones(1, ndim-length(dist))*dist(1)];
       dist = dist(1:ndim);
 
-      kernel = ones([2*dist+1 ones(1, 2-length(dist))]);
-      kernel = kernel/numel(kernel);
+      %kernel = ones([2*dist+1 ones(1, 2-length(dist))]);
+      %kernel = kernel/numel(kernel);
+      kernel = fspecial('gaussian', 2*dist+1, 0.6*dist(1));
 
       nhist = convn(nhist, kernel, 'same');
       %nhist = colfilt(nhist, [2*dist+1 1], 'sliding', @(y)(mean(y, 1)));
@@ -78,19 +79,27 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
       %         all(bsxfun(@lt, imax, ssize - dist), 2));
 
       if (ndim > 1)
-        goods = goods & (imax(:,end) / ssize(2) < 0.91);
+        goods = goods & (imax(:,end) / ssize(2) < 0.91) & (imax(:,end) / ssize(2) > 0.09);
+      end
+
+      if (~any(goods))
+        goods = (imax(:,1) > dist(1)+1) & (imax(:,1) < ssize(1) - dist(1));
+
+        if (~any(goods))
+          goods = true(size(imax, 1), 1);
+        end
       end
 
       xmax = xmax(goods);
       imax = imax(goods, :);
 
-      [imax, indxs] = unique(bsxfun(@mod, imax, nbins), 'rows');
+      [imax, indxs] = unique(bsxfun(@mod, imax-1, nbins), 'rows');
       xmax = xmax(indxs);
 
       [xmax, indxs] = sort(xmax);
       imax = imax(indxs(end:-1:1),:);
 
-      imax = bsxfun(@rdivide, imax(1:min(3, end),:)-1, nbins);
+      imax = bsxfun(@rdivide, imax(1:min(3, end),:), nbins);
       imax = [imax; bsxfun(@times, ones(3-size(imax,1), ndim), imax(1,:))];
     end
 

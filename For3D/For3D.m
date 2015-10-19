@@ -5,6 +5,7 @@ function parameters = For3D(varargin)
 
   % Inputs processing
   if (length(varargin) > 0 && isstruct(varargin{1}))
+
     parameters = update_structure(varargin{1}, 'For3D');
     varargin(1) = [];
     continued = true;

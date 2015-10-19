@@ -32,13 +32,20 @@ end
 
 function [xmax, imax] = nd_extrema(x, nneigh)
 
+  minval = min(x(:));
+
   nneigh = 2*nneigh;
   kernel = true(nneigh+1);
 
   maxval = imdilate(x, kernel);
-  maxpos = (x == maxval);
+  maxpos = (x == maxval & x ~= minval);
 
   maxval = maxval(maxpos);
+
+  if (isempty(maxval))
+    xmax = minval;
+    imax = ones(1, ndims(x));
+  end
 
   bw = imdilate(maxpos, kernel);
 

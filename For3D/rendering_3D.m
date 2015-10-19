@@ -74,7 +74,9 @@ function params = rendering_3D(params)
       [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
       [Nx, Ny, Nz] = size(stk);
 
-      if thresholds(nc) == -1
+      if thresholds(nc) < 0
+          scaling = abs(thresholds(nc));
+
           %fprintf('finding automatic threshold %g. Iteration...', nc)
 
           T1 = mygraythresh(stk, type);
@@ -117,6 +119,8 @@ function params = rendering_3D(params)
           else % gray, Nc = 1
               thresholds = mean([T1 T2]);
           end
+
+          thresholds(nc) = scaling * thresholds(nc);
       end % if thresholds(nf, nc) == -1
   end % for nc = 1:Nc
   fprintf('\b\b\b\bdone\n');
