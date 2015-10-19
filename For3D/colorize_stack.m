@@ -11,7 +11,7 @@ function [new_names, imax] = colorize_stack(files, colors)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
-  if (isempty(colors))
+  if (isempty(colors) || any(~isfinite(colors(:))) || ~isnumeric(colors))
     %disp('Coloring images...');
     fprintf(' Computing the color panel of the images :     ');
 

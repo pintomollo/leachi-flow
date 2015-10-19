@@ -49,7 +49,6 @@ function new_names = clean_borders(files)
         tmp(mask) = bkgs(j);
         im(:,:,j) = tmp;
       end
-
       imwrite(im, new_name, 'TIFF');
     else
       copyfile(filename, new_name);

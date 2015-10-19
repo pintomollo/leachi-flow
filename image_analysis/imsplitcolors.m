@@ -8,7 +8,7 @@ function [img, nhist] = imsplitcolors(img, imax, nhist)
     nhist = [];
   end
 
-  if (~isnumeric(imax) || ~isfinite(imax))
+  if (~isempty(imax) && (~isnumeric(imax) || any(~isfinite(imax(:)))))
     imax = [];
   end
 

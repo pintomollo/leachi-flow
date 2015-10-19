@@ -32,7 +32,7 @@ function T=opthr(I, print_out)
 %offering good results and normally using a reduced number of iterations.
 %*********************************************************************************
 
-if nargin<2, print_out = 1; end
+if nargin<2, print_out = 0; end
 
 %Image size
 [rows,cols]=size(I);

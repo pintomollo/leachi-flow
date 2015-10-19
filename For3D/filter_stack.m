@@ -53,7 +53,7 @@ function params = filter_stack(params)
 
   fprintf(' Median filtering over %i pixels radius & gaussian blur of %f sigma for %i images :     ', Msize, Gsd, Nz)
   for nz = 1:Nz
-    fprintf('\b\b\b%3d', nz);
+    fprintf('\b\b\b\b%3d,', nz);
 
     filename = files{nz};
     [filepath, fname, fileext] = fileparts(filename);
@@ -108,7 +108,7 @@ function params = filter_stack(params)
 
   clear im;
 
-  fprintf('\b\b\b\bdone\n');
+  fprintf('\b\b\b\b\bdone\n');
 
   tmp_stack = write_stack(new_names);
   dir_out = '_filtered';
@@ -128,7 +128,7 @@ function params = filter_stack(params)
     params.sparse_thresholds = tmp;
   end
 
-  fprintf(' Z-gaussian blur of %f sigma for %i channels and size min %f :     ,', Gsd, Nc, params.min_volume, 1);
+  fprintf(' Z-gaussian blur of %f sigma for %i channels and size min %f :     ', Gsd, Nc, params.min_volume);
   for i=1:Nc
     %fprintf('\n  %d :', i);
     fprintf('\b\b\b\b%3d,', i);
@@ -166,3 +166,4 @@ function params = filter_stack(params)
   params.sparse_thresholds = threshs;
   params.filename = stk_files;
 %%%
+  return;

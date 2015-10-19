@@ -67,12 +67,15 @@ function params = rendering_3D(params)
 
   %% thresholds auto
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  fprintf(' Finding intensity thresholds :    ');
   for nc = 1:Nc
+      fprintf('\b\b\b%3d', nc);
+
       [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
       [Nx, Ny, Nz] = size(stk);
 
       if thresholds(nc) == -1
-          fprintf('finding automatic threshold %g. Iteration...', nc)
+          %fprintf('finding automatic threshold %g. Iteration...', nc)
 
           T1 = mygraythresh(stk, type);
           T2 = full(opthr(reshape(stk, Nx, [])));
@@ -86,28 +89,28 @@ function params = rendering_3D(params)
                           a1 = 0.7; a2 =0.3;
                       end
                       T = min((a1*T1 + a2*T2), 255);
-                      fprintf('Red threshold computation: T1 = %.1f, T2 = %.1f, %g*T1 + %g*T2 = %.1f\r', T1, T2, a1, a2, T)
+                      %fprintf('Red threshold computation: T1 = %.1f, T2 = %.1f, %g*T1 + %g*T2 = %.1f\r', T1, T2, a1, a2, T)
                       thresholds(nc) = T;
                       
                   case 2 % green 
                       if params.detect_IHC
                           a1 = 0.3; a2 =0.7; a3 = 2;
                           T = min((a1*T1 + a2*T2)*a3, 255);
-                          fprintf('Green threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
+                      %    fprintf('Green threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
                       else % low threshold to get all staining
                           T = T2; %/2;
-                          fprintf('Green threshold computation:  T = %.1f\r', T)
+                      %    fprintf('Green threshold computation:  T = %.1f\r', T)
                       end
                       thresholds(nc) = T;
                       
                   case 3 % blue 
                       if params.detect_IHC
                           T = T2;
-                          fprintf('Blue threshold computation:  T = %.1f\r', T2)
+                     %     fprintf('Blue threshold computation:  T = %.1f\r', T2)
                       else % high threshold to get only capsule
                           a1 = 0.8; a2 =0.2; a3 = 1.5;
                           T = min((a1*T1 + a2*T2)*a3, 255); % (0.8*T1 + 0.2*T2)*1.5;
-                          fprintf('Blue threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
+                     %     fprintf('Blue threshold computation:  T1 = %.1f, T2 = %.1f, (%g*T1 + %g*T2)*%g = %.1f\r', T1, T2, a1, a2, a3, T)
                       end
                       thresholds(nc) = T;
               end
@@ -116,16 +119,22 @@ function params = rendering_3D(params)
           end
       end % if thresholds(nf, nc) == -1
   end % for nc = 1:Nc
+  fprintf('\b\b\b\bdone\n');
 
   %% ****** generate 3D view ******
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  fprintf('computing 3D...\n')
+  fprintf(' Computing 3D volume :    ')
 
   pixels = [params.pixel_size params.pixel_size(1)*ones(1,2-length(params.pixel_size)) params.slice_width];
 
   %%  plot isosurf 
   for nc = 1:Nc
-      fprintf('generating surface for channel %i...\n', nc)
+
+      fprintf('\b\b\b\b%3d,', nc);
+
+      msg = sprintf(' generating surface...');
+      fprintf(msg);
+      %fprintf('generating surface for channel %i...\n', nc)
 
       [stk, junk, type] = load_sparse_stack(files{nc}, params.sparse_thresholds(nc));
 
@@ -138,11 +147,18 @@ function params = rendering_3D(params)
 
       new_name = fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']);
 
-      fprintf('saving surface for channel %i...\n', nc);
+      fprintf([repmat('\b', 1, length(msg))]);
+      msg = sprintf(' saving surface...');
+      fprintf(msg);
+
+      %fprintf('saving surface for channel %i...\n', nc);
 
       stlwrite(new_name, face, vertex);
       new_names{nc} = new_name;
+
+      fprintf([repmat('\b', 1, length(msg))]);
   end
+  fprintf('\b\b\b\b\bdone\n');
 
   params.thresholds = thresholds;
   params.filename = new_names;

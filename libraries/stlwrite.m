@@ -129,7 +129,8 @@ end
 
 % Close the file
 fclose(fid);
-fprintf('Wrote %d facets\n',size(facets, 2));
+
+%fprintf('Wrote %d facets\n',size(facets, 2));
 
 
 %% Input handling subfunctions
