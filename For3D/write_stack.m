@@ -84,7 +84,7 @@ function new_stack = write_stack(files, data, type, meta)
     tiffobj.close();
 
     %fprintf('\b\b\b\bdone\n');
-    fprintf([repmat('\b', 1, length(msg))]);
+    fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
 
   else
 

@@ -41,7 +41,8 @@ function new_names = resize_tif(files, Amax, Bmax)
           [A(i), B(i), ~] = size(im); % ! lines & columns, not width & height !
           %fprintf('%s, %i, %i\n', filename, A(i), B(i))
           msg = sprintf('%i x %i', A(i), B(i));
-          fprintf([repmat('\b', 1, length(pmsg)) msg]);
+          fprintf([repmat('\b', 1, length(pmsg)) repmat(' ', 1, length(pmsg)) repmat('\b', 1, length(pmsg))]);
+          fprintf(msg);
           pmsg = msg;
       end
   % % %     filenames = sort_nat(filenames);

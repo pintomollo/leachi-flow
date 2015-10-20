@@ -17,7 +17,7 @@ function simplify_mesh(params)
   Nc = length(files);
   if (Nc == 0), disp('nada??'), return, end
 
-  fprintf(' Computing simpler 3D volume :    ')
+  fprintf(' Computing simpler 3D volume :      ')
 
   for nc = 1:Nc
 
@@ -33,7 +33,7 @@ function simplify_mesh(params)
 
       [face, vertex] = stlread(filename);
 
-      fprintf([repmat('\b', 1, length(msg))]);
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
       msg = sprintf(' simplifying surface...');
       fprintf(msg);
 
@@ -45,7 +45,7 @@ function simplify_mesh(params)
       face = face.';
       vertex = vertex.';
 
-      fprintf([repmat('\b', 1, length(msg))]);
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
       msg = sprintf(' saving surface...');
       fprintf(msg);
 
@@ -53,7 +53,7 @@ function simplify_mesh(params)
 
       stlwrite(new_name, face, vertex);
 
-      fprintf([repmat('\b', 1, length(msg))]);
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
   end
 
   fprintf('\b\b\b\b\bdone\n');

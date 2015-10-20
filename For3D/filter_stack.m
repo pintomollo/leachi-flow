@@ -128,7 +128,7 @@ function params = filter_stack(params)
     params.sparse_thresholds = tmp;
   end
 
-  fprintf(' Z-gaussian blur of %f sigma for %i channels and size min %f :     ', Gsd, Nc, params.min_volume);
+  fprintf(' Z-gaussian blur of %f sigma for %i channels and size min %f :      ', Gsd, Nc, params.min_volume);
   for i=1:Nc
     %fprintf('\n  %d :', i);
     fprintf('\b\b\b\b%3d,', i);

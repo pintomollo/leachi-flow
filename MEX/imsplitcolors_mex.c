@@ -286,7 +286,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
         vind = img[i + npix + npix]*dims[2];
         vind = vind == dims[2] ? vind-1 : floor(vind);
 
-        table[(int)(hind + sind*dims[0] + vind*(dims[0]*dims[1]))]++;
+        table[(int)(hind + sind*dims[0] + vind*(dims[0]*dims[1]))] += img[i + npix] * img [i + npix + npix];
       }
     }
   }

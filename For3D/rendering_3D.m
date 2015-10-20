@@ -67,7 +67,7 @@ function params = rendering_3D(params)
 
   %% thresholds auto
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  fprintf(' Finding intensity thresholds :    ');
+  fprintf(' Finding intensity thresholds :     ');
   for nc = 1:Nc
       fprintf('\b\b\b%3d', nc);
 
@@ -127,7 +127,7 @@ function params = rendering_3D(params)
 
   %% ****** generate 3D view ******
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  fprintf(' Computing 3D volume :    ')
+  fprintf(' Computing 3D volume :      ')
 
   pixels = [params.pixel_size params.pixel_size(1)*ones(1,2-length(params.pixel_size)) params.slice_width];
 
@@ -151,7 +151,7 @@ function params = rendering_3D(params)
 
       new_name = fullfile(out_path, ['volume_iso' num2str(round(thresholds(nc))) '_c' num2str(nc, '%02i') '.stl']);
 
-      fprintf([repmat('\b', 1, length(msg))]);
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
       msg = sprintf(' saving surface...');
       fprintf(msg);
 
@@ -160,7 +160,7 @@ function params = rendering_3D(params)
       stlwrite(new_name, face, vertex);
       new_names{nc} = new_name;
 
-      fprintf([repmat('\b', 1, length(msg))]);
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
   end
   fprintf('\b\b\b\b\bdone\n');
 

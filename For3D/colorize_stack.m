@@ -20,6 +20,7 @@ function [new_names, imax] = colorize_stack(files, colors)
     new_names = files;
 
 
+    ndist = 10;
     nhist = zeros(255);
 
     %filename = files{1};
@@ -32,10 +33,9 @@ function [new_names, imax] = colorize_stack(files, colors)
       filename = files{i};
       im = imread(filename);
 
-      [junk, nhist] = imsplitcolors(im, nhist);
+      [junk, nhist] = imsplitcolors(im, ndist, nhist);
     end
 
-    ndist = 10;
     [imax] = imsplitcolors(nhist, ndist);
 
     fprintf('\b\b\b\bdone\n');
