@@ -49,8 +49,6 @@ function simplify_mesh(params)
       msg = sprintf(' saving surface...');
       fprintf(msg);
 
-      fprintf('saving simplified surface for channel %i...\n', nc);
-
       stlwrite(new_name, face, vertex);
 
       fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
