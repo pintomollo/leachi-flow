@@ -1,6 +1,7 @@
-function new_names = colorize_stack(files)
+function [new_names, imax] = colorize_stack(files, colors)
 
   if nargin<1, files = '*.tif'; end
+  if nargin<2, colors = []; end
 
   new_names = {};
   dir_out = '_colored'; % '../resized';
@@ -10,30 +11,37 @@ function new_names = colorize_stack(files)
   N = length(files);
   if (N == 0), disp('nada??'), return, end
 
-  %disp('Coloring images...');
-  fprintf(' Computing the color panel of the images :     ');
-
   new_names = files;
 
-  ndist = 10;
-  nhist = zeros(255);
+  if (isempty(colors) || any(~isfinite(colors(:))) || ~isnumeric(colors))
+    %disp('Coloring images...');
+    fprintf(' Computing the color panel of the images :     ');
 
-  %filename = files{1};
-  %im = imread(filename);
-  %[junk, nhist] = imsplitcolors(im);
+    new_names = files;
 
-  for i = 1:N % loop over images to resize images
-    fprintf('\b\b\b%3d', i);
 
-    filename = files{i};
-    im = imread(filename);
+    ndist = 10;
+    nhist = zeros(255);
 
-    [junk, nhist] = imsplitcolors(im, ndist, nhist);
+    %filename = files{1};
+    %im = imread(filename);
+    %[junk, nhist] = imsplitcolors(im);
+
+    for i = 1:N % loop over images to resize images
+      fprintf('\b\b\b%3d', i);
+
+      filename = files{i};
+      im = imread(filename);
+
+      [junk, nhist] = imsplitcolors(im, ndist, nhist);
+    end
+
+    [imax] = imsplitcolors(nhist, ndist);
+
+    fprintf('\b\b\b\bdone\n');
+  else
+    imax = colors;
   end
-
-  [imax] = imsplitcolors(nhist);
-
-  fprintf('\b\b\b\bdone\n');
 
   fprintf(' Coloring the images :     ');
 

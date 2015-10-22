@@ -31,6 +31,10 @@ function new_names = smooth_slices(files, smoothing_span, min_frac)
 
   new_names = files;
 
+  if (smoothing_span == 0)
+    return;
+  end
+
   im = imread(files{1});
   im = imfillborder(im);
 

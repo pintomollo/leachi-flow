@@ -71,7 +71,7 @@ function new_names = register_stack(files, min_frac, reg_type)
   %outer(:, [1:minrad+1 end-minrad:end]) = true;
 
   %[im, pts0] = im2reference(im);
-  [im, pts0] = get_landmarks(im);
+  [im, pts0, ptsa] = get_landmarks(im);
 
   anchor = fullfile(out_path, 'anchor.tiff');
   target = fullfile(out_path, 'target.tiff');
@@ -86,13 +86,12 @@ function new_names = register_stack(files, min_frac, reg_type)
   command2 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1) ' -file "'];
   command3 = ['" 0 0 ' num2str(w-1) ' ' num2str(h-1)];
 
-  if (is_affine)
-    command3 = [command3 ' -affine '];
-  else
-    command3 = [command3 ' -rigidBody '];
-  end
+  commandrb = ' -rigidBody ';
+  commanda = ' -affine ';
 
   commandp = ['%f %f %f %f %f %f %f %f %f %f %f %f -hideOutput'];
+
+  commanda = sprintf([commanda commandp], [ptsa ptsa].');
 
   %            num2str(w/2) ' ' num2str(h/2) ' ' num2str(w/2) ' ' num2str(h/2) ' ' ...
   %            num2str(w/2) ' ' num2str(h/4) ' ' num2str(w/2) ' ' num2str(h/4) ' ' ...
@@ -129,14 +128,21 @@ function new_names = register_stack(files, min_frac, reg_type)
 
     command4 = sprintf(commandp, [pts2 pts1].');
 
-    turboReg.run(java.lang.String([command1 source command2 target command3 command4]));
+    turboReg.run(java.lang.String([command1 source command2 target command3 commandrb command4]));
     spts = turboReg.getSourcePoints();
     tpts = turboReg.getTargetPoints();
 
+    H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+
     if (is_affine)
-      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
-    else
-      H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+      im = myimtransform(im, 'affine', H, [w h], [0 0]);
+      imwrite(im, source, 'TIFF');
+
+      turboReg.run(java.lang.String([command1 source command2 target command3 commanda]));
+      spts = turboReg.getSourcePoints();
+      tpts = turboReg.getTargetPoints();
+
+      H = AffineModel2D(spts(1:3,:), tpts(1:3,:)) * H;
     end
 
     if (ratio < 1)
@@ -194,14 +200,21 @@ function new_names = register_stack(files, min_frac, reg_type)
 
     command4 = sprintf(commandp, [pts2 pts1].');
 
-    turboReg.run(java.lang.String([command1 source command2 target command3 command4]));
+    turboReg.run(java.lang.String([command1 source command2 target command3 commandrb command4]));
     spts = turboReg.getSourcePoints();
     tpts = turboReg.getTargetPoints();
 
+    H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+
     if (is_affine)
-      H = AffineModel2D(spts(1:3,:), tpts(1:3,:));
-    else
-      H = RigidBodyModel2D(spts(1:3,:), tpts(1:3,:));
+      im = myimtransform(im, 'affine', H, [w h], [0 0]);
+      imwrite(im, source, 'TIFF');
+
+      turboReg.run(java.lang.String([command1 source command2 target command3 commanda]));
+      spts = turboReg.getSourcePoints();
+      tpts = turboReg.getTargetPoints();
+
+      H = AffineModel2D(spts(1:3,:), tpts(1:3,:)) * H;
     end
 
     if (ratio < 1)
@@ -237,27 +250,34 @@ function new_names = register_stack(files, min_frac, reg_type)
 
   return;
 
-  function [img, pts] = get_landmarks(img, prev_pts)
+  function [img, pts, ptsa] = get_landmarks(img, prev_pts)
 
     [img, areas] = im2reference(img, minsize, hdil);
 
     if (nargin > 1)
-      if (is_affine)
-        prev_pts = [mean(prev_pts(1:2,:)); prev_pts(3,:)];
-      end
+      %if (is_affine)
+      %  prev_pts = [mean(prev_pts(1:2,:)); prev_pts(3,:)];
+      %end
       prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
       [means, angle] = im2moments(areas, xx, yy, prev_angle);
     else
       [means, angle] = im2moments(areas, xx, yy);
     end
 
-    rotmat = [cos(-angle) -sin(-angle); sin(-angle) cos(angle)];
-    if (is_affine)
-      pts = [-0.25 -0.25; -0.25 0.25; 0.25 0];
-    else
-      pts = [-0.25 0; 0 0; 0.25 0];
+    rotmat = [cos(-angle) -sin(-angle); sin(-angle) cos(-angle)];
+    %if (is_affine)
+    %  pts = [-0.25 -0.25; -0.25 0.25; 0.25 0];
+    %else
+    %  pts = [-0.25 0; 0 0; 0.25 0];
+    %end
+
+    pts = [-0.25 0; 0 0; 0.25 0];
+    pts = bsxfun(@plus, (rotmat*bsxfun(@times, pts, [h w]).').', means);
+
+    if (nargout > 2)
+      ptsa = [-0.25 -0.25; -0.25 0.25; 0.25 0];
+      ptsa = bsxfun(@plus, (rotmat*bsxfun(@times, ptsa, [h w]).').', means);
     end
-    pts = bsxfun(@plus, bsxfun(@times, pts, [h w])*rotmat, means);
 
     %figure;imagesc(areas);hold on;scatter(pts(:,1), pts(:,2));
     %keyboard
