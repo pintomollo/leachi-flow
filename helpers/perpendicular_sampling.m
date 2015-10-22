@@ -1,4 +1,4 @@
-function [perps_vals, perp_path, dpos] = perpendicular_sampling(img, path, dpos)
+function [perps_vals, perps_paths, dpos] = perpendicular_sampling(img, path, dpos)
 
   if (nargin < 3)
     dpos = [];
@@ -29,7 +29,7 @@ function [perps_vals, perp_path, dpos] = perpendicular_sampling(img, path, dpos)
   stretchs = cum_dist(gaps);
 
   cum_dist(gaps) = NaN;
-  cum_dist(cum_dist<0) = 0;
+  cum_dist([true; gaps(1:end-1)]) = 0;
 
   stretchs = find(gaps);
   nstretchs = length(stretchs);
@@ -39,7 +39,8 @@ function [perps_vals, perp_path, dpos] = perpendicular_sampling(img, path, dpos)
     stretchs = size(path, 1) + 1;
   end
 
-  perp_vals = cell(nstretchs, 1);
+  perps_vals = cell(nstretchs, 1);
+  perps_paths = cell(nstretchs, 1);
   prev = 1;
 
   for i=1:nstretchs
@@ -48,7 +49,7 @@ function [perps_vals, perp_path, dpos] = perpendicular_sampling(img, path, dpos)
     curr_dist = cum_dist(indxs);
 
     [curr_dist, indxs] = unique(curr_dist);
-    curr_path = path(indxs,:);
+    curr_path = curr_path(indxs,:);
 
     dist = [0:floor(curr_dist(end))];
     curr_path = interp1(curr_dist.', curr_path, dist);
@@ -81,12 +82,14 @@ function [perps_vals, perp_path, dpos] = perpendicular_sampling(img, path, dpos)
     values = reshape(values, size(curr_path,1), []);
 
     perps_vals{i} = values;
+    perps_paths{i} = [all_pos_x, all_pos_y];
 
     prev = stretchs(i)+1;
   end
 
   if (length(perps_vals) == 1)
     perps_vals = perps_vals{1};
+    perps_paths = perps_paths{1};
   end
 
   return;

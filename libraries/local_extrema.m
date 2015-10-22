@@ -51,6 +51,7 @@ x = x(:);
 dx = differentiator(x, 'super');
 
 % Local maxima and minima for windowing
+nneigh = ceil(nneigh);
 if (nneigh > 1)
   window = 2*nneigh + 1;
   indxs = [1:nneigh nneigh+2:window].';

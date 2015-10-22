@@ -1,4 +1,4 @@
-function [myrecording, opts, is_updated] = colony_census(fname, opts)
+function [myrecording, is_updated] = colony_census(fname)
 % INSPECT_RECORDING displays a pop-up window for the user to manually identify the
 % type of data contained in the different channels of a movie recording.
 %
@@ -27,20 +27,10 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
   % We did not get anything to handle...
   if isempty(fname)
     myrecording = [];
-    opts = [];
     is_updated = false;
 
     return;
   end
-
-  % The structure containing the parameters for the different filters available to
-  % the user
-  if (nargin < 2 || isempty(opts))
-    opts = get_struct('options');
-  end
-
-  % Store the original options
-  orig_opts = opts;
 
   % Was it a tracking file ?
   was_tracking = false;
@@ -51,13 +41,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
       myrecording = fname;
       channels = myrecording.channels;
       was_tracking = true;
-
-      % Retrieve the original file
-      for i = 1:length(channels)
-        if (~isempty(channels(i).file))
-          channels(i).fname = channels(i).file;
-        end
-      end
     else
       channels = fname;
     end
@@ -187,11 +170,18 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
     % If we have changed channel, we need to update the display of the buttons
     if (indx ~= handles.prev_channel)
+      if (handles.prev_channel > 0)
+        channels(handles.prev_channel).pixel_size = get(handles.resolution, 'Data');
+        channels(handles.prev_channel).amplitude = get(handles.amplitude, 'Data');
+      end
 
       % Set the name of the current panel
       set(handles.uipanel,'Title', ['Image ' num2str(indx)]);
 
       set(handles.normalize,'Value', channels(indx).normalize);
+
+      set(handles.resolution, 'Data', channels(indx).pixel_size);
+      set(handles.amplitude, 'Data', channels(indx).amplitude);
 
       handle_rois(handles.prev_channel, indx);
 
@@ -218,11 +208,20 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     img1 = img;
     img2 = img;
 
+    % Get the location of the zooids
+    zooids = channels(indx).zooids;
+    if (isempty(zooids))
+      zooids = NaN(1,2);
+    end
+
+    curr_color = 'k';
+
     % If we have already created the axes and the images, we can simply change their
     % content (i.e. CData)
     if (numel(handles.img) > 1 & all(ishandle(handles.img)))
       set(handles.img(1),'CData', img1);
       set(handles.img(2),'CData', img2);
+      set(handles.scatter, 'XData', zooids(:,1), 'YData', zooids(:,2), 'Color', curr_color);
     else
 
       % Otherwise, we create the two images in their respective axes
@@ -236,6 +235,8 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
       % Hide the axes and prevent a distortion of the image due to stretching
       set(handles.axes,'Visible', 'off',  ...
                  'DataAspectRatio',  [1 1 1]);
+
+      handles.scatter = line('XData', zooids(:,1), 'YData', zooids(:,2), 'Parent', handles.axes(2), 'Color', curr_color, 'Marker', 'o', 'LineStyle', 'none');
 
       % Drag and Zoom library from Evgeny Pr aka iroln
       dragzoom(handles.axes, 'on')
@@ -321,6 +322,21 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     set(handles.all_buttons, 'Enable', 'on');
   end
 
+  function find_zooids_Callback(hObject, eventdata)
+    % As this is long, block the GUI
+    set(handles.all_buttons, 'Enable', 'off');
+
+    params = [8/get(handles.resolution, 'Data') get(handles.amplitude, 'Data')];
+
+    handle_rois(handles.current, -1);
+    zooids = find_zooids(img, channels(handles.current).system, params);
+    channels(handles.current).zooids = zooids;
+
+    % Release the GUI
+    set(handles.all_buttons, 'Enable', 'on');
+    update_display(false);
+  end
+
   function add_channel_Callback(hObject, eventdata)
   % This function adds a new channel to the current recording
 
@@ -390,19 +406,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
 
     % Handle all three buttons differently
     switch type
-
-      % Call the editing function
-      case 'edit'
-        [opts.filtering, recompute] = edit_options(opts.filtering);
-
-      % Call the loading function
-      case 'load'
-        opts = load_parameters(opts);
-
-      % Call the saving function
-      case 'save'
-        save_parameters(opts);
-        recompute = false;
 
       % Save a snapshot
       case 'snapshot'
@@ -486,7 +489,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     if (ok)
       is_done = true;
       is_updated = false;
-      opts = orig_opts;
       uiresume(hFig);
     end
 
@@ -501,6 +503,12 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
     % If everything is OK, release the GUI and quit
     is_done = true;
     handle_rois(handles.current, 0);
+
+    if (handles.current > 0)
+      channels(handles.current).pixel_size = get(handles.resolution, 'Data');
+      channels(handles.current).amplitude = get(handles.amplitude, 'Data');
+    end
+
     uiresume(hFig);
 
     return
@@ -660,6 +668,15 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
                     'Tag', 'addroi');
     enabled = [enabled hControl];
 
+    % The Add and Remove buttons
+    hControl = uicontrol('Parent', hPanel, ...
+                    'Units', 'normalized',  ...
+                    'Callback', @find_zooids_Callback, ...
+                    'Position', [0.565 0.01 0.2 0.075], ...
+                    'String', 'Find zooids',  ...
+                    'Tag', 'addroi');
+    enabled = [enabled hControl];
+
     % The type, color and compression of the channel, along with its labels
     hText = uicontrol('Parent', hPanel, ...
                       'Units', 'normalized',  ...
@@ -670,10 +687,46 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
                       'Style', 'text',  ...
                       'Tag', 'text16');
 
+    hText = uicontrol('Parent', hPanel, ...
+                      'Units', 'normalized',  ...
+                      'Position', [0.885 0.875 0.075 0.05], ...
+                      'String', 'Pixel size',  ...
+                      'TooltipString', 'Pixel resolution in um', ...
+                      'Style', 'text',  ...
+                      'Tag', 'text17');
+
+    hResol = uitable('Parent', hPanel, ...
+                      'Units', 'normalized',  ...
+                      'Position', [0.89 0.845 0.07 0.04], ...
+                      'ColumnEditable', true, ...
+                      'Data', 2.5, ...
+                      'ColumnName', [], ...
+                      'RowName', [], ...
+                      'Tag', 'data');
+    enabled = [enabled hResol];
+
+    hText = uicontrol('Parent', hPanel, ...
+                      'Units', 'normalized',  ...
+                      'Position', [0.9 0.77 0.05 0.05], ...
+                      'String', 'Amplitude',  ...
+                      'TooltipString', 'Intensity threshold required between two zooids (-1 = automatic threshold)', ...
+                      'Style', 'text',  ...
+                      'Tag', 'text17');
+
+    hAmpl = uitable('Parent', hPanel, ...
+                      'Units', 'normalized',  ...
+                      'Position', [0.89 0.74 0.07 0.04], ...
+                      'ColumnEditable', true, ...
+                      'Data', -1, ...
+                      'ColumnName', [], ...
+                      'RowName', [], ...
+                      'Tag', 'data');
+    enabled = [enabled hAmpl];
+
     % The various filters, along with their labels
     hText = uicontrol('Parent', hPanel, ...
                       'Units', 'normalized',  ...
-                      'Position', [0.9 0.525 0.05 0.05], ...
+                      'Position', [0.9 0.425 0.05 0.05], ...
                       'String', 'Filters:',  ...
                       'FontSize', 12, ...
                       'FontWeight', 'bold', ...
@@ -698,37 +751,6 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
                     'Tag', 'snapshot');
     enabled = [enabled hSnapshot];
 
-    % The buttons which allows to edit, load and save parameters
-    hEdit = uicontrol('Parent', hPanel, ...
-                       'Units', 'normalized',  ...
-                       'Callback', @options_Callback, ...
-                       'Position', [0.89 0.3 0.08 0.04], ...
-                       'Style', 'pushbutton',  ...
-                       'FontSize', 10, ...
-                       'String', 'Edit parameters',  ...
-                       'Tag', 'edit');
-    enabled = [enabled hEdit];
-
-    hLoad = uicontrol('Parent', hPanel, ...
-                       'Units', 'normalized',  ...
-                       'Callback', @options_Callback, ...
-                       'Position', [0.89 0.2 0.08 0.04], ...
-                       'Style', 'pushbutton',  ...
-                       'FontSize', 10, ...
-                       'String', 'Load parameters',  ...
-                       'Tag', 'load');
-    enabled = [enabled hLoad];
-
-    hSave = uicontrol('Parent', hPanel, ...
-                       'Units', 'normalized',  ...
-                       'Callback', @options_Callback, ...
-                       'Position', [0.89 0.15 0.08 0.04], ...
-                       'Style', 'pushbutton',  ...
-                       'FontSize', 10, ...
-                       'String', 'Save parameters',  ...
-                       'Tag', 'save');
-    enabled = [enabled hSave];
-
     % We store all the useful handles into a structure to easily retrieve them,
     % along with some indexes
     handles = struct('uipanel', hPanel, ...
@@ -737,7 +759,10 @@ function [myrecording, opts, is_updated] = colony_census(fname, opts)
                      'axes', [hAxes hAxesNext], ...
                      'experiment', hName, ...
                      'all_buttons', enabled, ...
+                     'resolution', hResol, ...
+                     'amplitude', hAmpl, ...
                      'img', -1, ...
+                     'scatter', -1, ...
                      'roi', {{}}, ...
                      'display', [1 1], ...
                      'prev_channel', -1, ...
