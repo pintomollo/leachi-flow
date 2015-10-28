@@ -134,9 +134,16 @@ function [all_coords, sizes] = find_zooids(img, systems, params)
 
   %orig_coords = all_coords;
 
-  mval = nanmedian(all_coords(:,3:5));
-  sval = 1.4826 * mad(all_coords(:,3:5));
-  all_coords = all_coords(all_coords(:,4) < mval(2) + 3*sval(2), :);
+  mval = nanmedian(all_coords(:,3:5), 1);
+  sval = 1.4826 * mad(all_coords(:,3:5), 0, 1);
+
+  if (any(isnan(mval) | isnan(sval)))
+    all_coords = NaN(1,2);
+
+    return;
+  end
+
+  all_coords = all_coords(all_coords(:,4) <= mval(2) + 3*sval(2), :);
 
   %rval = range(img(:));
   %keyboard
@@ -162,6 +169,8 @@ function [all_coords, sizes] = find_zooids(img, systems, params)
   all_coords(prev,:) = (all_coords(bads,:) + all_coords(prev,:))*0.5;
   all_coords(bads(~ismember(bads, prev)), :) = [];
   all_coords = all_coords(:,1:2);
+
+  sizes = size(all_coords, 1);
 
   %{
   figure;

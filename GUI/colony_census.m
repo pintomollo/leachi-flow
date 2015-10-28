@@ -97,6 +97,23 @@ function [myrecording, is_updated] = colony_census(fname)
     myrecording.channels = channels;
     % And get the experiment name
     myrecording.experiment = get(handles.experiment, 'String');
+
+    [fpath, fname, fext] = fileparts(myrecording.channels(1).fname);
+    mname = fullfile(fpath, [myrecording.experiment '.mat']);
+    save(mname, 'myrecording');
+
+    [junk, sizes] = find_zooids(myrecording);
+
+    info = imfinfo(myrecording.channels(1).fname);
+
+    if (exist('census.csv', 'file'))
+      fid = fopen('census.csv', 'a');
+    else
+      fid = fopen('census.csv', 'a');
+      fprintf(fid, 'Date, Name, Count\n');
+    end
+    fprintf(fid, '%s, %s, %d\n', info.FileModDate, mname, sum(sizes));
+    fclose(fid);
   end
 
   % Delete the whole figure
@@ -316,7 +333,9 @@ function [myrecording, is_updated] = colony_census(fname)
     set(handles.all_buttons, 'Enable', 'off');
 
     h = impoly(handles.axes(1), 'Closed', false);
-    handles.roi{end+1} = h;
+    if (~isempty(h))
+      handles.roi{end+1} = h;
+    end
 
     % Release the GUI
     set(handles.all_buttons, 'Enable', 'on');

@@ -564,13 +564,15 @@ Initialize(varargin{:})
             case {'equal', 'add'}
                 ZoomKeys('plus');
             case '1'
-                if (ismac && strncmp(modifier,'shift',5))
+                if (ismac && ~isempty(modifier) && strncmp(modifier,'shift',5))
                   ZoomKeys('plus');
                 end
             case {'hyphen', 'subtract'}
-                ZoomKeys('minus');
+                if (isempty(modifier))
+                  ZoomKeys('minus');
+                end
             case 'slash'
-                if (ismac)
+                if (ismac && isempty(modifier))
                   ZoomKeys('minus');
                 end
             case 'leftarrow'
@@ -581,10 +583,10 @@ Initialize(varargin{:})
                 DragKeys('up');
             case 'downarrow'
                 DragKeys('down');
-            case 'c'
-                SetPointerCrossKeys();
-            case 'g'
-                SetAxesGridKeys();
+            %case 'c'
+            %    SetPointerCrossKeys();
+            %case 'g'
+            %    SetAxesGridKeys();
             case 'x'
                 DragEnable('y', 'off');
                 ZoomEnable('y', 'off');
