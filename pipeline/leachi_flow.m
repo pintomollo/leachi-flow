@@ -1,4 +1,4 @@
-function [myrecording, opts] =leachi_flow(myrecording, opts)
+function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (nargin == 0)
     myrecording = [];
@@ -6,9 +6,36 @@ function [myrecording, opts] =leachi_flow(myrecording, opts)
     opts = get_struct('options');
   end
 
+  if (nargin < 3)
+    batch_mode = false;
+  end
+
   if (~isstruct(myrecording))
     if (ischar(myrecording))
-      [myrecording, opts] = inspect_recording(myrecording);
+
+      if (any(myrecording=='*'))
+        files = dir(myrecording);
+        [file_path, filename, ext] = fileparts(myrecording);
+        for i=1:length(files)
+          try
+            leachi_flow(fullfile(file_path, files(i).name), opts, true);
+          catch
+            disp(lasterr)
+          end
+        end
+
+        myrecording = [];
+        opts = [];
+
+        return;
+      end
+
+      [file_path, filename, ext] = fileparts(myrecording);
+      if (~strncmp(ext, '.tif', 4) && ~strncmp(ext, '.tiff', 5))
+        myrecording = convert_movie(myrecording, false);
+      end
+
+      [myrecording, opts] = inspect_recording(myrecording, opts, batch_mode);
     else
       [myrecording, opts] = inspect_recording();
     end

@@ -222,6 +222,7 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
   format = regexp(metadata, 'file format\s*\[([ -\w]+)\]', 'tokens');
   is_rgb = regexp(metadata, 'RGB\s*=\s*(\w+)', 'tokens');
   file_pattern = regexp(metadata, 'File pattern = ([^\n]*)\n', 'tokens');
+  is_grayscale = regexp(metadata, 'SizeC\s*=\s*\d+\s*(\(effectively 1\))', 'tokens');
 
   % In case of multiple files, regroup them into one single file
   if (forced)
@@ -270,6 +271,7 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
   % Get the information out of the search results
   format = format{1}{1};
   is_rgb = strncmp(is_rgb{1}{1}, 'true', 4);
+  is_grayscale = (~isempty(is_grayscale));
 
   if (strncmpi(format,'OME-TIFF',8) && isempty(file_pattern))
 
@@ -287,6 +289,10 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
   if (is_rgb)
     split_cmd = '-separate ';
     split_ext = '_%c';
+
+    if (is_grayscale)
+      split_cmd = [split_cmd '-channel 0 '];
+    end
   end
 
   % We create an OME-TIFF file
@@ -335,7 +341,8 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
         if (is_rgb)
           newfile = cell(3, 1);
 
-          for c=0:2
+          nchan = (3-2*is_grayscale);
+          for c=0:nchan-1
             newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
           end
         else
@@ -382,7 +389,8 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
   if (is_rgb)
     newfile = cell(3, 1);
 
-    for c=0:2
+    nchan = (3-2*is_grayscale);
+    for c=0:nchan
       newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
     end
   else

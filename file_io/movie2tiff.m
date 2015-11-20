@@ -51,6 +51,7 @@ function [newfile] = movie2tiff(fname, opts)
   if (exist(newfile, 'file'))
 
     % We do not accept "empty" answers
+    answer = 0;
     while (answer == 0)
       answer = menu(['The TIFF version of ' printname ' already exists, overwrite it ?'],'Yes','No');
     end

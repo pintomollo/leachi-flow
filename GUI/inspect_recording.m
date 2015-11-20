@@ -1,4 +1,4 @@
-function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
+function [myrecording, opts, is_updated] = inspect_recording(fname, opts, batch_mode)
 % INSPECT_RECORDING displays a pop-up window for the user to manually identify the
 % type of data contained in the different channels of a movie recording.
 %
@@ -22,6 +22,10 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
   if (nargin == 0 || isempty(fname) || ...
      (isstruct(fname) && isfield(fname, 'channels') && isempty(fname.channels)))
     fname = convert_movie();
+  end
+
+  if (nargin < 3)
+    batch_mode = false;
   end
 
   % We did not get anything to handle...
@@ -80,26 +84,28 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
              '([ ]+Normal mode:.*\S)\s+Mouse actions in 3D','tokens');
   imghelp = ['DRAGZOOM interactions (help dragzoom):\n\n', imghelp{1}{1}];
 
-  % Create the GUI
-  [hFig, handles] = create_figure();
-
-  % Allocate various variables. This allows them to be "persistent" between
-  % different calls to the callback functions.
-  img = [];
-  orig_img = [];
-  img_next = [];
   is_updated = true;
+  if (~batch_mode)
+    % Create the GUI
+    [hFig, handles] = create_figure();
 
-  % And handle the colormaps as well
-  colors = get_struct('colors');
-  color_index = 1;
+    % Allocate various variables. This allows them to be "persistent" between
+    % different calls to the callback functions.
+    img = [];
+    orig_img = [];
+    img_next = [];
 
-  % Display the figure
-  set(hFig,'Visible', 'on');
-  % Update its content
-  update_display;
-  % And wait until the user is done
-  uiwait(hFig);
+    % And handle the colormaps as well
+    colors = get_struct('colors');
+    color_index = 1;
+
+    % Display the figure
+    set(hFig,'Visible', 'on');
+    % Update its content
+    update_display;
+    % And wait until the user is done
+    uiwait(hFig);
+  end
 
   % Now that the data are correct, create the whole structure
   if (~was_tracking || is_updated)
@@ -109,13 +115,23 @@ function [myrecording, opts, is_updated] = inspect_recording(fname, opts)
   if (is_updated)
     % Copy the channels
     myrecording.channels = channels;
-    % And get the experiment name
-    myrecording.experiment = get(handles.experiment, 'String');
+
+    if (batch_mode)
+      exp_name = channels(1).fname;
+      [junk, exp_name, junk] = fileparts(exp_name);
+      [junk, exp_name, junk] = fileparts(exp_name);
+      myrecording.experiment = regexprep(exp_name, ' ', '');
+    else
+      % And get the experiment name
+      myrecording.experiment = get(handles.experiment, 'String');
+    end
   end
 
-  % Delete the whole figure
-  delete(hFig);
-  drawnow;
+  if (~batch_mode)
+    % Delete the whole figure
+    delete(hFig);
+    drawnow;
+  end
 
   return;
 
