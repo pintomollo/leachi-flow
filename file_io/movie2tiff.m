@@ -1,4 +1,4 @@
-function [newfile] = movie2tiff(fname, opts)
+function [newfile] = movie2tiff(fname, opts, batch_mode)
 % MOVIE2TIFF attempts to convert an input movei recording into a TIFF stack
 % using the build-in VideoReader.
 %
@@ -16,6 +16,14 @@ function [newfile] = movie2tiff(fname, opts)
   % Get the options if need be
   if (nargin < 2)
     opts = get_struct('options');
+    batch_mode = false;
+  elseif (nargin == 2)
+    if (islogical(opts))
+      batch_mode = opts;
+      opts = get_struct('options');
+    else
+      batch_mode = false;
+    end
   end
 
   % Split the filename
@@ -52,6 +60,10 @@ function [newfile] = movie2tiff(fname, opts)
 
     % We do not accept "empty" answers
     answer = 0;
+    if (batch_mode)
+      answer = 2;
+    end
+
     while (answer == 0)
       answer = menu(['The TIFF version of ' printname ' already exists, overwrite it ?'],'Yes','No');
     end

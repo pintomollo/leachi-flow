@@ -120,7 +120,7 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
   use_tmp_folder = false;
   if (strncmpi(ext, '.avi', 4))
     % Try using the built-in video reader
-    newfname = movie2tiff(fname);
+    newfname = movie2tiff(fname, forced);
 
     % Nothing changed, something went wrong
     if (length(newfname) == length(fname))
@@ -294,6 +294,7 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
       split_cmd = [split_cmd '-channel 0 '];
     end
   end
+  nchan = (3-2*is_grayscale);
 
   % We create an OME-TIFF file
   if (use_tmp_folder)
@@ -316,6 +317,9 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
 
     % We initially do not know what to do
     answer = 0;
+    if (forced)
+      answer = 2;
+    end
 
     % Creat the fancy name for display (otherwise it thinks they are LaTeX commands)
     [junk, tmp_name, junk] = fileparts(strrep(newname, split_ext, ''));
@@ -339,9 +343,8 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
 
         % Store the new name(s)
         if (is_rgb)
-          newfile = cell(3, 1);
+          newfile = cell(nchan, 1);
 
-          nchan = (3-2*is_grayscale);
           for c=0:nchan-1
             newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
           end
@@ -387,9 +390,8 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
 
   % Store the new name(s)
   if (is_rgb)
-    newfile = cell(3, 1);
+    newfile = cell(nchan, 1);
 
-    nchan = (3-2*is_grayscale);
     for c=0:nchan
       newfile{c+1} = relativepath(strrep(newname, '%c', num2str(c)));
     end
