@@ -90,7 +90,12 @@ function [newfile] = movie2tiff(fname, opts, batch_mode)
     img = read(video_file, i);
 
     if (isempty(prev_img) || any(img(:) ~= prev_img(:)))
-      imwrite(img, newfile, 'TIFF', 'WriteMode', 'append');
+      %try
+      %  imwrite(img, newfile, 'TIFF', 'WriteMode', 'append');
+      %catch
+      %  keyboard
+      %end
+      newfile = save_stack(newfile, img);
     end
 
     % Update the loop
@@ -98,6 +103,11 @@ function [newfile] = movie2tiff(fname, opts, batch_mode)
     if (opts.verbosity > 1)
       waitbar(i/video_file.NumberOfFrames,hwait);
     end
+  end
+
+  if (isstruct(newfile))
+    newfile.tiffobj.close();
+    newfile = newfile.fname;
   end
 
   % Close the status bar

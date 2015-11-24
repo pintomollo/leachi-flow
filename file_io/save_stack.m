@@ -1,4 +1,4 @@
-function new_stack = write_stack(files, data, type, meta)
+function [new_stack] = save_stack(files, data, type, meta)
 
 %% http://www.mathworks.com/matlabcentral/fileexchange/35684-save-and-load-data-as-multi-frame-tiff-format
 
@@ -10,57 +10,83 @@ function new_stack = write_stack(files, data, type, meta)
     if (iscell(files))
       files = files{1};
     end
-    new_stack = files;
+
+    is_partial=(nargout==1);
+    is_end = false;
 
     is_sparse = issparse(data);
 
     [h,w,c] = size(data);
 
-    if (type(1)=='u')
-      byte = Tiff.SampleFormat.UInt;
-    elseif (type(1)=='i')
-      byte = Tiff.SampleFormat.Int;
+    if (isstruct(files))
+      new_stack = files;
+
+      tiffobj = new_stack.tiffobj;
+      tagstruct = new_stack.tagstruct;
+      type = new_stack.type;
+
+      ninit = 1;
+      is_end = (~is_partial);
+      is_partial = true;
     else
-      warning(['Invalid pixel type ''' type '''. Using UINT8 instead.']);
-      type = 'uint8';
-      byte = Tiff.SampleFormat.UInt;
-    end
 
-    tagstruct = struct('ImageLength', h, ...
-                       'ImageWidth', w, ...
-                       'Photometric', Tiff.Photometric.MinIsBlack, ...
-                       'BitsPerSample', 8, ...
-                       'SamplesPerPixel', 1, ...
-                       'RowsPerStrip', h, ...
-                       'SampleFormat', byte, ...
-                       'Compression', Tiff.Compression.None, ...
-                       'PlanarConfiguration', Tiff.PlanarConfiguration.Chunky);
+      if (type(1)=='u')
+        byte = Tiff.SampleFormat.UInt;
+      elseif (type(1)=='i')
+        byte = Tiff.SampleFormat.Int;
+      else
+        warning(['Invalid pixel type ''' type '''. Using UINT8 instead.']);
+        type = 'uint8';
+        byte = Tiff.SampleFormat.UInt;
+      end
 
-    switch class(data)
-      case {'uint16', 'int16'}
-          tagstruct.BitsPerSample = 16;
-      case {'uint32', 'int32'}
-          tagstruct.BitsPerSample = 32;
-    end
+      tagstruct = struct('ImageLength', h, ...
+                         'ImageWidth', w, ...
+                         'Photometric', Tiff.Photometric.MinIsBlack, ...
+                         'BitsPerSample', 8, ...
+                         'SamplesPerPixel', 1, ...
+                         'RowsPerStrip', h, ...
+                         'SampleFormat', byte, ...
+                         'Compression', Tiff.Compression.None, ...
+                         'PlanarConfiguration', Tiff.PlanarConfiguration.Chunky);
 
-    if (~isempty(meta))
-      tagstruct.ImageDescription = meta;
-    end
+      switch class(data)
+        case {'uint16', 'int16'}
+            tagstruct.BitsPerSample = 16;
+        case {'uint32', 'int32'}
+            tagstruct.BitsPerSample = 32;
+      end
 
-    msg = sprintf(' Writing planes of stack to disk : %3d', 1);
-    fprintf(msg);
+      if (~isempty(meta))
+        tagstruct.ImageDescription = meta;
+      end
 
-    tiffobj = Tiff(files, 'w8');
-    tiffobj.setTag(tagstruct);
-    if (is_sparse)
-      tiffobj.write(cast(full(data(:,:,1)), type));
-    else
-      tiffobj.write(cast(data(:,:,1), type));
+      if (~is_partial)
+        msg = sprintf(' Writing planes of stack to disk : %3d', 1);
+        fprintf(msg);
+      end
+
+      tiffobj = Tiff(files, 'w8');
+      tiffobj.setTag(tagstruct);
+      if (is_sparse)
+        tiffobj.write(cast(full(data(:,:,1)), type));
+      else
+        tiffobj.write(cast(data(:,:,1), type));
+      end
+
+      new_stack = struct('fname', files, ...
+                         'tiffobj', tiffobj, ...
+                         'tagstruct', tagstruct, ...
+                         'type', type);
+
+      ninit = 2;
     end
 
     try
-      for n = 2:c % loop over images to resize images
-        fprintf('\b\b\b%3d', n);
+      for n = ninit:c % loop over images to resize images
+        if (~is_partial)
+          fprintf('\b\b\b%3d', n);
+        end
 
         tiffobj.writeDirectory();
         tiffobj.setTag(tagstruct);
@@ -77,10 +103,14 @@ function new_stack = write_stack(files, data, type, meta)
       throw(exception)
     end
 
-    tiffobj.close();
+    if (~is_partial)
+      tiffobj.close();
 
-    %fprintf('\b\b\b\bdone\n');
-    fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
+      %fprintf('\b\b\b\bdone\n');
+      fprintf([repmat('\b', 1, length(msg)) repmat(' ', 1, length(msg)) repmat('\b', 1, length(msg))]);
+    elseif (is_end)
+      tiffobj.close();
+    end
 
   else
 

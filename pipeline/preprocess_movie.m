@@ -143,7 +143,12 @@ function [myrecording, opts] = preprocess_movie(myrecording, opts)
       end
 
       % Save the image in the temporary file
-      save_data(tmp_fname, img);
+      %try
+      %  save_data(tmp_fname, img);
+      %catch
+      %  keyboard
+      %end
+      tmp_fname = save_stack(tmp_fname, img);
 
       % Update the progress bar if needed
       if (opts.verbosity > 1)
@@ -153,6 +158,11 @@ function [myrecording, opts] = preprocess_movie(myrecording, opts)
           waitbar(i/nframes,hwait);
         end
       end
+    end
+
+    if (isstruct(tmp_fname))
+      tmp_fname.tiffobj.close();
+      tmp_fname = tmp_fname.fname;
     end
 
     % Rescale if required by the user
@@ -169,13 +179,23 @@ function [myrecording, opts] = preprocess_movie(myrecording, opts)
         img = load_data(fname, i);
         img = imnorm(img, myrecording.channels(k).min, myrecording.channels(k).max, '', 0, maxuint);
 
-        % And save the final image
-        save_data(tmp_fname, img);
+        %try
+        %  % And save the final image
+        %  save_data(tmp_fname, img);
+        %catch
+        %  keyboard
+        %end
+        tmp_fname = save_stack(tmp_fname, img);
 
         % Update the progress bar
         if (opts.verbosity > 1)
           waitbar(0.5 + i/(2*nframes),hwait);
         end
+      end
+
+      if (isstruct(tmp_fname))
+        tmp_fname.tiffobj.close();
+        tmp_fname = tmp_fname.fname;
       end
 
       % Delete the intermidary file (i.e. the filtered one)
