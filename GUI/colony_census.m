@@ -81,6 +81,7 @@ function [myrecording, is_updated] = colony_census(fname)
   set(hFig,'Visible', 'on');
   % Update its content
   update_display;
+  handle_rois(-1, 1);
 
   while(~is_done)
     % And wait until the user is done
@@ -200,7 +201,9 @@ function [myrecording, is_updated] = colony_census(fname)
       set(handles.resolution, 'Data', channels(indx).pixel_size);
       set(handles.amplitude, 'Data', channels(indx).amplitude);
 
-      handle_rois(handles.prev_channel, indx);
+      if (numel(handles.img) > 1 & all(ishandle(handles.img)))
+        handle_rois(handles.prev_channel, indx);
+      end
 
       % And setup the indexes correctly
       handles.prev_channel = indx;

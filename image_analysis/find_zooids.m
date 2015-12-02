@@ -91,6 +91,7 @@ function [all_coords, sizes] = find_zooids(img, systems, params)
   all_coords = NaN(0,5);
 
   for i=1:length(perp)
+
     proj = perp{i};
     pos = paths{i};
     pos = reshape(pos, [size(proj) 2]);
