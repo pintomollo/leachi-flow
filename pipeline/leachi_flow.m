@@ -54,7 +54,9 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   b_leachi = get_struct('botrylloides_leachi');
 
-  diff_thresh = 0.75;
+  diff_thresh = 6;
+  %diff_thresh = 1;
+  amp_thresh = 4;
   min_length = 1;
   min_branch = 10;
   prop_thresh = 0.3;
@@ -68,10 +70,12 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     detections = segmentations.detections(1:nframes);
   end
 
-  vessel_width = ceil(min(b_leachi.vessel_width.mu) / opts.pixel_size);
-  proj_dist = vessel_width * 0.75;
+  vessel_width = ceil(max(b_leachi.vessel_width.mu) / opts.pixel_size);
+  ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
+  %proj_dist = vessel_width * 0.75;
+  proj_dist = 0.75;
+  %sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
   sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
-
 
   if (isempty(detections(1).cluster))
     if (opts.verbosity > 1)
@@ -83,17 +87,26 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     disk1 = strel('disk', 2*vessel_width);
     disk2 = strel('disk', vessel_width);
 
+    bkg = gaussian_mex(orig_img, ampulla_width);
+    thresh = opthr(bkg);
+
     noise = estimate_noise(orig_img);
+    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-140)/12))
+
+    noise(1) = thresh;
+
     prev_img = gaussian_mex(orig_img, sigma);
     tmp_img = padarray(prev_img, [3 3]*vessel_width, NaN);
-    prev_mask = imdilate(imopen(tmp_img < noise(1) - diff_thresh*noise(2), disk2), disk2);
+    %prev_mask = imdilate(imopen(tmp_img < noise(1) - diff_thresh*noise(2), disk2), disk2);
+    %prev_mask = imdilate(imopen(imfill(tmp_img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
+    prev_mask = imdilate(imopen(tmp_img < noise(1) - amp_thresh*noise(2), disk2), disk2);
 
     detections(1).noise = noise;
 
     %figure;
 
     mask = zeros(img_size+6*vessel_width);
-    for nimg=2:nframes
+    for nimg=2:nframes/3
       new_img = double(load_data(myrecording.channels(1), nimg));
       new_img = gaussian_mex(new_img, sigma);
 
@@ -101,7 +114,9 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
       %orig_img = new_img;
       img = padarray(new_img, [3 3]*vessel_width, NaN);
-      curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk2), disk2);
+      %curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk2), disk2);
+      curr_mask = imdilate(imopen(imfill(img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
+      curr_mask = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
 
       img_diff = abs(padarray(img_diff, [3 3]*vessel_width, NaN));
       img_diff(prev_mask | curr_mask) = false;
@@ -118,8 +133,8 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         open = imerode(closed, disk2);
         mask = mask + open;
 
-        %subplot(2,2,3);imagesc(bw);
-        %subplot(2,2,4);imagesc(mask)
+     %   subplot(2,2,3);imagesc(bw);
+     %   subplot(2,2,4);imagesc(mask)
         %props = sum(open(:)) * inelems;
         %title(props)
       end
@@ -131,7 +146,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       if (opts.verbosity > 1)
         waitbar(nimg/nframes,hwait);
       end
-      %drawnow
+     % drawnow
     end
 
     if (opts.verbosity > 1)
@@ -139,6 +154,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     end
 
     mask = imnorm(mask);
+    %orig_mask = mask;
 
     %figure;subplot(2,2,1)
     %imagesc(mask)
@@ -153,12 +169,15 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     %subplot(2,2,3)
     %imagesc(mask)
 
+    dist = bwdist(mask);
     mask = bwmorph(mask, 'thin', Inf);
+    dist = dist(mask);
+
     mask = mask(3*vessel_width+[1:img_size(1)], 3*vessel_width+[1:img_size(2)]);
     [icoord, jcoord] = find(mask);
     centers = [jcoord, icoord];
 
-    branches = sort_shape(centers, min_branch, vessel_width / 3);
+    branches = sort_shape([centers dist], min_branch, vessel_width / 2);
     if (isempty(branches))
       error('nothing');
     end
@@ -173,13 +192,15 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     x2 = branches(2:3:end, 1);
     y1 = branches(1:3:end, 2);
     y2 = branches(2:3:end, 2);
+    widths = branches(1:3:end, 3);
+    widths(widths<vessel_width) = vessel_width;
 
     branches_size = length(x1);
 
     vects = [x2-x1 y2-y1];
     lens = 1 ./ sum(vects.^2, 2);
     cross = (x2.*y1 - y2.*x1);
-    widths = 1/(proj_dist)^2;
+    widths = 1/(widths*proj_dist)^2;
 
     origin = [x1 y1].';
     params = [vects cross lens sqrt(lens .* widths)].';
@@ -230,17 +251,25 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     x2 = branches(2:3:end, 1);
     y1 = branches(1:3:end, 2);
     y2 = branches(2:3:end, 2);
+    widths = branches(1:3:end, 3);
+    widths(widths<vessel_width) = vessel_width;
 
     branches_size = length(x1);
 
     vects = [x2-x1 y2-y1];
     lens = 1 ./ sum(vects.^2, 2);
     cross = (x2.*y1 - y2.*x1);
-    widths = 1/(proj_dist)^2;
+    %widths = 1/(proj_dist)^2;
+    widths = 1/(widths*proj_dist)^2;
 
     origin = [x1 y1].';
     params = [vects cross lens sqrt(lens .* widths)].';
   end
+
+  tmp_img = double(load_data(myrecording.channels(1), 1));
+  %figure;
+  %subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
+  %subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
 
   prev_indx = -1;
   real_mapping = [];

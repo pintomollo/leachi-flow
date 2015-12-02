@@ -24,8 +24,9 @@ function centers = sort_shape(pts, min_branch, min_curve)
   tips_indx = find(tips);
 
   [npts, npos] = size(pts);
+  npos = npos - 3;
   npts = npts + sum(all_cross(:,end)-1);
-  sorted = NaN(2*npts, npos);
+  sorted = NaN(2*npts, npos + 3);
 
   %figure;hold on;
   %scatter(pts(:,1), pts(:,2), 'b')
@@ -109,7 +110,7 @@ function centers = sort_shape(pts, min_branch, min_curve)
     sorted(replace,1) = news(1);
     sorted(replace,2) = news(2);
   end
-  all_cross = unique(sorted(sorted(:,3)>2,1:2), 'rows');
+  all_cross = unique(sorted(sorted(:,end)>2,1:2), 'rows');
 
   %colors = jet(ngaps+1);
   %figure;
@@ -132,7 +133,7 @@ function centers = sort_shape(pts, min_branch, min_curve)
     pacs = impac(pts, min_curve, 'recursive');
 
     knots = find(ismember(pts, pacs, 'rows'));
-    pts(knots(2:end-1), 3) = 3;
+    pts(knots(2:end-1), end) = 3;
     for j=1:length(knots)-1
       tmp_shapes{end+1} = pts(knots(j):knots(j+1),:);
     end
@@ -141,7 +142,7 @@ function centers = sort_shape(pts, min_branch, min_curve)
   all_pts = cat(1, shapes{:});
 
   nbranches = length(shapes);
-  orig_cross = unique(all_pts(all_pts(:,3)>2,1:2), 'rows');
+  orig_cross = unique(all_pts(all_pts(:,end)>2,1:2), 'rows');
   all_cross = NaN(size(orig_cross) + [0 nbranches]);
   all_cross(:,1:2) = orig_cross;
 
@@ -152,6 +153,7 @@ function centers = sort_shape(pts, min_branch, min_curve)
   %hold on;
 
   all_lines = NaN(nbranches, 4);
+  all_params = NaN(nbranches, npos);
   for i=1:nbranches
     pts = shapes{i};
 
@@ -161,6 +163,10 @@ function centers = sort_shape(pts, min_branch, min_curve)
     end
 
     ranges = myregress(pts);
+    if (npos>0)
+      params = mymean(pts(:,3:end-1),1);
+      all_params(i, :) = params;
+    end
     %scatter(pts(:,1), pts(:,2), 'MarkerEdgeColor', colors(i,:));
     %plot(ranges([1 3]), ranges([2 4]), 'Color', colors(i,:)*0.5);
 
@@ -187,7 +193,7 @@ function centers = sort_shape(pts, min_branch, min_curve)
   %figure;
   %hold on;
 
-  centers = NaN(0,2);
+  centers = NaN(0,2+npos);
   for i=1:nbranches
     pts = shapes{i};
 
@@ -195,17 +201,17 @@ function centers = sort_shape(pts, min_branch, min_curve)
       tips = (any(all_cross(:,3:end)==i, 2));
       switch sum(tips)
         case 0
-          centers = [centers; all_lines(i,1:2); all_lines(i,3:4)];
+          centers = [centers; all_lines(i,1:2) all_params(i,:); all_lines(i,3:4) all_params(i,:)];
         case 1
           center = all_cross(tips,1:2);
           ranges = myregress(pts, center);
-          centers = [centers; ranges(1:2); ranges(3:4)];
+          centers = [centers; ranges(1:2) all_params(i,:); ranges(3:4) all_params(i,:)];
         case 2
-          centers = [centers; all_cross(tips,1:2)];
+          centers = [centers; all_cross(tips,1:2) all_params([i i],:)];
         otherwise
           error('why?')
       end
-      centers = [centers; NaN(1,2)];
+      centers = [centers; NaN(1,2+npos)];
 
       %scatter(pts(:,1), pts(:,2), 'MarkerEdgeColor', colors(i,:));
       %plot(centers(end-2:end-1,1), centers(end-2:end-1,2), 'Color', colors(i,:)*0.5);
