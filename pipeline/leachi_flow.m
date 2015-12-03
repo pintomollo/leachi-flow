@@ -200,7 +200,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     vects = [x2-x1 y2-y1];
     lens = 1 ./ sum(vects.^2, 2);
     cross = (x2.*y1 - y2.*x1);
-    widths = 1/(widths*proj_dist)^2;
+    widths = 1./((widths*proj_dist).^2);
 
     origin = [x1 y1].';
     params = [vects cross lens sqrt(lens .* widths)].';
@@ -211,10 +211,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
                               bsxfun(@times, X(:), params(2, :)) - ...
                                 bsxfun(@times, Y(:), params(1,:)), ...
                               params(3,:))).^2, ...
-                           params(4,:) .* widths);
+                           params(4,:) .* widths.');
 
-    nodes = widths*(bsxfun(@minus, X(:), [x1;x2].').^2 + ...
-                    bsxfun(@minus, Y(:), [y1;y2].').^2);
+    nodes = bsxfun(@times, (bsxfun(@minus, X(:), [x1;x2].').^2 + ...
+                            bsxfun(@minus, Y(:), [y1;y2].').^2), ...
+                            [widths; widths].');
 
     frac = bsxfun(@times, bsxfun(@minus, X(:), ...
                                          origin(1,:)), ...
@@ -267,9 +268,9 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   end
 
   tmp_img = double(load_data(myrecording.channels(1), 1));
-  %figure;
-  %subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
-  %subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
+  figure;
+  subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
+  subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
 
   prev_indx = -1;
   real_mapping = [];
