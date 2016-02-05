@@ -91,7 +91,10 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     thresh = opthr(bkg);
 
     noise = estimate_noise(orig_img);
-    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-140)/12))
+    % M-B-flow_1_1 ?
+    %diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-140)/12))
+    % M-B-flow_1_10003 : 5.14
+    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12))
 
     noise(1) = thresh;
 
@@ -103,10 +106,12 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     detections(1).noise = noise;
 
-    %figure;
+    if (opts.verbosity > 2)
+      figure;
+    end
 
     mask = zeros(img_size+6*vessel_width);
-    for nimg=2:nframes/3
+    for nimg=2:nframes
       new_img = double(load_data(myrecording.channels(1), nimg));
       new_img = gaussian_mex(new_img, sigma);
 
@@ -124,17 +129,21 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       bw = img_diff > diff_thresh * noise(2);
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
-      %subplot(2,2,1);imagesc(prev_img)
-      %subplot(2,2,1);imagesc(prev_mask | curr_mask)
-      %subplot(2,2,2);imagesc(img_diff)
+      if (opts.verbosity > 2)
+        %subplot(2,2,1);imagesc(prev_img)
+        subplot(2,2,1);imagesc(prev_mask | curr_mask)
+        subplot(2,2,2);imagesc(img_diff)
+      end
       if (any(bw(:)))
 
         closed = imdilate(bw, disk1);
         open = imerode(closed, disk2);
         mask = mask + open;
 
-     %   subplot(2,2,3);imagesc(bw);
-     %   subplot(2,2,4);imagesc(mask)
+        if (opts.verbosity > 2)
+          subplot(2,2,3);imagesc(bw);
+          subplot(2,2,4);imagesc(mask)
+        end
         %props = sum(open(:)) * inelems;
         %title(props)
       end
@@ -146,7 +155,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       if (opts.verbosity > 1)
         waitbar(nimg/nframes,hwait);
       end
-     % drawnow
+      drawnow
     end
 
     if (opts.verbosity > 1)
@@ -261,16 +270,19 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     lens = 1 ./ sum(vects.^2, 2);
     cross = (x2.*y1 - y2.*x1);
     %widths = 1/(proj_dist)^2;
-    widths = 1/(widths*proj_dist)^2;
+    widths = 1 ./ (widths*proj_dist).^2;
 
     origin = [x1 y1].';
     params = [vects cross lens sqrt(lens .* widths)].';
   end
 
   tmp_img = double(load_data(myrecording.channels(1), 1));
-  figure;
-  subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
-  subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
+
+  if (opts.verbosity > 2)
+    figure;
+    subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
+    subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
+  end
 
   prev_indx = -1;
   real_mapping = [];
@@ -527,14 +539,29 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   end
 
   sign_val = mean(avgs, 2);
-  tmp_speeds = speeds - sign_val(indxj);
-  thresh = std(tmp_speeds)/2;
-  goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh) & ...
-          (~isnan(group_indxs) & ~isnan(speeds));
+  %tmp_speeds = speeds - sign_val(indxj);
+  %thresh = std(tmp_speeds)/2;
+  %goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh) & ...
+  %        (~isnan(group_indxs) & ~isnan(speeds));
+
+  avg_speeds = sign_val(indxj);
+  speed_dist = (speeds - avg_speeds);
+  thresh = std(speed_dist);
+  weight = 1-exp(-speed_dist.^2 / (2*(thresh^2)));
+  tmp_speed = (weight.*sign(speed_dist).*2*thresh) + avg_speeds;
+
+  nmax = 20;
+  thresh = thresh / nmax;
+
+  if (opts.verbosity > 2)
+    figure;hold on;
+    scatter(group_indxs, speeds, 'k');
+  end
 
   prev_params = -Inf;
-  for i=1:20
-    [period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
+  for i=1:nmax
+    %[period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
+    [period, ampls, phases] = lsqmultiharmonic(group_indxs, tmp_speed, 5);
     nharm = length(ampls);
 
     sign_val = zeros(size(gpos));
@@ -543,16 +570,26 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     end
     thresh = max(ampls)/2;
 
-    %if (opts.verbosity > 1)
-    %  plot(gpos, sign_val, 'k');
-    %end
+    if (opts.verbosity > 2)
+      plot(gpos, sign_val, 'k');
+    end
 
-    goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
+    avg_speeds = sign_val(indxj);
 
-    dx = sum([period ampls(1) phases(1)] - prev_params);
+    speed_dist = (speeds - avg_speeds);
+    thresh = std(speed_dist);
+    weight = 1-exp(-speed_dist.^2 / (2*(thresh^2)));
+    tmp_speed = (weight.*sign(speed_dist).*2*thresh) + avg_speeds;
+
+    %weight = exp(-(speeds - avg_speeds).^2 / (2*(((nmax-i)*thresh)^2)));
+    %tmp_speed = avg_speeds.*(1-weight) + speeds.*weight;
+
+    %goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
+
+    dx = sum(abs([period ampls(1) phases(1)] - prev_params));
     prev_params = [period ampls(1) phases(1)];
 
-    if (dx < 1e-6)
+    if (dx < 1e-3)
       break;
     end
   end
@@ -570,13 +607,13 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   end
 
   res.carth = [speeds group_indxs];
-  res.cluster = goods;
+  res.cluster = weight;
   res.properties = [ampls(:).'; period*(1./[1:length(ampls)]); phases(:).'];
 
   if (opts.verbosity > 1)
-    [gpos2] = unique(group_indxs(goods));
+    %[gpos2] = unique(group_indxs(goods));
     hfig = figure;hold on;
-    boxplot(speeds(goods), group_indxs(goods), 'position', gpos2);
+    boxplot(tmp_speed, group_indxs, 'position', gpos);
     set(gca, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
 
     plot(gpos, sign_val, 'k', 'LineWidth', 2);
