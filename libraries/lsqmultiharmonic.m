@@ -26,17 +26,26 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
     error('Not enough time points provided')
   end
 
+  goods = (~isnan(x) & ~isnan(y));
+  x = x(goods);
+  y = y(goods);
+
   pos = pos / dt;
   x = x / dt;
 
   uniform_pos = [min(pos):max(pos)];
   npos = length(uniform_pos);
 
-  mean_val = mymean(y(:), 1, x(:));
+  [mean_val, std_val, n_val] = mymean(y(:), 1, x(:));
+  weights = 1-imnorm((std_val.^2)./n_val);
 
-  goods = (~isnan(pos) & ~isnan(mean_val));
+  [junk, junk, rev_indx] = unique(x);
+  weights = weights(rev_indx);
 
-  mean_val = interp1(pos(goods), mean_val(goods), uniform_pos);
+  %goods = (~isnan(pos) & ~isnan(mean_val));
+
+  %mean_val = interp1(pos(goods), mean_val(goods), uniform_pos);
+  mean_val = interp1(pos, mean_val, uniform_pos);
   mean_val = smooth(mean_val, 0.2, 'rloess');
 
   if (nargin < 3)
@@ -98,10 +107,6 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
   period_inv=(w-1)/npos;
   %%%%
 
-  goods = (~isnan(x) & ~isnan(y));
-  x = x(goods);
-  y = y(goods);
-
   npts = length(x);
 
   mat = ones(npts, 1+2*nharm);
@@ -114,7 +119,10 @@ function [period, ampls, phases] = lsqmultiharmonic(x, y, nharm)
       mat(:,2*i+1) = sin(curr_freq);
     end
 
-    params = mat \ y;
+    %keyboard
+
+    %params = mat \ y;
+    params = lscov(mat, y, weights);
 
     counter = zeros(npts, 1);
     for i=1:nharm

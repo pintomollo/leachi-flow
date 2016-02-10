@@ -148,6 +148,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         %title(props)
       end
       %title(nimg)
+      detections(nimg).carth = [];
 
       prev_img = new_img;
       prev_mask = curr_mask;
@@ -155,7 +156,9 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       if (opts.verbosity > 1)
         waitbar(nimg/nframes,hwait);
       end
-      drawnow
+      if (opts.verbosity > 2)
+        drawnow
+      end
     end
 
     if (opts.verbosity > 1)
@@ -190,6 +193,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     if (isempty(branches))
       error('nothing');
     end
+    branches(:,4) = NaN;
 
     detections(1).properties = branches;
 
@@ -203,6 +207,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     y2 = branches(2:3:end, 2);
     widths = branches(1:3:end, 3);
     widths(widths<vessel_width) = vessel_width;
+    all_signs = branches(1:3:end, 4);
 
     branches_size = length(x1);
 
@@ -263,8 +268,13 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     y2 = branches(2:3:end, 2);
     widths = branches(1:3:end, 3);
     widths(widths<vessel_width) = vessel_width;
-
     branches_size = length(x1);
+
+    if (size(branches, 2)>3)
+      all_signs = branches(1:3:end, 4);
+    else
+      all_signs = NaN(branches_size, 1);
+    end
 
     vects = [x2-x1 y2-y1];
     lens = 1 ./ sum(vects.^2, 2);
@@ -399,55 +409,72 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   nils = any(isnan(avgs(:,content)), 2);
   pos = pos(~nils);
   avgs = avgs(~nils,:);
-  corrs = corr(avgs);
 
-  C = corrs - eye(branches_size);
-  sC = (C >= 0);
-  aC = abs(C);
-  groups = NaN(branches_size);
-  groups(:,1) = [1:branches_size];
+  if (all(isnan(all_signs)))
+    corrs = corr(avgs);
 
-  empty_branches = all(isnan(C), 1);
+    C = corrs - eye(branches_size);
+    sC = (C >= 0);
+    aC = abs(C);
+    groups = NaN(branches_size);
+    groups(:,1) = [1:branches_size];
 
-  for i=1:branches_size^2
-    [val, indxi] = max(aC,[],1);
-    [val, indxj] = max(val,[],2);
+    empty_branches = all(isnan(C), 1);
 
-    if (val == 0)
-      break;
+    for i=1:branches_size^2
+      [val, indxi] = max(aC,[],1);
+      [val, indxj] = max(val,[],2);
+
+      if (val == 0)
+        break;
+      end
+
+      indxi = indxi(indxj);
+
+      aC(indxi, indxj) = 0;
+      aC(indxj, indxi) = 0;
+
+      rowi = any(abs(groups)==indxi,2);
+      rowj = any(abs(groups)==indxj,2);
+
+      if (~any(rowj & rowi))
+        posi = any(groups(rowi,:)==indxi);
+        posj = any(groups(rowj,:)==indxj);
+        posc = sC(indxi, indxj);
+        fact = (-1)^(posi+posj+posc+1);
+
+        first = find(isnan(groups(rowi,:)), 1, 'first');
+        last = find(~isnan(groups(rowj,:)), 1, 'last');
+
+        groups(rowi, [first:first+last-1]) = fact*groups(rowj, [1:last]);
+        groups(rowj,:) = NaN;
+      end
+
+      if (sum(~isnan(groups(:,1)))==1)
+        break;
+      end
     end
 
-    indxi = indxi(indxj);
+    values = groups(~isnan(groups));
+    [junk, indx] = sort(abs(values));
+    sames = sign(values(indx));
+    sames = sames(~empty_branches);
+    sames = sames(:).';
 
-    aC(indxi, indxj) = 0;
-    aC(indxj, indxi) = 0;
+    all_signs = (~empty_branches);
+    all_signs(~empty_branches) = sames;
 
-    rowi = any(abs(groups)==indxi,2);
-    rowj = any(abs(groups)==indxj,2);
+    branches(1:3:end,4) = all_signs(:);
+    detections(1).properties = branches;
 
-    if (~any(rowj & rowi))
-      posi = any(groups(rowi,:)==indxi);
-      posj = any(groups(rowj,:)==indxj);
-      posc = sC(indxi, indxj);
-      fact = (-1)^(posi+posj+posc+1);
+    segmentations.detections = detections;
+    myrecording.segmentations = segmentations;
 
-      first = find(isnan(groups(rowi,:)), 1, 'first');
-      last = find(~isnan(groups(rowj,:)), 1, 'last');
-
-      groups(rowi, [first:first+last-1]) = fact*groups(rowj, [1:last]);
-      groups(rowj,:) = NaN;
-    end
-
-    if (sum(~isnan(groups(:,1)))==1)
-      break;
-    end
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+  else
+    empty_branches = (all_signs == 0);
+    sames = all_signs(~empty_branches);
   end
-
-  values = groups(~isnan(groups));
-  [junk, indx] = sort(abs(values));
-  sames = sign(values(indx));
-  sames = sames(~empty_branches);
-  sames = sames(:).';
 
   avgs = bsxfun(@times, avgs(:,~empty_branches), sames);
 
@@ -555,7 +582,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (opts.verbosity > 2)
     figure;hold on;
-    scatter(group_indxs, speeds, 'k');
+    scatter(group_indxs, speeds, 'r');
   end
 
   prev_params = -Inf;
@@ -564,11 +591,12 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     [period, ampls, phases] = lsqmultiharmonic(group_indxs, tmp_speed, 5);
     nharm = length(ampls);
 
-    sign_val = zeros(size(gpos));
-    for j=1:nharm
-      sign_val = sign_val + ampls(j)*cos((j*gpos/period)*2*pi + phases(j));
-    end
-    thresh = max(ampls)/2;
+    %sign_val = zeros(size(gpos));
+    %for j=1:nharm
+    %  sign_val = sign_val + ampls(j)*cos((j*gpos/period)*2*pi + phases(j));
+    %end
+    %thresh = max(ampls)/2;
+    sign_val = cossum(gpos, [ampls.'; (period.')./[1:nharm]; phases.']);
 
     if (opts.verbosity > 2)
       plot(gpos, sign_val, 'k');
@@ -628,6 +656,8 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   myrecording.segmentations = segmentations;
   myrecording.trackings = trackings;
+
+  save([myrecording.experiment '.mat'], 'myrecording', 'opts');
 
   return;
 end
