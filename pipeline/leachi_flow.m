@@ -60,6 +60,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   min_length = 1;
   min_branch = 10;
   prop_thresh = 0.3;
+  nharmonics = 5;
 
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
@@ -461,7 +462,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     sames = sames(~empty_branches);
     sames = sames(:).';
 
-    all_signs = (~empty_branches);
+    all_signs = double(~empty_branches);
     all_signs(~empty_branches) = sames;
 
     branches(1:3:end,4) = all_signs(:);
@@ -588,7 +589,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   prev_params = -Inf;
   for i=1:nmax
     %[period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
-    [period, ampls, phases] = lsqmultiharmonic(group_indxs, tmp_speed, 5);
+    [period, ampls, phases] = lsqmultiharmonic(group_indxs, tmp_speed, nharmonics);
     nharm = length(ampls);
 
     %sign_val = zeros(size(gpos));

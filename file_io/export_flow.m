@@ -33,6 +33,12 @@ function export_flow(myrecording, nstep, opts)
   % Build the full name
   fname = fullfile(filepath, name);
 
+
+  % Obtain the pixel size of the screen
+  set(0,'units','pixels');
+  screen_size = get(0,'screensize');
+
+
   % And the figure name
   fig_name = 'Recording video, do not hide this window !! ';
 
@@ -115,14 +121,18 @@ function export_flow(myrecording, nstep, opts)
       % We need the image size to set the axes properly
       ssize = size(img);
 
+      maxsize = 1 / max(ssize .* [1.6 1] ./ screen_size([4 3]));
+
       % Adapt the size of the image, fix the aspect ratio and the pixel range
-      set(hFig, 'Visible', 'on', 'Position', [1 1 ssize([2 1]) .* [1 1.5]]);
+      set(hFig, 'Visible', 'on', 'Position', [1 1 ssize([2 1]) .* [1 1.6] * maxsize], ...
+          'MenuBar', 'none', 'ToolBar', 'none');
       hImg = image(img,'Parent', hAxes, 'CDataMapping', 'scaled');
-      set(hAxes,'Visible', 'off', 'CLim', [0 maxuint], 'Position', [1 1 ssize([2 1])], ...
-          'XLim', [1 ssize(2)], 'YLim', [1 ssize(1)], 'DataAspectRatio',  [1 1 1]);
+      set(hAxes,'Visible', 'off', 'CLim', [0 maxuint], 'Position', [1 1 ssize([2 1]) * maxsize], ...
+          'XLim', [1 ssize(2)], 'YLim', [1 ssize(1)], 'DataAspectRatio',  [1 1 1], ...
+          'YDir', 'reverse');
       set(hPlot, 'XLim', [timepts([1 end])], 'YLim', [-1 1]*max(abs(speeds)));
       border = get(hPlot, 'TightInset') + 3;
-      set(hPlot, 'Visible', 'on', 'Position', [border(1) ssize(1)+border(2) ssize(2)-border(1) ssize(1)/2-border(2)]);
+      set(hPlot, 'Visible', 'on', 'Position', [border(1) (ssize(1) * maxsize)+border(2) (ssize(2) * maxsize)-border(1) (ssize(1) * maxsize)/2-border(2)]);
 
 
       % Use the defined colormap
@@ -153,7 +163,7 @@ function export_flow(myrecording, nstep, opts)
     set(hFig, 'Name', [fig_name num2str(n) total_str])
 
     % Get the current frame and store it in the movie
-    frame = getframe(hAxes);
+    frame = getframe(hFig);
     writeVideo(mymovie, frame);
     drawnow
   end
