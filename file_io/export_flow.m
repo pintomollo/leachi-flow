@@ -102,7 +102,11 @@ function export_flow(myrecording, nstep, opts)
   flow_params = myrecording.trackings.detections.properties;
 
   timepts = [1:nframes]*opts.time_interval;
-  speeds = opts.time_interval*cossum(timepts, flow_params)/opts.pixel_size;
+  if (isstruct(flow_params))
+    speeds = opts.time_interval*fnval(flow_params, timepts)/opts.pixel_size;
+  else
+    speeds = opts.time_interval*cossum(timepts, flow_params)/opts.pixel_size;
+  end
 
   % Loop over all frames
   for n = 1:nstep:nframes
