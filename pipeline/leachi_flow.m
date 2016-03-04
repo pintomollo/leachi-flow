@@ -56,7 +56,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   diff_thresh = 6;
   %diff_thresh = 1;
-  amp_thresh = 4;
+  amp_thresh = 20;
   min_length = 1;
   min_branch = 10;
   prop_thresh = 0.3;
@@ -97,7 +97,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     % M-B-flow_1_1 ?
     %diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-140)/12))
     % M-B-flow_1_10003 : 5.14
-    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12))
+    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12));
 
     noise(1) = thresh;
 
@@ -110,7 +110,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     detections(1).noise = noise;
 
     if (opts.verbosity > 2)
-      figure;
+      hfig=figure;
     end
 
     mask = zeros(img_size+6*vessel_width);
@@ -123,7 +123,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       %orig_img = new_img;
       img = padarray(new_img, [3 3]*vessel_width, NaN);
       %curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk2), disk2);
-      curr_mask = imdilate(imopen(imfill(img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
+      %curr_mask = imdilate(imopen(imfill(img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
       curr_mask = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
 
       img_diff = abs(padarray(img_diff, [3 3]*vessel_width, NaN));
@@ -165,6 +165,10 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     end
 
     if (opts.verbosity > 1)
+      if (opts.verbosity > 2)
+        print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_masking.png'], '-dpng');
+        delete(hfig)
+      end
       close(hwait);
     end
 
@@ -184,7 +188,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     %subplot(2,2,3)
     %imagesc(mask)
 
-    dist = bwdist(mask);
+    dist = bwdist(~mask);
     mask = bwmorph(mask, 'thin', Inf);
     dist = dist(mask);
 
@@ -292,9 +296,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   tmp_img = double(load_data(myrecording.channels(1), 1));
 
   if (opts.verbosity > 2)
-    figure;
+    hfig=figure;
     subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
     subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_mappings.png'], '-dpng');
+    delete(hfig)
   end
 
   prev_indx = -1;
@@ -466,10 +472,12 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     [junk, indx] = sort(abs(values));
     sames = sign(values(indx));
 
-    figure;
+    hfig=figure;
     subplot(1,3,1);plot(avgs);
     subplot(1,3,2);plot(avgs(:,new_empties));
     subplot(1,3,3);plot(avgs(:,~new_empties));
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_groupings.png'], '-dpng');
+    delete(hfig);
 
     empty_branches(new_empties) = true;
 
@@ -589,9 +597,20 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   colors=redbluemap(nmax);
   [mspeed, sspeed] = mymean(curr_speeds, 1, group_indxs);
 
+  nbounds = max(range(gpos)*0.01, diff(gpos(1:2)));
   sval = smooth(sspeed, 0.05, 'rloess');
   thresh = median(sspeed);
-  all_goods = (sval(indxj) < thresh);
+  w = (exp(-sspeed.^2 ./ (8*thresh^2)));
+  %sval2 = sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)));
+  sval = (sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)))) .* w + (1-w) .* sspeed;
+  %sval = sval .* (1-exp(-sspeed.^2 ./ (0.5*thresh^2)));
+  bounds = (group_indxs <= gpos(1)+nbounds | group_indxs >= gpos(end)-nbounds);
+  all_goods = (sval(indxj) < thresh | bounds);
+  %all_goods2 = (sval2(indxj) < thresh | bounds);
+  %all_goods3 = (sval3(indxj) < thresh | bounds);
+
+  %keyboard
+
   [junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
   [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
   avg_val = fnval(pp, gpos);
@@ -614,7 +633,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     %goods = (sspeed < thresh & abs(mspeed - sign_val) < thresh);
     %all_goods = (goods(indxj));
 
-    all_goods = (abs(speed_dist) < 2*thresh) & (sspeed(indxj) < thresh);
+    all_goods = ((abs(speed_dist) < 2*thresh) & (sspeed(indxj) < thresh)) | bounds;
 
     [junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
     [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
