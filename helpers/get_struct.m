@@ -280,6 +280,46 @@ function mystruct = get_struct(type, nstruct)
                         'time_interval', 300, ...       % Time interval between frames (in seconds)
                         'verbosity', 2);                % Verbosity level of the analysis
 
+    % Parameters used for a segmentation (eggshell and cortex) (see 'segmentations')
+    case 'parameter'
+      % Retrieve the previously defined structures for the smoothness and data terms
+      params = get_struct('smoothness_parameters');
+      weights = get_struct('data_parameters');
+
+      mystruct = struct('parameters', params, ...        % Smoothness for the cortex
+                        'weights', weights, ...      % Data for the cortex
+                        'estimate', [], ...                 % Field to store parameters for the initial elliptical projection
+                        'noise', [], ...                    % Field to store parameters to handle noise (filters usually)
+                        'safety', 1.2, ...                  % Additional portion projected for safety (see carthesian_coordinate.m)
+                        'scoring_func', {{}});              % Function handle for the scoring functions (first:eggshell, second:cortex)
+
+    % Parameters used to compute the data part of the DP scoring function (see dynamic_programming.m)
+    case 'data_parameters'
+      mystruct = struct('filt', [], ...                     % Filter applied to the image
+                        'path', [], ...                     % Path of interest (usually the eggshell)
+                        'alpha', 0, ...                     % Parameters that can be used in the scoring function (7 provided)
+                        'beta', 0, ...                      %  |
+                        'gamma', 0, ...                     %  |
+                        'delta', 0, ...                     %  |
+                        'epsilon', 0, ...                   %  |
+                        'zeta', 0, ...                      %  |
+                        'eta', 0);                          %  |
+
+    % Structure used to store the smoothness parameters (see 'segmentations')
+    case 'smoothness_parameters'
+      mystruct = struct('final', [], ...                % Final position used for backtracking DP
+                        'force_circularity', true, ...  % Enforces that the last row of the DP conincides with the first one
+                        'dp_method', 'double', ...      % Dynamic programming method used (see dynamic_programming.m)
+                        'init', [], ...                 % Initial position for DP (see dynamic_programming.m)
+                        'nhood', 0, ...                 % Neighborhood explored during dynamic programming (nhood pixels on each side)
+                        'prohibit', 'none', ...         % Prohibiting particular moves
+                        'spawn_percentile', [], ...     % Score used when spawning a new path (as percentile of the previous step)
+                        'spawn_type', 'full', ...
+                        'alpha', 0, ...                 % Weights of the different smoothness terms
+                        'beta', 0, ...                  %  "
+                        'gamma', 0, ...                 %  "
+                        'delta', 0);                    %  "
+
     % Structure used to segment a channel
     case 'segmentation'
       mydetection = get_struct('detection',0);

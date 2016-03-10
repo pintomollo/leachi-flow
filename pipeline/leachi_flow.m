@@ -63,6 +63,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   nharmonics = 25;
   corr_thresh = 0.4;
   avg_thresh = 1e-5;
+  pthresh = 1e-4;
 
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
@@ -419,73 +420,88 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   pos = pos(~nils);
   avgs = avgs(~nils,:);
 
-  if (all(isnan(all_signs)))
+  if (all(isnan(all_signs)) || all(all_signs == 0))
     %keyboard
+    if (sum(content) == 1)
+      all_signs = content;
+      empty_branches = (all_signs == 0);
+      sames = all_signs(~empty_branches);
+      sames = sames(:).';
+    else
+      tmp_avgs = avgs;
+      tmp_avgs(isnan(tmp_avgs)) = 0;
+      corrs = corr(tmp_avgs);
 
-    corrs = corr(avgs);
+      C = corrs - eye(branches_size);
+      sC = (C >= 0);
+      aC = abs(C);
+      aC(aC < corr_thresh) = NaN;
+      groups = NaN(branches_size);
+      groups(:,1) = [1:branches_size];
 
-    C = corrs - eye(branches_size);
-    sC = (C >= 0);
-    aC = abs(C);
-    aC(aC < corr_thresh) = NaN;
-    groups = NaN(branches_size);
-    groups(:,1) = [1:branches_size];
+      empty_branches = all(isnan(C), 1);
 
-    empty_branches = all(isnan(C), 1);
+      for i=1:branches_size^2
+        [val, indxi] = max(aC,[],1);
+        [val, indxj] = max(val,[],2);
 
-    for i=1:branches_size^2
-      [val, indxi] = max(aC,[],1);
-      [val, indxj] = max(val,[],2);
+        if (val == 0)
+          tmp_groups = find(~isnan(groups(:,2)));
+          if (length(tmp_groups) > 1)
+            aC(indxi,indxj) = abs(C(indxi,indxj));
+            [val, indxi] = max(aC,[],1);
+            [val, indxj] = max(val,[],2);
+          else
+            break;
+          end
+        end
 
-      if (val == 0)
-        break;
+        indxi = indxi(indxj);
+
+        aC(indxi, indxj) = 0;
+        aC(indxj, indxi) = 0;
+
+        rowi = any(abs(groups)==indxi,2);
+        rowj = any(abs(groups)==indxj,2);
+
+        if (~any(rowj & rowi))
+          posi = any(groups(rowi,:)==indxi);
+          posj = any(groups(rowj,:)==indxj);
+          posc = sC(indxi, indxj);
+          fact = (-1)^(posi+posj+posc+1);
+
+          first = find(isnan(groups(rowi,:)), 1, 'first');
+          last = find(~isnan(groups(rowj,:)), 1, 'last');
+
+          groups(rowi, [first:first+last-1]) = fact*groups(rowj, [1:last]);
+          groups(rowj,:) = NaN;
+        end
+
+        if (sum(~isnan(groups(:,1)))==1)
+          break;
+        end
       end
 
-      indxi = indxi(indxj);
+      new_empties = xor(isnan(groups(:,1)), isnan(groups(:,2)));
+      values = groups(~isnan(groups));
+      [junk, indx] = sort(abs(values));
+      sames = sign(values(indx));
 
-      aC(indxi, indxj) = 0;
-      aC(indxj, indxi) = 0;
+      hfig=figure;
+      subplot(1,3,1);plot(avgs);
+      subplot(1,3,2);plot(avgs(:,new_empties));
+      subplot(1,3,3);plot(avgs(:,~new_empties));
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_groupings.png'], '-dpng');
+      delete(hfig);
 
-      rowi = any(abs(groups)==indxi,2);
-      rowj = any(abs(groups)==indxj,2);
+      empty_branches(new_empties) = true;
 
-      if (~any(rowj & rowi))
-        posi = any(groups(rowi,:)==indxi);
-        posj = any(groups(rowj,:)==indxj);
-        posc = sC(indxi, indxj);
-        fact = (-1)^(posi+posj+posc+1);
+      sames = sames(~empty_branches);
+      sames = sames(:).';
 
-        first = find(isnan(groups(rowi,:)), 1, 'first');
-        last = find(~isnan(groups(rowj,:)), 1, 'last');
-
-        groups(rowi, [first:first+last-1]) = fact*groups(rowj, [1:last]);
-        groups(rowj,:) = NaN;
-      end
-
-      if (sum(~isnan(groups(:,1)))==1)
-        break;
-      end
+      all_signs = double(~empty_branches);
+      all_signs(~empty_branches) = sames;
     end
-
-    new_empties = xor(isnan(groups(:,1)), isnan(groups(:,2)));
-    values = groups(~isnan(groups));
-    [junk, indx] = sort(abs(values));
-    sames = sign(values(indx));
-
-    hfig=figure;
-    subplot(1,3,1);plot(avgs);
-    subplot(1,3,2);plot(avgs(:,new_empties));
-    subplot(1,3,3);plot(avgs(:,~new_empties));
-    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_groupings.png'], '-dpng');
-    delete(hfig);
-
-    empty_branches(new_empties) = true;
-
-    sames = sames(~empty_branches);
-    sames = sames(:).';
-
-    all_signs = double(~empty_branches);
-    all_signs(~empty_branches) = sames;
 
     branches(1:3:end,4) = all_signs(:);
     detections(1).properties = branches;
@@ -550,6 +566,8 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   group_indxs = group_indxs*opts.time_interval;
   [gpos, indxi, indxj] = unique(group_indxs);
 
+  %keyboard
+
   %pos = pos(~bads);
   %pos = pos(:)*opts.time_interval;
 
@@ -600,24 +618,46 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   nbounds = max(range(gpos)*0.01, diff(gpos(1:2)));
   sval = smooth(sspeed, 0.05, 'rloess');
   thresh = median(sspeed);
+
+  figure;hold on
+  iters=[1:5:51];
+  colors=redbluemap(length(iters));
+  for n=1:length(iters)
+    i = iters(n);
+    t = imfilter(sspeed, ones(i,1)/i);
+    plot(t, 'Color', colors(n,:))
+  end
+  plot([1 length(t)], [thresh thresh], 'k')
+
+  keyboard
+
   w = (exp(-sspeed.^2 ./ (8*thresh^2)));
   %sval2 = sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)));
   sval = (sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)))) .* w + (1-w) .* sspeed;
+
+  ngauss = length(sval)/25;
+  h = fspecial('gaussian', [2*ceil(ngauss)+1 1], ngauss/3);
+  gauss = imfilter(double(sval < thresh), h);
+
   %sval = sval .* (1-exp(-sspeed.^2 ./ (0.5*thresh^2)));
   bounds = (group_indxs <= gpos(1)+nbounds | group_indxs >= gpos(end)-nbounds);
-  all_goods = (sval(indxj) < thresh | bounds);
+  %all_goods = (sval(indxj) < thresh | bounds);
+  all_goods = (gauss(indxj) > 0.5 | bounds);
+
   %all_goods2 = (sval2(indxj) < thresh | bounds);
   %all_goods3 = (sval3(indxj) < thresh | bounds);
 
-  %keyboard
-
-  [junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
-  [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
+  %[junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
+  %[pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
+  [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh);
   avg_val = fnval(pp, gpos);
 
   hfig = figure;hold on;
   scatter(group_indxs, speeds, 'k');
+  scatter(group_indxs(all_goods), speeds(all_goods), 'r');
   plot(gpos, avg_val, 'y');
+
+  keyboard
 
   for i=1:nmax
     avg_speeds = avg_val(indxj);
@@ -633,10 +673,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     %goods = (sspeed < thresh & abs(mspeed - sign_val) < thresh);
     %all_goods = (goods(indxj));
 
-    all_goods = ((abs(speed_dist) < 2*thresh) & (sspeed(indxj) < thresh)) | bounds;
+    all_goods = ((abs(speed_dist) < thresh) & (sspeed(indxj) < thresh)) | bounds;
 
-    [junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
-    [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
+    %[junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
+    %[pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
+    [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh);
 
     new_avg_val = fnval(pp, gpos);
     plot(gpos, new_avg_val, 'Color', colors(i,:));
