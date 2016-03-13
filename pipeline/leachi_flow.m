@@ -608,6 +608,16 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     delete(hfig);
   end
 
+  [t, v] = dp_flow(group_indxs, speeds, [500 128]);
+  [pp] = csaps(t, v, 1/(t(end)));
+
+  %{
+  hfig = figure;hold on;
+  scatter(group_indxs, speeds, 'k');
+  fnplt(pp, 'r');
+  print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_fits.png'], '-dpng');
+  delete(hfig);
+  %%
   %avg_val = mean(avgs, 2);
 
   nmax = 20;
@@ -695,6 +705,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_fits.png'], '-dpng');
     delete(hfig);
   %end
+  %}
 
   %{
   sign_val = mean(avgs, 2);
