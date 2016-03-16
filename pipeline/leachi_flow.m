@@ -55,7 +55,6 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   b_leachi = get_struct('botrylloides_leachi');
 
   diff_thresh = 6;
-  %diff_thresh = 1;
   amp_thresh = 20;
   min_length = 1;
   min_branch = 10;
@@ -65,21 +64,21 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   avg_thresh = 1e-5;
   pthresh = 1e-4;
 
+  vessel_width = ceil(max(b_leachi.vessel_width.mu) / opts.pixel_size);
+  ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
+  proj_dist = 0.75;
+  sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
+
   [nframes, img_size] = size_data(myrecording.channels(1));
   inelems = 1/(prod(img_size));
+  nmagic = ceil(nframes/2);
+  magic_img = [];
 
   if (isempty(segmentations.detections) || length(segmentations.detections) < nframes)
     detections = get_struct('detection', [1 nframes]);
   else
     detections = segmentations.detections(1:nframes);
   end
-
-  vessel_width = ceil(max(b_leachi.vessel_width.mu) / opts.pixel_size);
-  ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
-  %proj_dist = vessel_width * 0.75;
-  proj_dist = 0.75;
-  %sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
-  sigma = min(b_leachi.blood_cell.mu(:,1)/(2*opts.pixel_size));
 
   if (isempty(detections(1).cluster))
     if (opts.verbosity > 1)
@@ -95,23 +94,19 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     thresh = opthr(bkg);
 
     noise = estimate_noise(orig_img);
-    % M-B-flow_1_1 ?
-    %diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-140)/12))
-    % M-B-flow_1_10003 : 5.14
     diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12));
 
     noise(1) = thresh;
 
     prev_img = gaussian_mex(orig_img, sigma);
     tmp_img = padarray(prev_img, [3 3]*vessel_width, NaN);
-    %prev_mask = imdilate(imopen(tmp_img < noise(1) - diff_thresh*noise(2), disk2), disk2);
-    %prev_mask = imdilate(imopen(imfill(tmp_img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
     prev_mask = imdilate(imopen(tmp_img < noise(1) - amp_thresh*noise(2), disk2), disk2);
 
     detections(1).noise = noise;
 
-    if (opts.verbosity > 2)
+    if (opts.verbosity > 1)
       hfig=figure;
+      colormap(hfig, redbluemap);
     end
 
     mask = zeros(img_size+6*vessel_width);
@@ -120,11 +115,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       new_img = gaussian_mex(new_img, sigma);
 
       [img_diff, moire] = immoire(new_img - prev_img, 5, 2.5*sigma);
+      if (nimg==nmagic)
+        magic_img = new_img;
+      end
 
-      %orig_img = new_img;
       img = padarray(new_img, [3 3]*vessel_width, NaN);
-      %curr_mask = imdilate(imopen(img < noise(1) - diff_thresh*noise(2), disk2), disk2);
-      %curr_mask = imdilate(imopen(imfill(img < noise(1) - amp_thresh*noise(2), 'holes'), disk2), disk2);
       curr_mask = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
 
       img_diff = abs(padarray(img_diff, [3 3]*vessel_width, NaN));
@@ -133,10 +128,9 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       bw = img_diff > diff_thresh * noise(2);
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
-      if (opts.verbosity > 2)
-        %subplot(2,2,1);imagesc(prev_img)
-        subplot(2,2,1);imagesc(prev_mask | curr_mask)
-        subplot(2,2,2);imagesc(img_diff)
+      if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
+        h=subplot(2,2,1,'Parent',hfig);imagesc(magic_img,'Parent',h);
+        h=subplot(2,2,2,'Parent',hfig);imagesc(img_diff,'Parent',h)
       end
       if (any(bw(:)))
 
@@ -144,14 +138,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         open = imerode(closed, disk2);
         mask = mask + open;
 
-        if (opts.verbosity > 2)
-          subplot(2,2,3);imagesc(bw);
-          subplot(2,2,4);imagesc(mask)
+        if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
+          h=subplot(2,2,3,'Parent',hfig);imagesc(bw,'Parent',h);
+          h=subplot(2,2,4,'Parent',hfig);imagesc(mask,'Parent',h)
         end
-        %props = sum(open(:)) * inelems;
-        %title(props)
       end
-      %title(nimg)
       detections(nimg).carth = [];
 
       prev_img = new_img;
@@ -166,28 +157,36 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     end
 
     if (opts.verbosity > 1)
-      if (opts.verbosity > 2)
-        print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_masking.png'], '-dpng');
-        delete(hfig)
-      end
+      plot2svg(['./export/SVG/' myrecording.experiment '_maskinga.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_maskinga.png'], '-dpng');
+
+      colormap(hfig, gray);
+      plot2svg(['./export/SVG/' myrecording.experiment '_maskingb.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_maskingb.png'], '-dpng');
+      delete(hfig)
+
       close(hwait);
     end
 
     mask = imnorm(mask);
-    %orig_mask = mask;
 
-    %figure;subplot(2,2,1)
-    %imagesc(mask)
+    if (opts.verbosity > 1)
+      hfig=figure;
+      colormap(hfig, redbluemap);
+      h=subplot(2,2,1,'Parent',hfig);imagesc(mask,'Parent',h)
+    end
 
     mask = (mask > prop_thresh);
 
-    %subplot(2,2,2)
-    %imagesc(mask)
+    if (opts.verbosity > 1)
+      h=subplot(2,2,2,'Parent',hfig);imagesc(mask,'Parent',h)
+    end
 
     mask = bwareaopen(mask, vessel_width^2);
 
-    %subplot(2,2,3)
-    %imagesc(mask)
+    if (opts.verbosity > 1)
+      h=subplot(2,2,3,'Parent',hfig);imagesc(mask,'Parent',h)
+    end
 
     dist = bwdist(~mask);
     mask = bwmorph(mask, 'thin', Inf);
@@ -205,9 +204,18 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     detections(1).properties = branches;
 
-    %subplot(2,2,4)
-    %imagesc(mask);hold on
-    %plot(branches(:,1), branches(:,2), 'k');
+    if (opts.verbosity > 1)
+      h=subplot(2,2,4,'Parent',hfig);imagesc(magic_img,'Parent',h);
+      show_vessels(branches, h);
+
+      plot2svg(['./export/SVG/' myrecording.experiment '_branchingsa.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_branchingsa.png'], '-dpng');
+
+      colormap(hfig, gray)
+      plot2svg(['./export/SVG/' myrecording.experiment '_branchingsb.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_branchingsb.png'], '-dpng');
+      delete(hfig)
+    end
 
     x1 = branches(1:3:end, 1);
     x2 = branches(2:3:end, 1);
@@ -266,10 +274,6 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     branches = detections(1).properties;
 
-    %subplot(2,2,4)
-    %imagesc(mask);hold on
-    %plot(branches(:,1), branches(:,2), 'k');
-
     x1 = branches(1:3:end, 1);
     x2 = branches(2:3:end, 1);
     y1 = branches(1:3:end, 2);
@@ -287,31 +291,37 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     vects = [x2-x1 y2-y1];
     lens = 1 ./ sum(vects.^2, 2);
     cross = (x2.*y1 - y2.*x1);
-    %widths = 1/(proj_dist)^2;
     widths = 1 ./ (widths*proj_dist).^2;
 
     origin = [x1 y1].';
     params = [vects cross lens sqrt(lens .* widths)].';
   end
 
-  tmp_img = double(load_data(myrecording.channels(1), 1));
+  if (isempty(magic_img))
+    magic_img = double(load_data(myrecording.channels(1), nmagic));
+  end
 
-  if (opts.verbosity > 2)
+  if (opts.verbosity > 1)
     hfig=figure;
-    subplot(1,2,1);imagesc(tmp_img);hold on;plot(branches(:,1), branches(:,2), 'k');
-    subplot(1,2,2);imagesc(mapping);hold on;plot(branches(:,1), branches(:,2), 'k');
-    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_mappings.png'], '-dpng');
+    h=subplot(1,2,1,'Parent',hfig);imagesc(magic_img,'Parent',h);
+    show_vessels(branches, h);
+    h=subplot(1,2,2,'Parent',hfig);imagesc(mapping,'Parent',h);
+
+    colormap(h, gray);
+    plot2svg(['./export/SVG/' myrecording.experiment '_mappingsa.svg'], hfig, 'png');
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_mappingsa.png'], '-dpng');
+
+    colormap(h, brewermap([], 'Purples'));
+    plot2svg(['./export/SVG/' myrecording.experiment '_mappingsb.svg'], hfig, 'png');
+    print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_mappingsb.png'], '-dpng');
+
     delete(hfig)
   end
 
   prev_indx = -1;
   real_mapping = [];
 
-  %windows = [32 32; 16 16; 8 8; 8 8];
-  %threshs = [Inf; Inf; 10; 5];
-  %windows = 2.^(max(nextpow2(3*vessel_width)-[0 1 2 2], 2));
   windows = vessel_width * [4 3 2 1 1].';
-  %windows = [64 64; 32 32; 16 16; 16 16];
   threshs = [5; 5; 3; 3];
 
   data = cell(nframes-1, 1);
@@ -319,8 +329,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (isempty(detections(2).carth) || all(isnan(detections(2).carth(:))))
 
-    %figure;
-    %%%%%%%%%%%%%%%%%%% SHOULD WORK ON THE DIFFERENCE BETWEEN FRAMES
+    if (opts.verbosity > 1)
+      hfig=figure;
+      colormap(hfig, redbluemap);
+    end
+
     prev_img = double(load_data(myrecording.channels(1), 1));
     prev_img = gaussian_mex(prev_img, sigma);
 
@@ -329,6 +342,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         img = img_next;
         prev_diff = img_diff;
       else
+        prev_img = double(load_data(myrecording.channels(1), nimg-1));
         img = double(load_data(myrecording.channels(1), nimg));
         img = gaussian_mex(img, sigma);
         [prev_diff, moire] = immoire(img - prev_img, 5, 2.5*sigma);
@@ -341,26 +355,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
       %%%%%%% COULD FILTER OUT VECTORS THAT ARE NOT // WITH THE CENTERS. EITHER DURING OR AFTER THE PIV
 
-      %[x,y,u,v,s] = matpiv_nfft(img, img_next, windows, 1/32, threshs, mask, 1.5);
       [x,y,u,v,s] = vessel_piv(prev_diff, img_diff, windows, 1/32, mapping, branches, threshs);
-      %[x,y,u,v,s] = matpiv_nfft(prev_diff, img_diff, windows, 1/32, threshs, mask, 1);
-
-      %for i=1:10
-      %[x,y,u,v,s] = matpiv_nfft(guassian_mex(img, 0.67), gaussian_mex(img_next, 0.67), windows, 1/32, threshs, mask, i);
-
-      %hold off;
-      %imagesc(img_diff);
-      %hold on;
-      %quiver(x,y,u,v, 0);
-      %title(nimg)
-      %drawnow
-      %end
-      %keyboard
-
-      %empties = (u == 0 & v == 0);
-      %u(empties) = NaN;
-      %v(empties) = NaN;
-      %s(empties) = NaN;
 
       if (isempty(real_mapping))
         tmp_vals = bilinear_mex(mapping, x, y);
@@ -375,14 +370,17 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         one = ones(1, branches_size);
       end
 
-      %subplot(2,2,1);imagesc(img)
-      %subplot(2,2,2);imagesc(img_next)
-      %subplot(2,2,3);imagesc(mask);
-      %subplot(2,2,4);imagesc((img_next-img) .* mask);hold on;
-      %quiver(x,y,u,v, 'r');
-      %hold off
-      %drawnow
-      %keyboard
+      if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
+        h=subplot(2,2,1,'Parent',hfig);imagesc(prev_diff,'Parent',h);
+        h=subplot(2,2,2,'Parent',hfig);imagesc(img_diff,'Parent',h);
+        h=subplot(2,2,3,'Parent',hfig);imagesc(mapping,'Parent',h);
+        h=subplot(2,2,4,'Parent',hfig, 'NextPlot', 'add');imagesc(img,'Parent',h);
+        quiver(h, x,y,u,v, 'r');
+
+        if (opts.verbosity > 2)
+          drawnow
+        end
+      end
 
       speed = bsxfun(@times, u(inside), params(1,:) .* sqrt(params(4,:))) + ...
                bsxfun(@times, v(inside), params(2,:) .* sqrt(params(4,:)));
@@ -395,6 +393,16 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       snr{nimg} = s(inside);
 
       prev_indx = nimg;
+    end
+
+    if (opts.verbosity > 1)
+      plot2svg(['./export/SVG/' myrecording.experiment '_piva.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_maskinga.png'], '-dpng');
+
+      colormap(hfig, gray);
+      plot2svg(['./export/SVG/' myrecording.experiment '_pivb.svg'], hfig, 'png');
+      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_maskingb.png'], '-dpng');
+      delete(hfig)
     end
 
     segmentations.detections = detections;
@@ -421,7 +429,6 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   avgs = avgs(~nils,:);
 
   if (all(isnan(all_signs)) || all(all_signs == 0))
-    %keyboard
     if (sum(content) == 1)
       all_signs = content;
       empty_branches = (all_signs == 0);
@@ -487,12 +494,15 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       [junk, indx] = sort(abs(values));
       sames = sign(values(indx));
 
-      hfig=figure;
-      subplot(1,3,1);plot(avgs);
-      subplot(1,3,2);plot(avgs(:,new_empties));
-      subplot(1,3,3);plot(avgs(:,~new_empties));
-      print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_groupings.png'], '-dpng');
-      delete(hfig);
+      if (opts.verbosity > 1)
+        hfig=figure;
+        h=subplot(1,3,1,'Parent',hfig);plot(avgs,'Parent',h);
+        h=subplot(1,3,2,'Parent',hfig);plot(avgs(:,new_empties),'Parent',h);
+        h=subplot(1,3,3,'Parent',hfig);plot(avgs(:,~new_empties),'Parent',h);
+        plot2svg(['./export/SVG/' myrecording.experiment '_groupings.svg'], hfig, 'png');
+        print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_groupings.png'], '-dpng');
+        delete(hfig);
+      end
 
       empty_branches(new_empties) = true;
 
@@ -523,25 +533,24 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     navgs = size(avgs, 2);
     colors = redbluemap(2*navgs);
     colors = colors(ceil(navgs/2)-1+[1:navgs],:);
-    hfig = figure;hold on;
+    hfig = figure;
   end
 
   for i=1:size(avgs,2)
     if (opts.verbosity > 1)
-      subplot(1,size(avgs,2), i); hold on;
-      plot(pos*opts.time_interval, avgs(:,i), 'k');
+      h=subplot(1,size(avgs,2), i);
+      set(h, 'NextPlot', 'add');
+      plot(pos*opts.time_interval, avgs(:,i), 'k', 'Parent', h);
     end
 
     avgs(:,i) = smooth(avgs(:,i), 0.2, 'rloess');
-    %plot(smooth(avgs(:,i),15,'moving'), 'r');
-    %plot(smooth(avgs(:,i),15,'sgolay'), 'g');
-    %plot(smooth(avgs(:,i),0.2,'rlowess'), 'k');
     if (opts.verbosity > 1)
-      plot(pos*opts.time_interval, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
+      plot(pos*opts.time_interval, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2, 'Parent', h);
     end
   end
 
   if (opts.verbosity > 1)
+    plot2svg(['./export/SVG/' myrecording.experiment '_branches.svg'], hfig, 'png');
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_branches.png'], '-dpng');
     delete(hfig);
   end
@@ -562,235 +571,42 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       avgs_indxs = [avgs_indxs; ones(size(tmp))*j];
     end
   end
-  %bads = cellfun('isempty', data);
   group_indxs = group_indxs*opts.time_interval;
   [gpos, indxi, indxj] = unique(group_indxs);
 
-  %keyboard
-
-  %pos = pos(~bads);
-  %pos = pos(:)*opts.time_interval;
-
-  %{
-  figure;
-  for i=1:size(avgs,2)
-    subplot(1,size(avgs,2), i);
-    goods = (avgs_indxs == i);
-
-    if (any(goods))
-      boxplot(speeds(goods), group_indxs(goods), 'position', gpos);
-    end
-  end
-  %}
-
-  %{
-  nbins = floor(max(SnR));
-  colors = redbluemap(nbins+1);
-  figure;hold on;
-  for i=0:nbins
-    goods = (SnR>i);
-    scatter(group_indxs(goods), speeds(goods), 'MarkerEdgeColor', colors(i+1,:));
-  end
-  %}
-
   if (opts.verbosity > 1)
-    hfig = figure;hold on;
-    boxplot(speeds, group_indxs, 'position', gpos);
-    set(gca, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
+    hfig = figure;
+    haxes = axes('Parent', hfig, 'NextPlot', 'add');
+    boxplot(haxes, speeds, group_indxs, 'position', gpos);
+    set(haxes, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
 
     navgs = size(avgs, 2);
     colors = redbluemap(2*navgs);
     colors = colors(ceil(navgs/2)-1+[1:navgs],:);
     for i=1:navgs
-      plot(gpos, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2);
+      plot(gpos, avgs(:,i), 'Color', colors(i,:), 'LineWidth', 2, 'Parent', haxes);
     end
+    plot2svg(['./export/SVG/' myrecording.experiment '_avg.svg'], hfig, 'png');
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_avg.png'], '-dpng');
     delete(hfig);
   end
 
-  %[t, v] = dp_flow(group_indxs, speeds, [500 128]);
-  [t, v] = dp_flow(group_indxs, speeds, ceil([3*range(gpos) median(abs(speeds))/2]));
+  [t, v] = dp_flow(group_indxs, speeds, [0.35 6]);
+
   [pp] = csaps(t, v, 1/(t(end)));
   avg_val = fnval(pp, gpos);
 
-  hfig = figure;hold on;
-  scatter(group_indxs, speeds, 'k');
-  plot(gpos, avg_val, 'r');
-  print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_fits.png'], '-dpng');
-  delete(hfig);
+  if (opts.verbosity > 1)
+    hfig = figure;
+    haxes = axes('Parent', hfig, 'NextPlot', 'add');
+    scatter(haxes, group_indxs, speeds, 'k');
+    plot(t, v, 'y', 'Parent', haxes)
+    plot(gpos, avg_val, 'r', 'Parent', haxes);
 
-  %{
-  %%
-  %avg_val = mean(avgs, 2);
-
-  nmax = 20;
-  curr_speeds = speeds;
-  colors=redbluemap(nmax);
-  [mspeed, sspeed] = mymean(curr_speeds, 1, group_indxs);
-
-  nbounds = max(range(gpos)*0.01, diff(gpos(1:2)));
-  sval = smooth(sspeed, 0.05, 'rloess');
-  thresh = median(sspeed);
-
-  figure;hold on
-  iters=[1:5:51];
-  colors=redbluemap(length(iters));
-  for n=1:length(iters)
-    i = iters(n);
-    t = imfilter(sspeed, ones(i,1)/i);
-    plot(t, 'Color', colors(n,:))
-  end
-  plot([1 length(t)], [thresh thresh], 'k')
-
-  keyboard
-
-  w = (exp(-sspeed.^2 ./ (8*thresh^2)));
-  %sval2 = sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)));
-  sval = (sval .* (1-exp(-smooth(sspeed).^2 ./ (0.5*thresh^2)))) .* w + (1-w) .* sspeed;
-
-  ngauss = length(sval)/25;
-  h = fspecial('gaussian', [2*ceil(ngauss)+1 1], ngauss/3);
-  gauss = imfilter(double(sval < thresh), h);
-
-  %sval = sval .* (1-exp(-sspeed.^2 ./ (0.5*thresh^2)));
-  bounds = (group_indxs <= gpos(1)+nbounds | group_indxs >= gpos(end)-nbounds);
-  %all_goods = (sval(indxj) < thresh | bounds);
-  all_goods = (gauss(indxj) > 0.5 | bounds);
-
-  %all_goods2 = (sval2(indxj) < thresh | bounds);
-  %all_goods3 = (sval3(indxj) < thresh | bounds);
-
-  %[junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
-  %[pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
-  [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh);
-  avg_val = fnval(pp, gpos);
-
-  hfig = figure;hold on;
-  scatter(group_indxs, speeds, 'k');
-  scatter(group_indxs(all_goods), speeds(all_goods), 'r');
-  plot(gpos, avg_val, 'y');
-
-  keyboard
-
-  for i=1:nmax
-    avg_speeds = avg_val(indxj);
-    speed_dist = (curr_speeds - avg_speeds);
-    %curr_thresh = median(speed_dist);
-
-    %weight = 1-exp(-speed_dist.^2 / (2*(thresh^2)));
-    %wspeed = (weight.*sign(speed_dist).*2*thresh) + avg_speeds;
-    %[mspeed, sspeed] = mymean(curr_speeds, 1, group_indxs);
-    %speed_dist = (curr_speeds - avg_speeds);
-    %thresh = std(speed_dist);
-
-    %goods = (sspeed < thresh & abs(mspeed - sign_val) < thresh);
-    %all_goods = (goods(indxj));
-
-    all_goods = ((abs(speed_dist) < thresh) & (sspeed(indxj) < thresh)) | bounds;
-
-    %[junk, pthresh] = csaps(group_indxs(all_goods), curr_speeds(all_goods));
-    %[pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh/((opts.time_interval)^3));
-    [pp] = csaps(group_indxs(all_goods), curr_speeds(all_goods), pthresh);
-
-    new_avg_val = fnval(pp, gpos);
-    plot(gpos, new_avg_val, 'Color', colors(i,:));
-    %plot(gpos, new_avg_val, 'r');
-
-    dx_avg = (2*mean(abs(new_avg_val - avg_val)) / (range(avg_val) + range(new_avg_val)));
-    avg_val = new_avg_val;
-
-    if (dx_avg < avg_thresh)
-      break;
-    end
-  end
-
-  %if (opts.verbosity > 1)
+    plot2svg(['./export/SVG/' myrecording.experiment '_fits.svg'], hfig, 'png');
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_fits.png'], '-dpng');
     delete(hfig);
-  %end
-  %}
-
-  %{
-  sign_val = mean(avgs, 2);
-  %tmp_speeds = speeds - sign_val(indxj);
-  %thresh = std(tmp_speeds)/2;
-  %goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh) & ...
-  %        (~isnan(group_indxs) & ~isnan(speeds));
-
-  avg_speeds = sign_val(indxj);
-  speed_dist = (speeds - avg_speeds);
-  [mspeed, sspeed] = mymean(speeds, 1, group_indxs);
-
-  thresh = std(speed_dist);
-  weight = 1-exp(-speed_dist.^2 / (2*(thresh^2)));
-  tmp_speed = (weight.*sign(speed_dist).*2*thresh) + avg_speeds;
-
-  goods = (sspeed < thresh & abs(mspeed - sign_val) < thresh);
-  all_goods = (goods(indxj));
-
-  nmax = 20;
-  thresh = thresh / nmax;
-
-
-  %if (opts.verbosity > 2)
-    figure;hold on;
-    scatter(group_indxs, speeds, 'k');
-
-    niter=5;
-    colors=redbluemap(niter+1);
-  %%% NEED TO ITERATE OVER A FEW VALUES (1/dx)
-  for i=0:niter
-    if i==0
-      [pp, pthresh] = csaps(group_indxs(all_goods), tmp_speed(all_goods));
-    else
-      [pp] = csaps(group_indxs(all_goods), tmp_speed(all_goods), pthresh/((opts.time_interval)^i));
-    end
-    ys = fnval(pp, gpos);
-    plot(gpos, ys, 'Color', colors(i+1,:));
   end
-  %end
-  %}
-
-  %{
-  keyboard
-
-  prev_params = -Inf;
-  for i=1:nmax
-    %[period, ampls, phases] = lsqmultiharmonic(group_indxs(goods), speeds(goods));
-    [period, ampls, phases] = lsqmultiharmonic(group_indxs, tmp_speed, nharmonics);
-    nharm = length(ampls);
-
-    %sign_val = zeros(size(gpos));
-    %for j=1:nharm
-    %  sign_val = sign_val + ampls(j)*cos((j*gpos/period)*2*pi + phases(j));
-    %end
-    %thresh = max(ampls)/2;
-    sign_val = cossum(gpos, [ampls.'; (period.')./[1:nharm]; phases.']);
-
-    if (opts.verbosity > 2)
-      plot(gpos, sign_val, 'k');
-    end
-
-    avg_speeds = sign_val(indxj);
-
-    speed_dist = (speeds - avg_speeds);
-    thresh = std(speed_dist);
-    weight = 1-exp(-speed_dist.^2 / (2*(thresh^2)));
-    tmp_speed = (weight.*sign(speed_dist).*2*thresh) + avg_speeds;
-
-    %weight = exp(-(speeds - avg_speeds).^2 / (2*(((nmax-i)*thresh)^2)));
-    %tmp_speed = avg_speeds.*(1-weight) + speeds.*weight;
-
-    %goods = (speeds < sign_val(indxj) + thresh & speeds > sign_val(indxj) - thresh);
-
-    dx = sum(abs([period ampls(1) phases(1)] - prev_params));
-    prev_params = [period ampls(1) phases(1)];
-
-    if (dx < 1e-3)
-      break;
-    end
-  end
-  %}
 
   if (isempty(myrecording.trackings))
     trackings = get_struct('tracking');
@@ -805,23 +621,19 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   end
 
   res.carth = [speeds group_indxs];
-  %res.cluster = weight;
-  %res.properties = [ampls(:).'; period*(1./[1:length(ampls)]); phases(:).'];
   res.cluster = [];
   res.properties = pp;
 
   if (opts.verbosity > 1)
-    %[gpos2] = unique(group_indxs(goods));
-    hfig = figure;hold on;
-    boxplot(speeds, group_indxs, 'position', gpos);
-    set(gca, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
-
-    plot(gpos, avg_val, 'k', 'LineWidth', 2);
+    hfig = figure;
+    haxes = axes('Parent', hfig, 'NextPlot', 'add');
+    boxplot(haxes, speeds, group_indxs, 'position', gpos);
+    set(haxes, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
+    plot(gpos, avg_val, 'k', 'LineWidth', 2, 'Parent', haxes);
     tmp = range(avg_val);
-    ylim([-tmp tmp]);
-    %tmp = 2*sum(ampls(:));
-    %ylim([-tmp tmp]);
-    %title(num2str(res.properties));
+    ylim(haxes, [-tmp tmp]);
+
+    plot2svg(['./export/SVG/' myrecording.experiment '_f.svg'], hfig, 'png');
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_f.png'], '-dpng');
     delete(hfig);
   end

@@ -1,24 +1,25 @@
-function [x, y] = dp_flow(t, v, nbins)
+function [x, y] = dp_flow(t, v, resol)
 
   if (nargin == 1)
     v = t(:,2);
     t = t(:,1);
-    nbins = 65;
+    resol = 1;
   elseif (nargin ==2)
     if (numel(v)==numel(t))
-      nbins = 65;
+      resol = 1;
     else
-      nbins = v;
+      resol = v;
       v = t(:,2);
       t = t(:,1);
     end
   end
 
-  if (numel(nbins) < 2)
-    nbins = nbins([1 1]);
+  if (numel(resol) < 2)
+    resol = resol([1 1]);
   end
 
   %nbins = nbins + (1 - mod(nbins, 2));
+  nbins = ceil([range(t) max(abs(v))] ./ resol);
 
   xbins = [0:nbins(1)];
   ybins = [-nbins(2)-0.5:nbins(2)+0.5];
@@ -27,6 +28,8 @@ function [x, y] = dp_flow(t, v, nbins)
   ybins = ybins * (max(abs(v))/ybins(end));
 
   xbins = xbins + min(t);
+
+  %disp([xbins(2)-xbins(1) ybins(2)-ybins(1)])
 
   xbins(1) = xbins(1)-1;
   xbins(end) = xbins(end)+1;
@@ -37,20 +40,44 @@ function [x, y] = dp_flow(t, v, nbins)
 
   p = get_struct('parameter');
   p.weights.alpha = 0.45;
-  p.weights.beta = 0.75;
-  p.weights.gamma = 1/5;
+  p.weights.beta = 0.9;
+  p.weights.gamma = 1/9;
   weight_flow(map, p.weights);
 
-  p.parameters.nhood   = 15;      % Neighborhood size
-  p.parameters.alpha   = 0.4; % Prop. of smoothness VS data
+  p.parameters.nhood   = 50;      % Neighborhood size
+  p.parameters.force_circularity = false;
+  p.parameters.dp_method = 'normal';
+  p.parameters.alpha   = 0.35; % Prop. of smoothness VS data
   p.parameters.beta    = 0.85; % Prop. of path VS intensity
   p.parameters.gamma   = 0.25; % Prop. of dx VS d2x
 
-  paths = dynamic_programming(1-imnorm(map), p.parameters, @weight_flow, p.weights, []);
+  nhood = max(ceil(length(ybins)/5), 7);
+  p.parameters.init = 1-imnorm(differentiator(cumsum(sum(map(1:5,:))), 1, nhood));
+  p.parameters.final = find(imnorm(differentiator(cumsum(sum(map(1:5,:))), 1, nhood))>0.75);
+
+  orig_paths = dynamic_programming(1-imnorm(map), p.parameters, @weight_flow, p.weights, []);
 
   x = diff(xbins) + xbins(1:end-1);
   y = diff(ybins) + ybins(1:end-1);
-  y = y(paths);
+
+  y = y(orig_paths);
+
+  %{
+  %vars = [0:0.05:1];
+  vars = [1:20];
+  colors=redbluemap(length(vars));
+  for i=1:length(vars)
+    %p.weights.alpha = vars(i);
+    p.weights.gamma = 1/vars(i);
+
+    paths = dynamic_programming(1-imnorm(map), p.parameters, @weight_flow, p.weights, []);
+
+    r = y(paths);
+
+    plot(x, r, 'Color', colors(i,:))
+  end
+  plot(x, y(orig_paths), 'g')
+  %}
 
   %[pp] = csaps(x, y, 1/(x(end)));
 
