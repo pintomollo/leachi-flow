@@ -599,9 +599,11 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   if (opts.verbosity > 1)
     hfig = figure;
     haxes = axes('Parent', hfig, 'NextPlot', 'add');
-    scatter(haxes, group_indxs, speeds, 'k');
+    %scatter(haxes, group_indxs, speeds, 'k');
+    density_scatter(haxes, group_indxs, speeds, [2 15], @(x)(brewermap(x, '*RdGy')))
     plot(t, v, 'y', 'Parent', haxes)
     plot(gpos, avg_val, 'r', 'Parent', haxes);
+    colorbar('peer', haxes);
 
     plot2svg(['./export/SVG/' myrecording.experiment '_fits.svg'], hfig, 'png');
     print(['-f' num2str(hfig)], ['./export/' myrecording.experiment '_fits.png'], '-dpng');

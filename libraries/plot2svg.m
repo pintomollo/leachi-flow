@@ -1630,8 +1630,12 @@ for i=length(axchild):-1:1
             pointc=(pointc-clim(1))/(clim(2)-clim(1))*(size(cmap,1)-1)+1;
         end
         % Limit index to smallest or biggest color index
-        pointc=max(pointc,1);
-        pointc=min(pointc,size(cmap,1));
+        if (all(pointc <= 1 & pointc >= 0) && length(pointc)==3)
+          pointc=searchcolor(id, pointc);
+        else
+          pointc=max(pointc,1);
+          pointc=min(pointc,size(cmap,1));
+        end
         if ~ischar(get(axchild(i),'FaceAlpha'))
             face_opacity = get(axchild(i),'FaceAlpha');
         else
@@ -2222,6 +2226,11 @@ for i=length(axchild):-1:1
 				pointc = max(2, pointc);
             end
             %imwrite(pointc,cmap,fullfile(PLOT2SVG_globals.basefilepath,filename),PLOT2SVG_globals.pixelfiletype);
+            ncmap = size(cmap,1);
+            if (ncmap > 256)
+              cmap = interp1(([0:ncmap-1].')*(255/(ncmap-1)),cmap,[0:255].');
+              pointc = fix((pointc-1) * (255/(ncmap-1)))+1;
+            end
             imwrite(pointc,cmap,filename,PLOT2SVG_globals.pixelfiletype);
         end
             lx=(size(pointc,2)*halfwidthx)*axpos(3)*paperpos(3);
@@ -2291,6 +2300,10 @@ for i=length(axchild):-1:1
 end
 
 function result = selectColor(axchild, id, p, q, points, pointc, colorname, faces, type)
+if (ischar(pointc))
+  result = pointc;
+  return;
+end
 if size(pointc, 1) == 1
     color = pointc;
 elseif size(pointc, 1) == size(faces, 1)
