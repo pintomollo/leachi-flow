@@ -183,11 +183,15 @@ function flows = combine_flows(flows)
       %plot(new_ts, all_data(i,:))
     end
 
-    goods = (sum(all_goods, 2) / size(all_data, 2)) > 0.65;
+    center = (sum(all_goods, 1) / size(all_goods,1)) > 0.25;
+
+    %goods = (sum(all_goods, 2) / size(all_data, 2)) > 0.65;
+    goods = (sum(all_goods(:,center), 2) / sum(center)) > 0.65;
     all_data = all_data(goods, :);
 
     [m,s,n] = mymean(all_data);
     cross = find(m(2:end) > 0 & m(1:end-1) <= 0);
+    cross = cross(center(cross));
 %    figure;plot(all_data(goods,:).', 'b');
 %    hold on;plot(m, 'r');
 
@@ -202,7 +206,7 @@ function flows = combine_flows(flows)
     %ref3 = fnval(pp, new_ts);
 
 
-%    keyboard
+    %keyboard
 
 %    before = all_data(:,1:cross(1)-1+overlap);
 %    data = all_data(:,cross(1)-overlap:cross(2)-1+overlap);

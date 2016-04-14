@@ -106,6 +106,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     if (opts.verbosity > 1)
       hfig=figure;
+    hfig = hfig.Number;
       colormap(hfig, redbluemap);
     end
 
@@ -172,6 +173,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     if (opts.verbosity > 1)
       hfig=figure;
+    hfig = hfig.Number;
       colormap(hfig, redbluemap);
       h=subplot(2,2,1,'Parent',hfig);imagesc(mask,'Parent',h)
     end
@@ -303,6 +305,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (opts.verbosity > 1)
     hfig=figure;
+    hfig = hfig.Number;
     h=subplot(1,2,1,'Parent',hfig);imagesc(magic_img,'Parent',h);
     show_vessels(branches, h);
     h=subplot(1,2,2,'Parent',hfig);imagesc(mapping,'Parent',h);
@@ -331,6 +334,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
     if (opts.verbosity > 1)
       hfig=figure;
+    hfig = hfig.Number;
       colormap(hfig, redbluemap);
     end
 
@@ -496,6 +500,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
       if (opts.verbosity > 1)
         hfig=figure;
+    hfig = hfig.Number;
         h=subplot(1,3,1,'Parent',hfig);plot(avgs,'Parent',h);
         h=subplot(1,3,2,'Parent',hfig);plot(avgs(:,new_empties),'Parent',h);
         h=subplot(1,3,3,'Parent',hfig);plot(avgs(:,~new_empties),'Parent',h);
@@ -534,6 +539,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     colors = redbluemap(2*navgs);
     colors = colors(ceil(navgs/2)-1+[1:navgs],:);
     hfig = figure;
+    hfig = hfig.Number;
   end
 
   for i=1:size(avgs,2)
@@ -576,6 +582,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (opts.verbosity > 1)
     hfig = figure;
+    hfig = hfig.Number;
     haxes = axes('Parent', hfig, 'NextPlot', 'add');
     boxplot(haxes, speeds, group_indxs, 'position', gpos);
     set(haxes, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');
@@ -598,6 +605,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (opts.verbosity > 1)
     hfig = figure;
+    hfig = hfig.Number;
     haxes = axes('Parent', hfig, 'NextPlot', 'add');
     %scatter(haxes, group_indxs, speeds, 'k');
     density_scatter(haxes, group_indxs, speeds, [2 15], @(x)(brewermap(x, '*RdGy')))
@@ -628,6 +636,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
 
   if (opts.verbosity > 1)
     hfig = figure;
+    hfig = hfig.Number;
     haxes = axes('Parent', hfig, 'NextPlot', 'add');
     boxplot(haxes, speeds, group_indxs, 'position', gpos);
     set(haxes, 'XTickMode', 'auto', 'XTickLabelMode', 'auto');

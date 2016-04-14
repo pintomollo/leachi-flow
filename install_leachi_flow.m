@@ -216,18 +216,6 @@ function install_leachi_flow(recompile)
       error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
     end
   end
-  if (recompile || exist('dp_flow') ~= 3)
-    try
-      if (~did_setup)
-        mex -setup;
-      end
-      eval(['mex' mexopts ' dp_flow.c']);
-      did_setup = true;
-    catch ME
-      cd(root_dir);
-      error('Tracking:MEX', ['Could not compile the required MEX function!\n' ME.message]);
-    end
-  end
 
   if (recompile || exist('draw_gaussians_mex') ~= 3)
     try
