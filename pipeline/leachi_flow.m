@@ -130,7 +130,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       bw = bwareaopen(bw, ceil(5 / opts.pixel_size).^2);
 
       if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
-        h=subplot(2,2,1,'Parent',hfig);imagesc(magic_img,'Parent',h);
+        h=subplot(2,2,1,'Parent',hfig);imagesc(new_img,'Parent',h);
         h=subplot(2,2,2,'Parent',hfig);imagesc(img_diff,'Parent',h)
       end
       if (any(bw(:)))
