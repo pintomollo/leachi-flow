@@ -6,14 +6,6 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     opts = get_struct('options');
   end
 
-  if (isnumeric(myrecording))
-    all_props = myrecording;
-    b_leachi = get_struct('botrylloides_leachi');
-    ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
-    frac_thresh = 0.95;
-    nframes = max(all_props(:,end));
-  else
-
   if (~isstruct(myrecording))
     if (ischar(myrecording))
 
@@ -64,14 +56,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     detections = segmentations.detections(1:nframes);
   end
 
-  if (~isempty(detections(1).cluster))
-    mapping = detections(1).cluster;
-    noise = detections(1).noise;
-    mask = ~logical(mapping);
-  else
-    mask = true(img_size);
-    noise = [];
-  end
+  noise = detections(1).noise;
 
   b_leachi = get_struct('botrylloides_leachi');
   ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
@@ -80,10 +65,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
   disk2 = strel('disk', ceil(ampulla_width/4));
   nmagic = ceil(nframes/2);
   frac_thresh = 0.95;
-
-  if (opts.verbosity > 1)
-    hwait = waitbar(0,'Detecting ampullae...','Name','B. leachi ampullae');
-  end
+  dt = opts.time_interval;
 
   if (isempty(noise))
     orig_img = double(load_data(myrecording.channels(1), 1));
@@ -95,53 +77,73 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12));
 
     noise(1) = thresh;
+    detections(1).noise = noise;
   end
 
-  if (opts.verbosity > 1)
-    hfig=figure;
-    hfig = hfig.Number;
-    colormap(hfig, redbluemap);
-  end
+  if (isempty(detections(1).cluster) || any(isnan(detections(1).cluster(:))))
 
-  ampullae = cell(nframes, 1);
-  nampullae = zeros(nframes, 1);
-  for nimg=1:nframes
-    img = double(load_data(myrecording.channels(1), nimg));
-    ampulla = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
-    ampulla_props = regionprops(ampulla, 'Centroid', 'Area');
-
-    nampullae(nimg) = length(ampulla_props);
-    props = NaN(nampullae(nimg), 4);
-    for j=1:nampullae(nimg)
-      props(j, 1) = ampulla_props(j).Area;
-      props(j, 2:3) = ampulla_props(j).Centroid(:).';
-      props(j, 4) = nimg;
+    if (opts.verbosity > 1)
+      hwait = waitbar(0,'Detecting ampullae...','Name','B. leachi ampullae');
+      hfig=figure;
+      hfig = hfig.Number;
+      colormap(hfig, redbluemap);
     end
 
-    ampullae{nimg} = props;
-    %detections(nimg).cluster = ampullae;
+    ampullae = cell(nframes, 1);
+    nampullae = zeros(nframes, 1);
+    for nimg=1:nframes
+      img = double(load_data(myrecording.channels(1), nimg));
+      %ampulla = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
+      ampulla = imclose(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
+      ampulla_props = regionprops(ampulla, 'Centroid', 'Area');
 
-    if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
-      h=subplot(2,1,1,'Parent',hfig);imagesc(img,'Parent',h);
-      h=subplot(2,1,2,'Parent',hfig);imagesc(ampulla,'Parent',h)
+      nampullae(nimg) = length(ampulla_props);
+      props = NaN(nampullae(nimg), 4);
+      for j=1:nampullae(nimg)
+        props(j, 1) = ampulla_props(j).Area;
+        props(j, 2:3) = ampulla_props(j).Centroid(:).';
+        props(j, 4) = nimg;
+      end
+
+      ampullae{nimg} = props;
+      detections(nimg).cluster = ampullae{nimg};
+
+      if (opts.verbosity > 2 || (opts.verbosity>1 && nimg==nmagic))
+        h=subplot(2,2,1,'Parent',hfig);imagesc(img,'Parent',h);
+        h=subplot(2,2,2,'Parent',hfig);imagesc(ampulla,'Parent',h)
+        h=subplot(2,2,3,'Parent',hfig);imagesc(bwlabel(ampulla),'Parent',h)
+        h=subplot(2,2,3,'Parent',hfig);scatter(h, props(:,2), props(:,3), props(:,1));
+        set(h, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse');
+        keyboard
+      end
+
+      if (opts.verbosity > 1)
+        waitbar(nimg/nframes,hwait);
+      end
+      if (opts.verbosity > 2)
+        drawnow
+      end
     end
 
     if (opts.verbosity > 1)
-      waitbar(nimg/nframes,hwait);
+      close(hwait);
     end
-    if (opts.verbosity > 2)
-      drawnow
-    end
-  end
 
-  if (opts.verbosity > 1)
-    close(hwait);
+    segmentations.detections = detections;
+    myrecording.segmentations = segmentations;
+
+    save([myrecording.experiment '.mat'], 'myrecording', 'opts');
+  else
+    ampullae = cell(nframes, 1);
+    for nimg=1:nframes
+      ampullae{nimg} = detections(nimg).cluster;
+    end
   end
 
   all_props = cat(1, ampullae{:});
-  end
 
   clusts = simple_clustering(all_props, ampulla_width);
+  avg_sizes = mymean(all_props(:,1), 1, clusts);
   ids = unique(clusts);
 
   nclusts = length(ids);
@@ -153,13 +155,35 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
 
   goods = (clusts_lengths / nframes) > frac_thresh;
   ids = ids(goods);
+  avg_sizes = avg_sizes(goods);
+  [junk, col_ind] = sort(avg_sizes);
+  [junk, col_ind] = sort(col_ind);
 
   goods = ismember(clusts, ids);
   clusts = clusts(goods);
+  contam = all_props(~goods, :);
   all_props = all_props(goods, :);
   nclusts = length(ids);
 
+  colors = parula(2*nclusts);
+
+  tmp_indxs = ones(max(ids), 1);
+  tmp_indxs(ids) = col_ind;
+  all_colors = colors(2*tmp_indxs(clusts),:);
+
+  figure;hold on;
+  scatter(all_props(:,2), all_props(:,3), all_props(:,1), all_colors);
+  scatter(contam(:,2), contam(:,3), contam(:,1), 'k');
+  set(gca, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse');
+
   all_ampullae = NaN(nclusts, nframes);
+  %all_fits = cell(nclusts, 1);
+
+  figure;hold on;
+
+  all_fits = NaN(nclusts, nframes);
+  all_extrema = cell(nclusts, 2);
+  t = [1:nframes]*dt;
   for i=1:nclusts
     tmp_pts = all_props(clusts==ids(i),:);
     [frames, indxi, indxj] = unique(tmp_pts(:,end));
@@ -172,7 +196,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
       for j=1:size(tmp_pts, 1)
         [frames, indxi, indxj] = unique(tmp_pts(:,end));
 
-        all_ampullae(i, frames) = all_ampullae(i, frames) + tmp_pts(indxi, 1);
+        all_ampullae(i, frames) = all_ampullae(i, frames) + tmp_pts(indxi, 1).';
         tmp_pts(indxi,:) = [];
 
         if (isempty(tmp_pts))
@@ -180,6 +204,18 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
         end
       end
     end
+
+    goods = ~isnan(all_ampullae(i,:));
+    [pp] = csaps(t(goods), all_ampullae(i,goods), 1/(10*t(end)));
+    all_fits(i,:) = fnval(pp, t);
+    [xmax,imax,xmin,imin] = local_extrema(all_fits(i,:));
+    all_extrema{i,1} = [xmax, imax];
+    all_extrema{i,2} = [xmin, imin];
+
+    plot(t, all_ampullae(i,:), 'Color', colors(2*col_ind(i),:));
+    plot(t, all_fits(i,:), 'Color', colors(2*col_ind(i)-1,:));
+    scatter(t(all_extrema{i,1}(:,2)), 500+all_extrema{i,1}(:,1), 'v', 'MarkerEdgeColor', colors(2*col_ind(i)-1,:))
+    scatter(t(all_extrema{i,2}(:,2)), -500+all_extrema{i,2}(:,1), '^', 'MarkerEdgeColor', colors(2*col_ind(i)-1,:))
   end
 
   %%smooth

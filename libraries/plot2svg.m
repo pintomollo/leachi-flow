@@ -1466,6 +1466,29 @@ global PLOT2SVG_globals
 for i=length(axchild):-1:1
     if strcmp(get(axchild(i), 'Visible'), 'off')
         % do nothing
+    elseif strcmp(get(axchild(i),'Type'),'scatter')
+        keyboard
+        linewidth=get(axchild(i),'LineWidth');
+        marker=get(axchild(i),'Marker');
+        markeredgecolor=get(axchild(i),'MarkerEdgeColor');
+        if ischar(markeredgecolor)
+            switch markeredgecolor
+                case 'none',markeredgecolorname='none';
+                otherwise,markeredgecolorname=scolorname;  % if markeredgecolorname is 'auto' or something else set the markeredgecolorname to the line color
+            end    
+        else    
+            markeredgecolorname=searchcolor(id,markeredgecolor);
+        end
+        markerfacecolor=get(axchild(i),'MarkerFaceColor');
+        if ischar(markerfacecolor)
+            switch markerfacecolor
+                case 'none',markerfacecolorname='none';
+                otherwise,markerfacecolorname=scolorname;  % if markerfacecolorname is 'auto' or something else set the markerfacecolorname to the line color
+            end
+        else
+            markerfacecolorname=searchcolor(id,markerfacecolor);
+        end
+
     elseif strcmp(get(axchild(i),'Type'),'line')
         scolorname=searchcolor(id,get(axchild(i),'Color'));
         linestyle=get(axchild(i),'LineStyle');

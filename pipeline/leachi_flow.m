@@ -80,7 +80,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     detections = segmentations.detections(1:nframes);
   end
 
-  if (isempty(detections(1).cluster))
+  if (isempty(detections(1).carth))
     if (opts.verbosity > 1)
       hwait = waitbar(0,'Computing mask...','Name','B. leachi flow');
     end
@@ -265,13 +265,13 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
     mapping = double(mask);
     mapping(mask) = indexes;
 
-    detections(1).cluster = mapping;
+    detections(1).carth = mapping;
     segmentations.detections = detections;
     myrecording.segmentations = segmentations;
 
     save([myrecording.experiment '.mat'], 'myrecording', 'opts');
   else
-    mapping = detections(1).cluster;
+    mapping = detections(1).carth;
     mask = logical(mapping);
 
     branches = detections(1).properties;
@@ -631,7 +631,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
   end
 
   res.carth = [speeds group_indxs];
-  res.cluster = [];
+  res.carth = [];
   res.properties = pp;
 
   if (opts.verbosity > 1)
