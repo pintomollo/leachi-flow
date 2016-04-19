@@ -1467,28 +1467,100 @@ for i=length(axchild):-1:1
     if strcmp(get(axchild(i), 'Visible'), 'off')
         % do nothing
     elseif strcmp(get(axchild(i),'Type'),'scatter')
-        keyboard
         linewidth=get(axchild(i),'LineWidth');
         marker=get(axchild(i),'Marker');
         markeredgecolor=get(axchild(i),'MarkerEdgeColor');
         if ischar(markeredgecolor)
-            switch markeredgecolor
-                case 'none',markeredgecolorname='none';
-                otherwise,markeredgecolorname=scolorname;  % if markeredgecolorname is 'auto' or something else set the markeredgecolorname to the line color
-            end    
-        else    
+            if strcmp(markeredgecolor, 'flat')
+              markeredgecolorname=searchcolor(id,get(axchild(i), 'CData'));
+            else
+              markeredgecolorname=markeredgecolor;
+            end
+        else
             markeredgecolorname=searchcolor(id,markeredgecolor);
         end
         markerfacecolor=get(axchild(i),'MarkerFaceColor');
         if ischar(markerfacecolor)
-            switch markerfacecolor
-                case 'none',markerfacecolorname='none';
-                otherwise,markerfacecolorname=scolorname;  % if markerfacecolorname is 'auto' or something else set the markerfacecolorname to the line color
-            end
+            markerfacecolorname=markerfacecolor;
         else
             markerfacecolorname=searchcolor(id,markerfacecolor);
         end
-
+        markersize=get(axchild(i),'SizeData');
+        switch marker
+            case 'none';
+            case {'.','o','*'},markersize=sqrt(markersize/pi);
+            otherwise,markersize=sqrt(markersize);
+        end
+        linex = get(axchild(i),'XData');
+        linex = linex(:)'; % Octave stores the data in a column vector
+        if strcmp(get(ax,'XScale'),'log')
+            linex(linex<=0) = NaN;
+            linex=log10(linex);
+        end
+        liney=get(axchild(i),'YData');
+        liney = liney(:)'; % Octave stores the data in a column vector        
+        if strcmp(get(ax,'YScale'),'log')
+            liney(liney<=0) = NaN;
+            liney=log10(liney);
+        end
+        linez=get(axchild(i),'ZData');
+        linez = linez(:)'; % Octave stores the data in a column vector        
+        if isempty(linez)
+            linez = zeros(size(linex));    
+        end
+        if strcmp(get(ax,'ZScale'),'log')
+            linez(linez<=0) = NaN;
+            linez=log10(linez);
+        end
+        [x,y,z] = project(linex,liney,linez,projection);
+        x = (x*axpos(3)+axpos(1))*paperpos(3);
+        y = (1-(y*axpos(4)+axpos(2)))*paperpos(4);
+        markerOverlap = 0;
+        if ~strcmp(marker, 'none')
+            markerOverlap = max(markerOverlap, convertunit(markersize, 'points', 'pixels', axpos(4)));    
+        end
+        boundingBoxElement = [min(x)-markerOverlap min(y)-markerOverlap max(x)-min(x)+2*markerOverlap max(y)-min(y)+2*markerOverlap];
+        [filterString, boundingBox] = filter2svg(fid, axchild(i), boundingBoxAxes, boundingBoxElement);
+        % put a line into a group with its markers
+        if strcmp(get(axchild(i),'Clipping'),'on')
+            clippingIdString = clipping2svg(fid, axchild(i), ax, paperpos, axpos, projection, axIdString);
+            fprintf(fid,'<g id="%s" clip-path="url(#%s)" %s>\n', createId, clippingIdString, filterString);
+        else
+            fprintf(fid,'<g id="%s" %s>\n', createId, filterString);
+        end
+        if ~isempty(filterString)
+            % Workaround for Inkscape filter bug
+            fprintf(fid,'<rect x="%0.3f" y="%0.3f" width="%0.3f" height="%0.3f" fill="none" stroke="none" />\n', boundingBox(1), boundingBox(2), boundingBox(3), boundingBox(4));
+        end
+        % put the markers into a subgroup of the lines
+        if  ~strcmp(marker, 'none') % but only do it if we actually are drawing markers
+            fprintf(fid,'<g>\n');
+            switch marker
+                case 'none';
+                case '.',group=group+1;circle2svg(fid,group,axpos,x,y,markersize*0.25,'none',markeredgecolorname,linewidth);
+                case 'o',group=group+1;circle2svg(fid,group,axpos,x,y,markersize,markeredgecolorname,markerfacecolorname,linewidth);
+                case '+',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,5)+ones(length(linex),1)*[-1 1 NaN 0 0]*markersize,y'*ones(1,5)+ones(length(liney),1)*[0 0 NaN -1 1]*markersize,markeredgecolorname,'-',linewidth,markeredgecolorname, 1, 1, false);   
+                case '*',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,11)+ones(length(linex),1)*[-1 1 NaN 0 0 NaN -0.7 0.7 NaN -0.7 0.7]*markersize,y'*ones(1,11)+ones(length(liney),1)*[0 0 NaN -1 1 NaN 0.7 -0.7 NaN -0.7 0.7]*markersize,markeredgecolorname,'-',linewidth,markeredgecolorname, 1, 1, false);
+                case 'x',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,5)+ones(length(linex),1)*[-0.7 0.7 NaN -0.7 0.7]*markersize,y'*ones(1,5)+ones(length(liney),1)*[0.7 -0.7 NaN -0.7 0.7]*markersize,markeredgecolorname,'-',linewidth,markeredgecolorname, 1, 1, false);
+                %% Octave keeps s, d, p and h in the HandleGraphics object, for the square, diamond, pentagram, and hexagram markers, respectively -- Jakob Malm
+                case {'square', 's'},group=group+1;patch2svg(fid,group,axpos,x'*ones(1,5)+ones(length(linex),1)*[-1 -1 1 1 -1]*markersize,y'*ones(1,5)+ones(length(liney),1)*[-1 1 1 -1 -1]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case {'diamond', 'd'},group=group+1;patch2svg(fid,group,axpos,x'*ones(1,5)+ones(length(linex),1)*[-0.7071 0 0.7071 0 -0.7071]*markersize,y'*ones(1,5)+ones(length(liney),1)*[0 1 0 -1 0]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case {'pentagram', 'p'},group=group+1;patch2svg(fid,group,axpos,...
+                        x'*ones(1,11)+ones(length(linex),1)*[0 0.1180 0.5 0.1910 0.3090 0 -0.3090 -0.1910 -0.5 -0.1180 0]*1.3*markersize,...
+                        y'*ones(1,11)+ones(length(liney),1)*[-0.5257 -0.1625 -0.1625 0.0621 0.4253 0.2008 0.4253 0.0621 -0.1625 -0.1625 -0.5257]*1.3*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case {'hexagram', 'h'},group=group+1;patch2svg(fid,group,axpos,...
+                        x'*ones(1,13)+ones(length(linex),1)*[0 0.2309 0.6928 0.4619 0.6928 0.2309 0 -0.2309 -0.6928 -0.4619 -0.6928 -0.2309 0]*1*markersize,...
+                        y'*ones(1,13)+ones(length(liney),1)*[0.8 0.4 0.4 0 -0.4 -0.4 -0.8 -0.4 -0.4 0 0.4 0.4 0.8]*1*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);    
+                case '^',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,4)+ones(length(linex),1)*[-1 1 0 -1]*markersize,y'*ones(1,4)+ones(length(liney),1)*[0.577 0.577 -1.155 0.577]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case 'v',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,4)+ones(length(linex),1)*[-1 1 0 -1]*markersize,y'*ones(1,4)+ones(length(liney),1)*[-0.577 -0.577 1.155 -0.577]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case '<',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,4)+ones(length(linex),1)*[0.577 0.577 -1.155 0.577]*markersize,y'*ones(1,4)+ones(length(liney),1)*[-1 1 0 -1]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+                case '>',group=group+1;patch2svg(fid,group,axpos,x'*ones(1,4)+ones(length(linex),1)*[-0.577 -0.577 1.155 -0.577]*markersize,y'*ones(1,4)+ones(length(liney),1)*[-1 1 0 -1]*markersize,markerfacecolorname,'-',linewidth,markeredgecolorname, 1, 1, true);
+            end
+            % close the marker group
+            fprintf(fid,'</g>\n');
+        end
+        % close the scatter group
+        fprintf(fid,'</g>\n');
     elseif strcmp(get(axchild(i),'Type'),'line')
         scolorname=searchcolor(id,get(axchild(i),'Color'));
         linestyle=get(axchild(i),'LineStyle');
@@ -2534,10 +2606,20 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % create a circle
 function circle2svg(fid,group,axpos,x,y,radius,markeredgecolorname,markerfacecolorname,width)
+npts=length(x);
+if(size(markeredgecolorname,1)~=npts)
+markeredgecolorname=repmat(markeredgecolorname(1,:),npts,1);
+end
+if(size(markerfacecolorname,1)~=npts)
+markerfacecolorname=repmat(markerfacecolorname(1,:),npts,1);
+end
+if (length(radius)~=npts)
+radius=ones(npts,1)*radius(1);
+end
 for j = 1:length(x)
     if ~(isnan(x(j)) || isnan(y(j)))
-        if ~strcmp(markeredgecolorname,'none') || ~strcmp(markerfacecolorname,'none')
-            fprintf(fid,'<circle cx="%0.3f" cy="%0.3f" r="%0.3f" fill="%s" stroke="%s" stroke-width="%0.1fpt" />\n',x(j),y(j),radius,markerfacecolorname,markeredgecolorname,width);
+        if ~strcmp(markeredgecolorname(j,:),'none') || ~strcmp(markerfacecolorname(j,:),'none')
+            fprintf(fid,'<circle cx="%0.3f" cy="%0.3f" r="%0.3f" fill="%s" stroke="%s" stroke-width="%0.1fpt" />\n',x(j),y(j),radius(j),markerfacecolorname(j,:),markeredgecolorname(j,:),width);
         end
     end
 end
@@ -3085,7 +3167,10 @@ function name=searchcolor(id,value)
 if ischar(value)
     name = value;
 else
-    name=sprintf('#%02x%02x%02x',fix(value(1)*255),fix(value(2)*255),fix(value(3)*255));
+    name=repmat('#',size(value,1), 7);
+    for i=1:size(value,1)
+      name(i,:)=sprintf('#%02x%02x%02x',fix(value(i,1)*255),fix(value(i,2)*255),fix(value(i,3)*255));
+    end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -112,9 +112,8 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
         h=subplot(2,2,1,'Parent',hfig);imagesc(img,'Parent',h);
         h=subplot(2,2,2,'Parent',hfig);imagesc(ampulla,'Parent',h)
         h=subplot(2,2,3,'Parent',hfig);imagesc(bwlabel(ampulla),'Parent',h)
-        h=subplot(2,2,3,'Parent',hfig);scatter(h, props(:,2), props(:,3), props(:,1));
-        set(h, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse');
-        keyboard
+        h=subplot(2,2,3,'Parent',hfig);set(h, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse', 'NextPlot', 'add');
+        scatter(h, props(:,2), props(:,3), props(:,1)*get_pts_resolution(h)^2);
       end
 
       if (opts.verbosity > 1)
@@ -171,10 +170,10 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
   tmp_indxs(ids) = col_ind;
   all_colors = colors(2*tmp_indxs(clusts),:);
 
-  figure;hold on;
-  scatter(all_props(:,2), all_props(:,3), all_props(:,1), all_colors);
-  scatter(contam(:,2), contam(:,3), contam(:,1), 'k');
-  set(gca, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse');
+  figure;h=axes();
+  set(h, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse', 'NextPlot', 'add');
+  scatter(all_props(:,2), all_props(:,3), all_props(:,1)*get_pts_resolution(h)^2, all_colors);
+  scatter(contam(:,2), contam(:,3), contam(:,1)*get_pts_resolution(h)^2, 'k');
 
   all_ampullae = NaN(nclusts, nframes);
   %all_fits = cell(nclusts, 1);

@@ -1,8 +1,29 @@
-function
+function resol = get_pts_resolution(haxes)
 
-set ax Units points
-get ax Position
-get range Xlim
-get range YLim
+  if (nargin < 1)
+    haxes = gca;
+  elseif (~ishandle(haxes))
+    resol = NaN;
+    return;
+  end
 
-resol = Position(3:4) / ranges
+  switch get(haxes, 'Type')
+    case 'axes'
+    case 'figure'
+      haxes = get(haxes, 'Child');
+    otherwise
+      haxes = get(haxes, 'Parent');
+  end
+
+  curr_unit = get(haxes, 'Units');
+  set(haxes, 'Units', 'points');
+  pos = get(haxes, 'Position');
+  set(haxes, 'Units', curr_unit);
+
+  lims = [range(get(haxes, 'XLim')) range(get(haxes, 'YLim'))];
+
+  resol = pos(3:4) ./ lims;
+  resol = mean(resol);
+
+  return;
+end
