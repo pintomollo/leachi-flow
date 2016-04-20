@@ -158,6 +158,7 @@ PLOT2SVG_globals.octave = false;
 PLOT2SVG_globals.checkUserData = true;
 PLOT2SVG_globals.ScreenPixelsPerInch = 90; % Default 90ppi
 PLOT2SVG_globals.MainFigure = -1;
+PLOT2SVG_globals.used_dir = false;
 try
     PLOT2SVG_globals.ScreenPixelsPerInch = get(0, 'ScreenPixelsPerInch');
 catch
@@ -290,6 +291,11 @@ group = children2svg(fid, id, id, group, paperpos);
 fprintf(fid,'  </g>\n');
 fprintf(fid,'</svg>\n');
 fclose(fid);    % close text file
+
+if (~PLOT2SVG_globals.used_dir)
+  rmdir(dirname)
+end
+
 if nargout==1
     varargout={0};
 end
@@ -2315,6 +2321,7 @@ for i=length(axchild):-1:1
             % pointc is not indexed
             %imwrite(pointc,fullfile(PLOT2SVG_globals.basefilepath,filename),PLOT2SVG_globals.pixelfiletype);
             imwrite(pointc,filename,PLOT2SVG_globals.pixelfiletype);
+            PLOT2SVG_globals.used_dir=true;
         else
             % pointc is probably indexed
             if PLOT2SVG_globals.octave
@@ -2327,6 +2334,7 @@ for i=length(axchild):-1:1
               pointc = fix((pointc-1) * (255/(ncmap-1)))+1;
             end
             imwrite(pointc,cmap,filename,PLOT2SVG_globals.pixelfiletype);
+            PLOT2SVG_globals.used_dir=true;
         end
             lx=(size(pointc,2)*halfwidthx)*axpos(3)*paperpos(3);
         	ly=(size(pointc,1)*halfwidthy)*axpos(4)*paperpos(4);
@@ -2660,6 +2668,7 @@ if exist(filename,'file')
 end
 %imwrite(pict.cdata,fullfile(PLOT2SVG_globals.basefilepath,filename),PLOT2SVG_globals.pixelfiletype);
 imwrite(pict.cdata,filename,PLOT2SVG_globals.pixelfiletype);
+PLOT2SVG_globals.used_dir=true;
 set(ax,'Units','normalized');
 posNorm=get(ax,'Position');
 posInches(1)=posNorm(1)*paperpos(3);
