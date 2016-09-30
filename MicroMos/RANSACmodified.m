@@ -131,8 +131,10 @@ function [M, inliers] = RANSACmodified(x, fittingfn, distfn, degenfn, s, t, ...
                                maxDataTrials, maxTrials)
 
 % Test number of parameters
-error ( nargchk ( 6, 8, nargin ) );
-error ( nargoutchk ( 2, 2, nargout ) );
+%error ( nargchk ( 6, 8, nargin ) );
+%error ( nargoutchk ( 2, 2, nargout ) );
+narginchk ( 6, 8);
+nargoutchk ( 2, 2);
 
 [rows, npts] = size(x);                 
 
