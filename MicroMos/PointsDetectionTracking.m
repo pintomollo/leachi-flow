@@ -90,7 +90,10 @@ else
 end
 tmp_base = double(base);
 tmp_base(isnan(base)) = nanmean(tmp_base(:));
-detection_points2 = corner(tmp_base, method, numberCorners);
+
+% Need to subdivide the image to prevent highly contrasted regions of the image to takeover the corner points
+%detection_points2 = corner(tmp_base, method, numberCorners);
+detection_points2 = GriddedCorner(tmp_base, method, numberCorners);
 
 %call: STFeatureExtract
 %INPUT:

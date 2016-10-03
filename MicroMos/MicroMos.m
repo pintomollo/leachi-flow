@@ -188,11 +188,12 @@ function [FileName] = MicroMos(varargin)
   end
   if isempty(parameters.ImageIndexs)
       LengthImagesList = length(ImagesList);
-      for i = 1:LengthImagesList
-          StringNameImage1 = ImagesList(i,1).name;
-          CurrentImageIndex = str2num(StringNameImage1(PositionLastPoint-length(CharactersNumber):PositionLastPoint-1));
-          parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
-      end
+      %for i = 1:LengthImagesList
+      %    StringNameImage1 = ImagesList(i,1).name;
+      %    CurrentImageIndex = str2num(StringNameImage1(PositionLastPoint-length(CharactersNumber):PositionLastPoint-1));
+      %    parameters.ImageIndexs = [parameters.ImageIndexs CurrentImageIndex];
+      %end
+      parameters.ImageIndexs = [1:LengthImagesList];
   end
 
   disp('------------------------------------------');
@@ -246,12 +247,14 @@ function [FileName] = MicroMos(varargin)
     stop_index = length(parameters.ImageIndexs);
 
     %Reference image loading and pre-processing
-    strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(start_index));
+    %strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(start_index));
     if strcmp(ImageFormat, '.mat')
-        referenceFrame = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+        %referenceFrame = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+        referenceFrame = load(fullfile(parameters.ImageFolder, ImagesList(start_index,1).name));
         referenceFrame = cell2mat(struct2cell(referenceFrame));
     else
-        referenceFrame = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+        %referenceFrame = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+        referenceFrame = imread(fullfile(parameters.ImageFolder, ImagesList(start_index,1).name));
     end
     referenceFrame = referenceFrame(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
     norm_factor = 1;
@@ -368,12 +371,14 @@ function [FileName] = MicroMos(varargin)
               end
 
               %Image to be stitched loading and pre-processing
-              strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(end)));
+              %strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(end)));
               if strcmp(parameters.ImageFormat, '.mat')
-                  unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+                  %unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+                  unregistered = load(fullfile(parameters.ImageFolder, ImagesList(Indeces(end), 1).name));
                   unregistered = cell2mat(struct2cell(unregistered));
               else
-                  unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+                  %unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+                  unregistered = imread(fullfile(parameters.ImageFolder, ImagesList(Indeces(end), 1).name));
               end
               unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
               unregistered = uint8(norm_factor*double(unregistered));
@@ -400,7 +405,8 @@ function [FileName] = MicroMos(varargin)
                       HF2F = RegistrationMatrixByPhaseCorrelationOnly(ba, un, parameters.PCscaleFactor, parameters.flag_PCglobalORlocal);
                       clear ba un
                   end
-                  disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum ' registered using the Phase Correlation Algorithm only. ']);
+                  %disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum ' registered using the Phase Correlation Algorithm only. ']);
+                  disp(['Frame ' num2str(NumberOfregisteredImages) ': ' ImagesList(Indeces(end),1).name ' registered using the Phase Correlation Algorithm only. ']);
               else
                   %% CORNER POINTS ESTIMATION
                   if (parameters.flag_Color==0)
@@ -416,7 +422,8 @@ function [FileName] = MicroMos(varargin)
 
                   if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
                       % a problem happened. If possible another image to be registered will be defined.
-                      disp(['Frame-to-frame registration: the overlapp between the image "' parameters.ImageBaseName strnum '" and the last one registered is too small.'])
+                      %disp(['Frame-to-frame registration: the overlapp between the image "' parameters.ImageBaseName strnum '" and the last one registered is too small.'])
+                      disp(['Frame-to-frame registration: the overlapp between the image "' ImagesList(Indeces(end),1).name '" and the last one registered is too small.'])
                       flag_Problem = 1;
                       TestNumber = TestNumber + 1;
                       continue
@@ -427,13 +434,15 @@ function [FileName] = MicroMos(varargin)
 
                   if isempty(HF2F) | size(HF2F) ~= [3, 3]
                       % a problem happened. If possible another image to be registered will be defined.
-                      disp(['Frame-to-frame registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
+                      %disp(['Frame-to-frame registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
+                      disp(['Frame-to-frame registration: the matrix estimated for the image '  ImagesList(Indeces(end),1).name ' is not valid.'])
                       flag_Problem = 1;
                       TestNumber = TestNumber + 1;
                       continue
                   end
 
-                  disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum '. ' 'Number tracked points/total points: ' num2str(length(inliersF2F)) '/' num2str(length(PointsBase))]);
+                  %disp(['Frame ' num2str(NumberOfregisteredImages) ': ' parameters.ImageBaseName strnum '. ' 'Number tracked points/total points: ' num2str(length(inliersF2F)) '/' num2str(length(PointsBase))]);
+                  disp(['Frame ' num2str(NumberOfregisteredImages) ': ' ImagesList(Indeces(end),1).name '. ' 'Number tracked points/total points: ' num2str(length(inliersF2F)) '/' num2str(length(PointsBase))]);
                   clear PointsBase PointsTracked
               end
 
@@ -470,15 +479,19 @@ function [FileName] = MicroMos(varargin)
         GLOBAL = MatricesGLOBAL(:,:,i);
 
         %Image to be stitched loading and pre-processing
-        strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(i)));
-        disp(['Blending in ' parameters.ImageBaseName strnum '...']);
+        %strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(i)));
+        %disp(['Blending in ' parameters.ImageBaseName strnum '...']);
+        disp(['Blending in ' ImagesList(Indeces(i),1).name '...']);
 
         if strcmp(parameters.ImageFormat, '.mat')
-            unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+            %unregistered = load(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+            unregistered = load(fullfile(parameters.ImageFolder, ImagesList(Indeces(i),1).name));
             unregistered = cell2mat(struct2cell(unregistered));
         else
-            unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+            %unregistered = imread(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]));
+            unregistered = imread(fullfile(parameters.ImageFolder, ImagesList(Indeces(i),1).name));
         end
+
         unregistered = unregistered(1:parameters.ScaleFactor:end,1:parameters.ScaleFactor:end,:);
         unregistered = uint8(norm_factor*double(unregistered));
         if (parameters.flag_Color==0)
@@ -520,7 +533,8 @@ function [FileName] = MicroMos(varargin)
 
             if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
                 % a problem happened. If possible another image to be registered will be defined.
-                disp(['Frame-to-mosaic registration: no enought matchings between the image "' parameters.ImageBaseName strnum '" and the mosaic.'])
+                %disp(['Frame-to-mosaic registration: no enought matchings between the image "' parameters.ImageBaseName strnum '" and the mosaic.'])
+                disp(['Frame-to-mosaic registration: no enought matchings between the image "' ImagesList(Indeces(i),1).name '" and the mosaic.'])
             else
 
                 [HF2M, inliersF2M] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
@@ -528,7 +542,7 @@ function [FileName] = MicroMos(varargin)
 
                 if isempty(HF2M) | size(HF2M) ~= [3, 3]
                     % a problem happened. If possible another image to be registered will be defined.
-                    disp(['Frame-to-mosaic registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
+                    disp(['Frame-to-mosaic registration: the matrix estimated for the image '  ImagesList(Indeces(i),1).name ' is not valid.'])
                 else
                     GLOBAL = GLOBAL*inv(HF2M);
                     MatricesGLOBAL(:,:,i) = GLOBAL;
@@ -603,8 +617,9 @@ function [FileName] = MicroMos(varargin)
     fname = [fname ImageFormat];
 
     if strcmp(ImageFormat(1:4), '.tif')
-      strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(1)));
-      info = imfinfo(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]), ImageFormat(2:end));
+      %strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(1)));
+      %info = imfinfo(fullfile(parameters.ImageFolder, [parameters.ImageBaseName strnum ImageFormat]), ImageFormat(2:end));
+      info = imfinfo(fullfile(parameters.ImageFolder, ImagesList(Indeces(1),1).name), ImageFormat(2:end));
       if (isfield(info, 'ImageDescription'))
         imwrite(Mosaic, fname, ImageFormat(2:end), 'Description', info.ImageDescription);
       else

@@ -11,7 +11,7 @@ function [xShift, yShift, nums] = ShiftByCornerClustering(I1, I2, method, number
   else
     tmp_img = double(I1);
     tmp_img(isnan(I1)) = nanmean(tmp_img(:));
-    corners1 = corner(tmp_img, method, numberCorners);
+    corners1 = GriddedCorner(tmp_img, method, numberCorners);
   end
 
   % Maybe we got the distances straight
@@ -23,7 +23,7 @@ function [xShift, yShift, nums] = ShiftByCornerClustering(I1, I2, method, number
   else
     tmp_img = double(I2);
     tmp_img(isnan(I2)) = nanmean(tmp_img(:));
-    corners2 = corner(tmp_img, method, numberCorners);
+    corners2 = GriddedCorner(tmp_img, method, numberCorners);
   end
 
   % Compute the all-to-all distances if need be
