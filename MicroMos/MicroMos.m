@@ -30,7 +30,7 @@ function [FileName] = MicroMos(varargin)
 % ShiftByPhaseCorrelation, SlideShow, START, WarpingRegistrationMode
 
 % CVG (Computer Vision Group) Toolbox
-% Copyright © 2012 Filippo Piccinini, Alessandro Bevilacqua, 
+% Copyright ? 2012 Filippo Piccinini, Alessandro Bevilacqua, 
 % Advanced Research Center on Electronic Systems (ARCES), 
 % University of Bologna, Italy. All rights reserved.
 %
@@ -111,8 +111,13 @@ function [FileName] = MicroMos(varargin)
   end
 
   FileName = {};
-  if (isempty(parameters.ImageBaseName))
-    files = dir(fullfile(parameters.ImageFolder, '*'));
+  if (isempty(parameters.ImageBaseName) || any(parameters.ImageBaseName == '*'))
+    if (~isempty(parameters.ImageBaseName))
+      files = dir(fullfile(parameters.ImageFolder, parameters.ImageBaseName));
+    else
+      files = dir(fullfile(parameters.ImageFolder, '*'));
+    end
+    files = filter_formats(files);
 
     fname = '';
     for i=1:length(files)
@@ -120,6 +125,7 @@ function [FileName] = MicroMos(varargin)
         if (files(i).isdir)
 
           others = dir(fullfile(parameters.ImageFolder, [files(i).name '.*']));
+          others = filter_formats(others);
 
           if (isempty(others))
             tmp_params = parameters;
@@ -165,6 +171,7 @@ function [FileName] = MicroMos(varargin)
 
   %Image format and number of characters for the images' number 
   ImagesList = dir(fullfile(parameters.ImageFolder, [parameters.ImageBaseName '*']));
+  ImagesList = filter_formats(ImagesList);
   if isempty(ImagesList)
       error('In the selected ImageFolder there are not images with the selected ImageBaseName.')
   else
@@ -221,6 +228,7 @@ function [FileName] = MicroMos(varargin)
     MatricesGLOBAL = MatricesGLOBAL(:,:,mosaic_order);
   end
 
+  minPts = max(ceil(parameters.numberCorners / 20), 3);
   start_index = 1;
 
   %Vignetting function loading:
@@ -347,7 +355,7 @@ function [FileName] = MicroMos(varargin)
               if length(Vector_Indeces)<TestNumber+1
                   % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
                   strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
-                  disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
+                  disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' ImagesList(Indeces(end-1),1).name '.']);
                   warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
                   stop_index = index;
                   Indeces = Indeces(1:end-1);
@@ -361,7 +369,7 @@ function [FileName] = MicroMos(varargin)
               if index+1 == Indeces(end-1)
                   % if a problem happened and parameters.flag_SeekBestImages == 0 or it is not possible to define another image to be registered, the mosaic updaiting stops.
                   strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(end));
-                  disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' parameters.ImageBaseName strnum '.']);
+                  disp(['STOP mosaic building: the algorithm is not able to find and image with a good overlap with: ' ImagesList(Indeces(end-1),1).name '.']);
                   warning('STOP mosaic building: the algorithm is not able to find more images with a good overlap.')
                   stop_index = index;
                   Indeces = Indeces(1:end-1);
@@ -420,7 +428,8 @@ function [FileName] = MicroMos(varargin)
                       clear ba un
                   end
 
-                  if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
+                  %if (parameters.RegistrationMode == 0 && length(PointsBase) < 4) || (parameters.RegistrationMode == 1 && length(PointsBase) < 3) || (parameters.RegistrationMode == 2 && length(PointsBase) < 1)
+                  if (size(PointsBase, 1) < minPts)
                       % a problem happened. If possible another image to be registered will be defined.
                       %disp(['Frame-to-frame registration: the overlapp between the image "' parameters.ImageBaseName strnum '" and the last one registered is too small.'])
                       disp(['Frame-to-frame registration: the overlapp between the image "' ImagesList(Indeces(end),1).name '" and the last one registered is too small.'])
@@ -432,7 +441,7 @@ function [FileName] = MicroMos(varargin)
                   %% FRAME-TO-FRAME REGISTRATION MATRIX ESTIMATION
                   [HF2F, inliersF2F] = WarpingRegistrationMode(parameters.RegistrationMode, PointsBase, PointsTracked, parameters.RANSACerror);
 
-                  if isempty(HF2F) | size(HF2F) ~= [3, 3]
+                  if (length(inliersF2F)<minPts || isempty(HF2F) || any(size(HF2F) ~= [3, 3]))
                       % a problem happened. If possible another image to be registered will be defined.
                       %disp(['Frame-to-frame registration: the matrix estimated for the image '  parameters.ImageBaseName strnum ' is not valid.'])
                       disp(['Frame-to-frame registration: the matrix estimated for the image '  ImagesList(Indeces(end),1).name ' is not valid.'])
@@ -563,8 +572,8 @@ function [FileName] = MicroMos(varargin)
 
     clear unregistered goods goodx goody
 
-    ImageIndexs = parameters.ImageIndexs(Indeces);
-    parameters.ImageIndexs = ImageIndexs;
+    %ImageIndexs = parameters.ImageIndexs(Indeces);
+    %parameters.ImageIndexs = ImageIndexs;
     parameters.Registrations = MatricesGLOBAL;
     %save(['OUTPUT' filesep 'ImageIndexs.mat'], 'ImageIndexs');
 
@@ -614,7 +623,7 @@ function [FileName] = MicroMos(varargin)
     if (fname(end) == filesep)
       fname = fname(1:end-1);
     end
-    fname = [fname ImageFormat];
+    fname = [fname '_' num2str(countMos) ImageFormat];
 
     if strcmp(ImageFormat(1:4), '.tif')
       %strnum = sprintf(parameters.NumberCharactersNumber,parameters.ImageIndexs(Indeces(1)));
@@ -637,6 +646,9 @@ function [FileName] = MicroMos(varargin)
     end
 
     start_index = stop_index+1;
+    countMos = countMos+1;
+    MatricesGLOBAL = MatricesGLOBAL(:,:,1);
+    GLOBAL = eye(3,3);
   end
 
   disp('MicroMos: THE END.');
@@ -676,6 +688,18 @@ function [Mosaic, MosaicOrigin] = InitMosaic(img_size, MatricesGLOBAL)
   % Create the arrays
   Mosaic = NaN([ceil(diff(height)) ceil(diff(width)) img_size(3)]);
   MosaicOrigin = -round([width(1) height(1)]);
+
+  return;
+end
+
+function list = filter_formats(list)
+
+  for i=length(list):-1:1
+    [fpath, fname, fext] = fileparts(list(i).name);
+    if (length(fext)<2 || isempty(imformats(fext(2:end))))
+      list(i) = [];
+    end
+  end
 
   return;
 end
