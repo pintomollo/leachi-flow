@@ -43,7 +43,10 @@ end
 
 function img = adjust_img(img)
 
-  [img, bkgs] = imfillborder(img);
+  %[img, bkgs] = imfillborder(img);
+  img = imfillborder(img);
+  bkgs = estimate_noise(double(img));
+  bkgs = cast(bkgs(:,1), class(img));
 
   %border_rows = [im(1,:,:) im(end,:,:)];
   %border_cols = [im(:,1,:); im(:,end,:)];

@@ -55,7 +55,9 @@ function parameters = For3D(varargin)
     parameters.file_log{end+1} = parameters.filename;
   end
   if (~continued || ndone<3)
-    parameters.filename = clean_borders(parameters.filename);
+    if (parameters.clean_borders)
+      parameters.filename = clean_borders(parameters.filename);
+    end
     parameters.file_log{end+1} = parameters.filename;
 
     % Saving the progress
