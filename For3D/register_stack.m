@@ -1,7 +1,7 @@
-function new_names = register_stack(files, min_frac, reg_type)
+function new_names = register_stack(files, min_frac, reg_type, filtering, filtering_params)
 
-  if nargin<1, files = '*.tif'; min_frac=50; reg_type = 'rigidbody';
-  elseif nargin<2, min_frac=50; reg_type = 'rigidbody';
+  if nargin<1, files = '*.tif'; min_frac=50; reg_type = 'rigidbody'; filtering = '';
+  elseif nargin<2, min_frac=50; reg_type = 'rigidbody'; filtering = '';
   elseif (nargin < 3)
     if (ischar(min_frac))
       reg_type = min_frac;
@@ -9,11 +9,27 @@ function new_names = register_stack(files, min_frac, reg_type)
     else
       reg_type = 'rigidbody';
     end
+    filtering = '';
+  elseif (nargin < 4)
+    filtering = '';
   end
 
   is_affine = (reg_type(1)=='a');
   new_names = {};
   dir_out = '_registered';
+
+  custom_filtering = false;
+  if (~isempty(filtering))
+    if (ischar(filtering) && length(filtering)>0 && filtering(1)=='@')
+      filtering = str2func(filtering);
+    end
+    if (isa(filtering, 'function_handle'))
+      custom_filtering = true;
+      if (~exist('filtering_params', 'var'))
+        filtering_params = [];
+      end
+    end
+  end
 
   [files, out_path] = get_filenames(files, dir_out);
 
@@ -253,12 +269,15 @@ function new_names = register_stack(files, min_frac, reg_type)
   function [img, pts, ptsa] = get_landmarks(img, prev_pts)
 
     [img, areas] = im2reference(img, minsize, hdil);
+    if (custom_filtering)
+      [img, areas] = filtering(img, areas, filtering_params);
+    end
 
     if (nargin > 1)
       %if (is_affine)
       %  prev_pts = [mean(prev_pts(1:2,:)); prev_pts(3,:)];
       %end
-      prev_angle = atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
+      prev_angle = -atan2(diff(prev_pts(1:2,2)), diff(prev_pts(1:2, 1)));
       [means, angle] = im2moments(areas, xx, yy, prev_angle);
     else
       [means, angle] = im2moments(areas, xx, yy);
@@ -329,7 +348,7 @@ function Ha = AffineModel2D(x1c, x2c)
   end
   b = b(2:end,:);
 
-  %X è il vettore delle incognite 
+  %X ?? il vettore delle incognite 
   %X = [a11
   %     a12
   %     a13

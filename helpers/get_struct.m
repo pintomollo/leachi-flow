@@ -122,7 +122,10 @@ function mystruct = get_struct(type, nstruct)
                         'pixel_size', 6.5, ...        % Pixel size (um)
                         'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
                         'clean_borders', true, ...    % Remove the data stuck to the border of the images
+                        'axial_smoothing', true, ...  % Resize each slice to smooth the overall volume
                         'splitting_colors', [], ...
+                        'filtering', '', ...          % A user-specific filtering function that will be applied before the registration
+                        'filtering_params', [], ...   % The parameters for the filtering function
                         'smoothing_span', 0.10, ...   % The percentage of datapoints spanned when smoothing
                         'registration_type', 'rigidbody', ...
                         'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
