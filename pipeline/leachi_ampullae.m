@@ -177,7 +177,7 @@ unction [myrecording, opts] = leachi_ampullae(myrecording, opts)
 
   figure;h=axes();
   set(h, 'XLim', [1 img_size(2)], 'YLim', [1 img_size(1)], 'YDir', 'reverse', 'NextPlot', 'add');
-  scatter(all_props(:,2), all_props(:,3), all_props(:,1)*get_pts_resolution(h)^2, all_colors);
+  scatter(all_props(1:10:end,2), all_props(1:10:end,3), all_props(1:10:end,1)*get_pts_resolution(h)^2, all_colors(1:10:end,:));
   scatter(contam(:,2), contam(:,3), contam(:,1)*get_pts_resolution(h)^2, 'k');
 
   all_ampullae = NaN(nclusts, nframes);

@@ -121,7 +121,11 @@ function mystruct = get_struct(type, nstruct)
                         'sparse_thresholds', [], ...  % The value thresholds used to create a sparse image
                         'pixel_size', 6.5, ...        % Pixel size (um)
                         'colorize', false, ...        % Split the 3 most proheminent colors of the stack into RGB channels ?
+                        'clean_borders', true, ...    % Remove the data stuck to the border of the images
+                        'axial_smoothing', true, ...  % Resize each slice to smooth the overall volume
                         'splitting_colors', [], ...
+                        'filtering', '', ...          % A user-specific filtering function that will be applied before the registration
+                        'filtering_params', [], ...   % The parameters for the filtering function
                         'smoothing_span', 0.10, ...   % The percentage of datapoints spanned when smoothing
                         'registration_type', 'rigidbody', ...
                         'min_fraction', 100, ...      % Minimum fraction of the image occupied by an object for it to be included in the registration (1/N)
@@ -239,6 +243,7 @@ function mystruct = get_struct(type, nstruct)
                         'flag_GroupVignettes', false, ... % If true, pools all vignettes from the subfolders.
                         'flag_FrameToMosaic', true, ... % (Piccinini, 2013: F2M clearly better) (by default: 1). 0 for registering the images according to the Frame-to-Frame registration approach; 1 (suggested) for registering the images according to the Frame-to-Mosaic registration approach.
                         'RANSACerror', 2, ... % maximum subpixel reprojection error used inside RANSAC algorithm. We suggest 2 pixels.
+                        'flag_Harris', false, ... % 1 to extract Harris corner points. 0 to extract Shy-tomasi corner points. We suggest 0.
                         'flag_PhaseCorrelationOnly', false, ... % It can assume values 0 or 1. 1 means that the images are registered according to the Phase Correlation ALgorithm only.
                         'numberCorners', 200, ...
                         'flag_PCglobalORlocal', false, ... % It can assume values 0 or 1. 0 means that the metric used to determine the best shift inside the Phase Correlation ALgorithm is the global RMSE performed on the whole overlapping region. 1 means that the used metric is the RMSE performed using only the pixels with highest value. 
