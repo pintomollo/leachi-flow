@@ -1,4 +1,4 @@
-function [myrecording, opts] = leachi_ampullae(myrecording, opts)
+unction [myrecording, opts] = leachi_ampullae(myrecording, opts)
 
   if (nargin == 0)
     myrecording = [];
@@ -60,9 +60,10 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
 
   b_leachi = get_struct('botrylloides_leachi');
   ampulla_width = b_leachi.ampulla.mu(1) / opts.pixel_size;
-  amp_thresh = 20;
-  disk1 = strel('disk', ceil(ampulla_width/2));
-  disk2 = strel('disk', ceil(ampulla_width/4));
+  amp_thresh = 10;
+  dist_pad = ceil(ampulla_width/2);
+  disk1 = strel('disk', ceil(ampulla_width/4));
+  disk2 = strel('disk', ceil(ampulla_width/8));
   nmagic = ceil(nframes/2);
   frac_thresh = 0.95;
   dt = opts.time_interval;
@@ -74,7 +75,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     thresh = opthr(bkg);
 
     noise = estimate_noise(orig_img);
-    diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12));
+    %diff_thresh = 1 + 8./(1+exp(-((range(orig_img(:))/noise(2))-130)/12));
 
     noise(1) = thresh;
     detections(1).noise = noise;
@@ -92,9 +93,12 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     ampullae = cell(nframes, 1);
     nampullae = zeros(nframes, 1);
     for nimg=1:nframes
+    %for nimg=260:nframes
       img = double(load_data(myrecording.channels(1), nimg));
       %ampulla = imdilate(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
-      ampulla = imclose(imopen(img < noise(1) - amp_thresh*noise(2), disk2), disk2);
+      ampulla = padarray(img < noise(1) - amp_thresh*noise(2), dist_pad([1 1]));
+      ampulla = imclose(imopen(ampulla, disk2), disk1);
+      ampulla = ampulla(dist_pad+[1:img_size(1)], dist_pad+[1:img_size(2)]);
       ampulla_props = regionprops(ampulla, 'Centroid', 'Area');
 
       nampullae(nimg) = length(ampulla_props);
@@ -122,6 +126,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
       if (opts.verbosity > 2)
         drawnow
       end
+      %keyboard
     end
 
     if (opts.verbosity > 1)
@@ -205,7 +210,8 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     end
 
     goods = ~isnan(all_ampullae(i,:));
-    [pp] = csaps(t(goods), all_ampullae(i,goods), 1/(10*t(end)));
+    %[pp] = csaps(t(goods), all_ampullae(i,goods), 1/(500000*t(end)));
+    [pp] = csaps(t(goods), all_ampullae(i,goods), eps);
     all_fits(i,:) = fnval(pp, t);
     [xmax,imax,xmin,imin] = local_extrema(all_fits(i,:));
     all_extrema{i,1} = [xmax, imax];
@@ -217,7 +223,7 @@ function [myrecording, opts] = leachi_ampullae(myrecording, opts)
     scatter(t(all_extrema{i,2}(:,2)), -500+all_extrema{i,2}(:,1), '^', 'MarkerEdgeColor', colors(2*col_ind(i)-1,:))
   end
 
-  %%smooth
+  %%smooth¨
 
   keyboard
 

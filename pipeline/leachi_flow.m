@@ -338,8 +338,8 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
       colormap(hfig, redbluemap);
     end
 
-    prev_img = double(load_data(myrecording.channels(1), 1));
-    prev_img = gaussian_mex(prev_img, sigma);
+    %prev_img = double(load_data(myrecording.channels(1), 1));
+    %prev_img = gaussian_mex(prev_img, sigma);
 
     for nimg=2:nframes-1
       if (prev_indx == nimg-1)
@@ -347,6 +347,7 @@ function [myrecording, opts] = leachi_flow(myrecording, opts, batch_mode)
         prev_diff = img_diff;
       else
         prev_img = double(load_data(myrecording.channels(1), nimg-1));
+        prev_img = gaussian_mex(prev_img, sigma);
         img = double(load_data(myrecording.channels(1), nimg));
         img = gaussian_mex(img, sigma);
         [prev_diff, moire] = immoire(img - prev_img, 5, 2.5*sigma);

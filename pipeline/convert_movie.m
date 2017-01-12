@@ -118,7 +118,8 @@ function [newfile] = bftools_convert(fname, forced, do_merge)
 
   % If we have an AVI recording try using the build-in reader, or FFMPEG to extract the frames
   use_tmp_folder = false;
-  if (strncmpi(ext, '.avi', 4))
+  %if (strncmpi(ext, '.avi', 4))
+  if (true)
     % Try using the built-in video reader
     newfname = movie2tiff(fname, forced);
 
