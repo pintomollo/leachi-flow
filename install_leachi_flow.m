@@ -10,6 +10,30 @@ function install_leachi_flow(recompile)
   % By default, do not recompile everything
   if (nargin == 0)
     recompile = false;
+
+  % In that particular case, delete the directories
+  elseif (strcmp(recompile, 'uninstall'))
+    cell_folder = which('install_leachi_flow');
+    if (~isempty(cell_folder))
+      [current_dir, junk, junk] = fileparts(cell_folder);
+      [root_dir, junk, junk] = fileparts(current_dir);
+
+      % Remove the used directories to MATLAB path
+      rmpath(current_dir);
+      rmpath(fullfile(current_dir, 'GUI'));
+      rmpath(fullfile(current_dir, 'MEX'));
+      rmpath(fullfile(current_dir, 'file_io'));
+      rmpath(fullfile(current_dir, 'helpers'));
+      rmpath(fullfile(current_dir, 'image_analysis'));
+      rmpath(fullfile(current_dir, 'libraries'));
+      rmpath(fullfile(current_dir, 'pipeline'));
+      rmpath(fullfile(current_dir, 'For3D'));
+      rmpath(fullfile(current_dir, 'MicroMos'));
+      rmpath(fullfile(current_dir, 'simulation'));
+      savepath;
+    end
+
+    return;
   end
 
   % Start by moving inside the leachi_flow folder
