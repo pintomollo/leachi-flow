@@ -27,8 +27,9 @@ function [metadata, opts] = parse_metadata(data, opts)
 
   data = umanager2xml(data, max_iter);
   data = regexprep(data, '^\*.*\*', '');
+  start = find(data(1:end-1)=='<' & data(2:end)=='?', 1, 'first');
 
-  xml_data = parse_xml(data);
+  xml_data = parse_xml(data(start:end));
 
   xml_type = get_attribute(xml_data, 'xmlns');
   xml_type = regexp(xml_type, '^(http://)?(.*?)$', 'tokens');

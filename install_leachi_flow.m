@@ -23,6 +23,7 @@ function install_leachi_flow(recompile)
       rmpath(fullfile(current_dir, 'GUI'));
       rmpath(fullfile(current_dir, 'MEX'));
       rmpath(fullfile(current_dir, 'file_io'));
+      rmpath(fullfile(current_dir, 'bftools'));
       rmpath(fullfile(current_dir, 'helpers'));
       rmpath(fullfile(current_dir, 'image_analysis'));
       rmpath(fullfile(current_dir, 'libraries'));
