@@ -4,7 +4,7 @@ function [img, bkgs] = imfillborder(img)
 
   bkgs = NaN(1, c);
 
-  borders = (any(isnan(img), 3) | all(img==0, 3));
+  borders = (any(isnan(img), 3) | all(img==0, 3) | all(img==1, 3));
   borders = ~(imfill(~borders, 'holes'));
 
   empty_rows = all(borders, 2);
