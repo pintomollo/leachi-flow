@@ -4,7 +4,13 @@ function [img, bkgs] = imfillborder(img)
 
   bkgs = NaN(1, c);
 
-  borders = (any(isnan(img), 3) | all(img==0, 3) | all(img==1, 3));
+  if (isfloat(img))
+    maxs = all(img==1, 3);
+  else
+    maxs = all(img==intmax(class(img)), 3);
+  end
+
+  borders = (any(isnan(img), 3) | all(img==0, 3) | maxs);
   borders = ~(imfill(~borders, 'holes'));
 
   empty_rows = all(borders, 2);
