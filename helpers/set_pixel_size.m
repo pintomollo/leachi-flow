@@ -37,10 +37,10 @@ function params = set_pixel_size(params, pixel_size)
     return;
 
   % Otherwise, we have only the option structure provided
-  elseif (nargin == 1 | isempty(pixel_size))
+  elseif (nargin == 1 || isempty(pixel_size))
 
     % We need at least these two fields to exist
-    if (isfield(params, 'ccd_pixel_size') & isfield(params, 'magnification'))
+    if (isfield(params, 'ccd_pixel_size') && isfield(params, 'magnification'))
 
       % Maybe there is even binning
       if (isfield(params, 'binning'))
@@ -68,7 +68,7 @@ function params = set_pixel_size(params, pixel_size)
     for i=1:length(fields)
 
       % If it's a string, maybe we can set something here
-      if (ischar(params(n).(fields{i})) & ~isempty(pixel_size))
+      if (ischar(params(n).(fields{i})) && ~isempty(pixel_size))
 
         % Get the comamnds and split them per line
         commands = params(n).(fields{i});
