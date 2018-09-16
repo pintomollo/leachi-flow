@@ -2,12 +2,31 @@ function dragzoom2D(hAx)
 %DRAGZOOM2D Drag and zoom tool simplified from dragzoom
 %
 % Description:
-%   DRAGZOOM allows you to interactively manage the axes in figure.
+%   DRAGZOOM2D allows you to interactively manage the axes in figure.
 %   This simple function for usable draging and zooming of axes, using the 
 %   mouse and the keyboard shortcuts.
 %
 % Using:
 %   dragzoom(hAx)
+%
+% Interactive mode:
+%   Mouse actions:
+%       single-click and holding LB : Activation Drag mode
+%       single-click and holding RB : Activation Rubber Band for region zooming
+%       single-click MB             : Activation 'Extend' Zoom mode
+%       double-click LB, RB, MB     : Reset to Original View
+% 
+%   Hotkeys:
+%       '+'                         : Zoom plus
+%       '-'                         : Zoom minus
+%       '0'                         : Set default axes (reset to original view)
+%       'uparrow'                   : Up or down (inrerse) drag
+%       'downarrow'                 : Down or up (inverse) drag
+%       'leftarrow'                 : Left or right (inverse) drag
+%       'rightarrow'                : Right or left (inverse) drag
+%       'x'                         : If pressed, toggles zoom and drag only for X axis
+%       'y'                         : If pressed, toggles zoom and drag only for Y axis
+%
 
     if (nargin == 1 && ishandle(hAx) && strncmp(get(hAx, 'Type'), 'axes', 4))
         hFig = ancestor(hAx, 'figure');
@@ -194,7 +213,7 @@ function WindowButtonMotionCallback2D(src, evnt)  %#ok
         params.mStartX = cx;
         params.mStartY = cy;
 
-        if (~params.fIsImage)
+        if (params.fIsImage)
             pdy = -pdy;
         end
         
@@ -349,7 +368,7 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
         
         if params.fIsImage
             params.mZoomIndexX = params.mZoomIndexX + dz;
-            params.mZoomIndexY = params.mZoomIndexY;
+            params.mZoomIndexY = params.mZoomIndexX;
         else
             if params.fIsEnableZoomX
                 params.mZoomIndexX = params.mZoomIndexX + dz;
@@ -371,6 +390,8 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
         %PointerCrossUpdate();
         %SetDefaultZoomGrid();
     end
+
+    set(src, 'userdata', params);
 end
 %--------------------------------------------------------------------------
 
@@ -443,7 +464,7 @@ function params = Setup(hAx)
         'fIsEnableDragY', true, ...
         'fIsEnableZoomX', true, ...
         'fIsEnableZoomY', true, ...
-        'fIsImage', isempty(h));
+        'fIsImage', ~isempty(h));
 
 end
 %--------------------------------------------------------------------------
