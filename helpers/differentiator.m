@@ -19,19 +19,12 @@ function dy = differentiator(varargin)
 %   standard one, thus using polynomes of degree 4 instead of 2 for the noise supression.
 %   This option is not available for the CFD method.
 %
-%   DY = DIFFERENTIATOR(..., BOUNDARY) specifies the type of boundary condition (necessary
-%   to obtain DY with as many elements as Y. Available types of boundary condition are:
-%     - 'circular'  : consider Y as being circular (Y(1) is next to Y(end))
-%     - 'replicate' : repeats the border elements
-%     - 'symmetric' : uses a mirror reflection of Y
-%
 %   DY = DIFFERENTIATOR(Y) computes the derivative assuming:
 %     - X        = uniformly-spaced points
 %     - DIM      = first non-singleton dimension
 %     - N        = 7
 %     - METHOD   = 'lanczos'
 %     - IS_SUPER = false
-%     - BOUNDARY = 'symmetric'
 %
 % Both the methods and the coefficients have been developed by Pavel Holoborodko:
 % http://www.holoborodko.com/pavel/numerical-methods/numerical-derivative/
@@ -40,7 +33,7 @@ function dy = differentiator(varargin)
 % Simon Blanchoud
 % 16.12.2011
 
-  [x, y, dim, nneigh, method, super, boundary] = parse_input(varargin{:});
+  [x, y, dim, nneigh, method, super] = parse_input(varargin{:});
 
   if (isempty(y))
     dy = y;
@@ -69,12 +62,15 @@ function dy = differentiator(varargin)
   y = y(valids, :);
   x = x(valids, :);
 
+  if (nrepeat > sizey(dim))
+    error('DIFFERENTIATOR: not enough datapoints to differentiate.');
+  end
+
   index = [1:size(y,1)] + center - 1;
 
-  y = padarray(y, nrepeat, boundary, 'both');
-  x = padarray(x, nrepeat, 'symmetric', 'both');
-  x(1:nrepeat, :) = bsxfun(@minus, 2*x(nrepeat + 1, :), x(1:nrepeat, :)) - 1;
-  x(end-nrepeat+1:end, :) = bsxfun(@minus, 2*x(end-nrepeat, :), x(end-nrepeat+1:end, :)) + 1;
+  % Padding for the boundary computations
+  y = [y(nrepeat:-1:1,:); y; y(end:-1:end-nrepeat+1, :)];
+  x = [2*x(1,:) - x(nrepeat:-1:1,:) - 1; x; 2*x(end,:) - x(end:-1:end-nrepeat+1, :) + 1];
 
   if (~isempty(y))
     accum = zeros(size(y) - [2*nrepeat 0]);
@@ -176,18 +172,16 @@ function coefs = get_coefs(method, nneigh, super)
   return;
 end
 
-function [x, y, dim, nneigh, method, super, boundary] = parse_input(varargin)
+function [x, y, dim, nneigh, method, super] = parse_input(varargin)
 
   x = [];
   y = [];
   dim = 0;
   nneigh = 7;
   method = 'lanczos';
-  boundary = 'symmetric';
   super = false;
 
   for i = 1:length(varargin)
-    %var_type = get_type(varargin{i});
     if (isempty(varargin{i}))
       dim = 1;
     else
@@ -209,8 +203,6 @@ function [x, y, dim, nneigh, method, super, boundary] = parse_input(varargin)
           super = varargin{i};
         case 'char'
           switch varargin{i}
-            case {'symmetric', 'replicate', 'circular'}
-              boundary = varargin{i};
             case 'super'
               super = true;
             otherwise
@@ -230,7 +222,7 @@ function [x, y, dim, nneigh, method, super, boundary] = parse_input(varargin)
   first_dim = find(good_dims, 1, 'first');
 
   if (~isempty(first_dim))
-    if (dim == 0 | ~good_dims(dim))
+    if (dim == 0 || ~good_dims(dim))
       dim = first_dim;
     end
 
@@ -253,9 +245,9 @@ function [x, y, dim, nneigh, method, super, boundary] = parse_input(varargin)
         nneigh = 3;
       end
     case {'lanczos', 'noise'}
-      if (super & nneigh < 7)
+      if (super && nneigh < 7)
         nneigh = 7;
-      elseif (~super & nneigh < 5)
+      elseif (~super && nneigh < 5)
         nneigh = 5;
       end
   end

@@ -136,7 +136,8 @@ function [all_coords, sizes] = find_zooids(img, systems, params)
   %orig_coords = all_coords;
 
   mval = nanmedian(all_coords(:,3:5), 1);
-  sval = 1.4826 * mad(all_coords(:,3:5), 0, 1);
+  %sval = 1.4826 * mad(all_coords(:,3:5), 0, 1);
+  sval = 1.4826 * nanmean(abs(bsxfun(@minus, all_coords(:,3:5), nanmean(all_coords(:,3:5),1))), 1);
 
   if (any(isnan(mval) | isnan(sval)))
     all_coords = NaN(1,2);

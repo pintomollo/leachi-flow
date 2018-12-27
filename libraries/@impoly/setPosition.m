@@ -5,17 +5,20 @@ function setPosition(obj, pos, ypos)
   end
 
   if (nargin == 3)
-  	pos = [pos(:), ypos(:)];
+  pos = [pos(:), ypos(:)];
   end
 
   data = get(obj.hPolygon, 'userdata');
 
   data.position = pos;
+  if (data.is_closed)
+    pos = pos([1:end 1], :);
+  end
 
-  set(obj.hEdges, 'xdata', pos(:,1), 'ydata', pos(:,2));
-  set(obj.hVertex, 'xdata', pos(:,1), 'ydata', pos(:,2));
+  set(obj.hPolygon, 'xdata', pos(:,1), 'ydata', pos(:,2));
+  %set(obj.hVertex, 'xdata', pos(:,1), 'ydata', pos(:,2));
 
-  data.is_closed = (size(pos, 1)>1 && all(pos(1,:) == pos(end,:)));
+  %data.is_closed = (size(pos, 1)>1 && all(pos(1,:) == pos(end,:)));
 
   set(obj.hPolygon, 'userdata', data);
 

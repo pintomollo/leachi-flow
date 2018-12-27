@@ -1,15 +1,15 @@
 function dragzoom2D(hAx)
-%DRAGZOOM2D Drag and zoom tool simplified from dragzoom
+%DRAGZOOM2D Drag and zoom tool (simplified from dragzoom.m by Evgeny Pr)
 %
 % Description:
-%   DRAGZOOM2D allows you to interactively manage the axes in figure.
-%   This simple function for usable draging and zooming of axes, using the 
-%   mouse and the keyboard shortcuts.
+%   DRAGZOOM2D allows you to interactively manage the axes in a figure
+%   through draging and zooming using the mouse and keyboard shortcuts.
 %
 % Using:
-%   dragzoom(hAx)
+%   dragzoom()                      : manages the axis from gca()
+%   dragzoom(hAx)                   : manages the axis from the handle hAx
 %
-% Interactive mode:
+% Interactions:
 %   Mouse actions:
 %       single-click and holding LB : Activation Drag mode
 %       single-click and holding RB : Activation Rubber Band for region zooming
@@ -17,26 +17,89 @@ function dragzoom2D(hAx)
 %       double-click LB, RB, MB     : Reset to Original View
 % 
 %   Hotkeys:
-%       '+'                         : Zoom plus
-%       '-'                         : Zoom minus
-%       '0'                         : Set default axes (reset to original view)
-%       'uparrow'                   : Up or down (inrerse) drag
-%       'downarrow'                 : Down or up (inverse) drag
-%       'leftarrow'                 : Left or right (inverse) drag
-%       'rightarrow'                : Right or left (inverse) drag
-%       'x'                         : If pressed, toggles zoom and drag only for X axis
-%       'y'                         : If pressed, toggles zoom and drag only for Y axis
+%       '+' or '>' or ','           : Zoom plus
+%       '-' or '<' or '.'           : Zoom minus
+%       '0' or '='                  : Set default axes (reset to original view)
+%       'uparrow'                   : Up drag
+%       'downarrow'                 : Down drag
+%       'leftarrow'                 : Left drag
+%       'rightarrow'                : Right drag
+%       'x'                         : Toggles zoom and drag only for X axis
+%       'y'                         : Toggles zoom and drag only for Y axis
 %
+% Adapted from dragzoom.m, version 0.9.7 by Evgeny Pr aka iroln <esp.home@gmail.com>
+% Simon Blanchoud
+% University of Fribourg
+% 28.09.2018
 
-    if (nargin == 1 && ishandle(hAx) && strncmp(get(hAx, 'Type'), 'axes', 4))
+% The initial objective was to make dragzoom.m compatible with Octave by solving the 
+% nested callback problems. Given the tremendous amount of code written by Evgeny, I
+% decided to simplify it as much as possible and stick to 2D. In addition, I tried
+% to compact the original code and linearize it as much as possible. Original calls
+% to linearized functions are indicated by "%---". To circumvent the limitations of
+% removing nested functions, a parameter structure has been created and is stored in
+% the parent figure.
+
+    % Get the handles to the axis and the parent figure
+    if (nargin == 0)
+        hAx = gca();
+        hFig = ancestor(hAx, 'figure');
+    elseif (nargin == 1 && ishandle(hAx) && strncmp(get(hAx, 'Type'), 'axes', 4) && length(hAx) == 1)
         hFig = ancestor(hAx, 'figure');
     else
         error('dragzoom2D:invalidInputs', ...
-            'Input must be an axes handle.')
+            'Input must be a single axes handle.')
     end
 
-    params = Setup(hAx);
+    %---params = Setup(hAx);
+    % Setup options
+    % Used to test whether the axis has an image in it
+    h = findobj(hAx, 'Type', 'Image');
+        
+    % Default values for the zoom grid
+    mZoomMinPow = 0;
+    mZoomMaxPow = 5;
+    mZoomNum = 51;
+    mZoomIndex = 11; % index of 100%
+    [mDefaultZoomGrid, mDefaultZoomSteps] = ...
+        ZoomLogGrid(mZoomMinPow, mZoomMaxPow, mZoomNum);
+    
+    % Parameters structure with handles and default values
+    params = struct('hAx', hAx, ...
+        'mStartX', [], ...
+        'mStartY', [], ...
+        'mBindX', [], ...
+        'mBindY', [], ...
+        'mDragShiftStep', 3, ...
+        'mDragSaveShiftStep', 3, ...
+        'mDragShiftStepInc', 1, ...
+        'mZoomMinPow', mZoomMinPow, ...
+        'mZoomMaxPow', mZoomMaxPow, ...
+        'mZoomNum', mZoomNum, ...
+        'mZoomExtendNum', 301, ...
+        'mZoomKeysNum', 181, ...
+        'mDefaultZoomGrid', mDefaultZoomGrid, ...
+        'mDefaultZoomSteps', mDefaultZoomSteps, ...
+        'mZoomGrid', mDefaultZoomGrid, ...
+        'mZoomSteps', mDefaultZoomSteps, ...
+        'mZoomIndexX', mZoomIndex, ...
+        'mZoomIndexY', mZoomIndex, ...
+        'mDefaultXLim', get(hAx, 'XLim'), ...
+        'mDefaultYLim', get(hAx, 'YLim'), ...
+        'mRubberBand', [], ...
+        'mRbEdgeColor', 'k', ...
+        'mRbFaceColor', 'none', ...
+        'mRbFaceAlpha', 1, ...
+        'fIsDragAllowed', false, ...
+        'fIsZoomExtendAllowed', false, ...
+        'fIsRubberBandOn', false, ...
+        'fIsEnableDragX', true, ...
+        'fIsEnableDragY', true, ...
+        'fIsEnableZoomX', true, ...
+        'fIsEnableZoomY', true, ...
+        'fIsImage', ~isempty(h));
 
+    % Defines the handles to the callback functions and the parameter structure
     set(hFig, 'CurrentAxes', hAx, ...
         'userdata', params, ...
         'WindowButtonDownFcn',      {@WindowButtonDownCallback2D}, ...
@@ -49,17 +112,22 @@ function dragzoom2D(hAx)
 
     return;
 end
-
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function WindowButtonDownCallback2D(src, evnt)    %#ok
-    %WindowButtonDownCallback2D
+    %WindowButtonDownCallback2D called when the mouse clicks. Typically,
+    % mouse position will be stored to be compared during the movement to 
+    % update the axis according to the amplitude of the movement.
     
+    % Retrieve the parameter structure and the type of event
     params = get(src, 'userdata');
     clickType = get(src, 'SelectionType');
     
+    % Defines the type of mouse click
     switch clickType
+
+        % Left click: dragging
         case 'normal'
             %----DragMouseBegin();
             if (~params.fIsDragAllowed)
@@ -70,11 +138,15 @@ function WindowButtonDownCallback2D(src, evnt)    %#ok
                 
                 params.fIsDragAllowed = true;
             end
+
+        % Double click: reset
         case 'open'
             %---ResetAxesToOrigView();
             SetAxesLimits(params.hAx, params.mDefaultXLim, params.mDefaultYLim);
             params.mZoomIndexX = find(params.mZoomGrid == 100);
             params.mZoomIndexY = params.mZoomIndexX;
+
+        % Right click: rubber band zoom
         case 'alt'
             %---RubberBandBegin();
             if (~params.fIsRubberBandOn)
@@ -106,10 +178,11 @@ function WindowButtonDownCallback2D(src, evnt)    %#ok
                 
                 params.fIsRubberBandOn = true;
             end
+
+        % Middle click: zooming
         case 'extend'
             %---ZoomMouseExtendBegin();
             if ~params.fIsZoomExtendAllowed
-                %UpdateCurrentZoomAxes();
                 
                 % set new zoom grid for extend zoom
                 [params.mZoomGrid, params.mZoomSteps] = ZoomLogGrid(params.mZoomMinPow, params.mZoomMaxPow, params.mZoomExtendNum);
@@ -133,15 +206,21 @@ function WindowButtonDownCallback2D(src, evnt)    %#ok
             end
     end
 
+    % Stores the updated parameter structure
     set(src, 'userdata', params);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function WindowButtonUpCallback2D(src, evnt)      %#ok
-    %WindowButtonUpCallback2D
+    %WindowButtonUpCallback2D called when the mouse click is released.
+    % Typically this is where we end the updating of the axis.
     
     params = get(src, 'userdata');
+
+    if (isempty(params) || ~isfield(params, 'fIsDragAllowed'))
+        return;
+    end
 
     %---DragMouseEnd();
     if params.fIsDragAllowed
@@ -150,12 +229,11 @@ function WindowButtonUpCallback2D(src, evnt)      %#ok
 
     %---ZoomMouseExtendEnd();
     if params.fIsZoomExtendAllowed
-        % set default zoom grid
         %---SetDefaultZoomGrid();
         params.mZoomGrid = params.mDefaultZoomGrid;
         params.mZoomSteps = params.mDefaultZoomSteps;
         
-        params.mZoomIndexX = params.find(mZoomGrid == 100);
+        params.mZoomIndexX = find(params.mZoomGrid == 100);
         params.mZoomIndexY = params.mZoomIndexX;
 
         params.fIsZoomExtendAllowed = false;
@@ -164,12 +242,13 @@ function WindowButtonUpCallback2D(src, evnt)      %#ok
     %---RubberBandEnd();
     if params.fIsRubberBandOn
         params.fIsRubberBandOn = false;
-        
         delete(params.mRubberBand.obj);          
+
         %---RubberBandZoomAxes();
         xLim = sort([params.mRubberBand.x1, params.mRubberBand.x2]);
         yLim = sort([params.mRubberBand.y1, params.mRubberBand.y2]);
         
+        % Fix the final zoom factor to one of the values in the grid
         if (range(xLim) ~= 0 && range(yLim) ~= 0)
             [zoomPctX, zoomPctY] = GetCurrentZoomAxesPercent(params.hAx, ...
                 xLim, yLim, params.mDefaultXLim, params.mDefaultYLim);
@@ -193,14 +272,19 @@ function WindowButtonUpCallback2D(src, evnt)      %#ok
         params.mRubberBand = [];
     end
 
+    % Store the updated parameters structure
     set(src, 'userdata', params);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function WindowButtonMotionCallback2D(src, evnt)  %#ok
-    %WindowButtonMotionCallback2D
+    %WindowButtonMotionCallback2D is called when the mouse is moved on
+    % the figure. Typically this is where the axes are updated according
+    % to the amplitude of the movement and update the position for the
+    % next iteration.
             
+    % Retrieve the parameter structure
     params = get(src, 'userdata');
 
     %---DragMouse();
@@ -241,20 +325,18 @@ function WindowButtonMotionCallback2D(src, evnt)  %#ok
     if params.fIsZoomExtendAllowed
         
         % Heuristic for pixel change to camera zoom factor 
-        % (taken from function ZOOM)
+        % (taken from function ZOOM, used in dragzoom.m)
         [wcx, wcy] = GetCursorCoordOnWindow(src);
         
         xy(1) = wcx - params.mStartX;
         xy(2) = wcy - params.mStartY;
         q = max(-0.9, min(0.9, sum(xy)/70)) + 1;
 
-        %directions = {'minus', 'plus'};
+        % Move one step along the zooming grid
         if (q < 1)
-            %direction = directions{1};
             dz = -1;
         elseif (q > 1)
-            %direction = directions{2};
-            dz = -1;
+            dz = 1;
         else
             return;
         end
@@ -262,6 +344,7 @@ function WindowButtonMotionCallback2D(src, evnt)  %#ok
         %---ZoomAxes(direction, mZoom3DBindX, mZoom3DBindY)
         [xLim, yLim] = GetAxesLimits(params.hAx);
         
+        % Keep a fixed axis ratio for images
         if params.fIsImage
             params.mZoomIndexX = params.mZoomIndexX + dz;
             params.mZoomIndexY = params.mZoomIndexY;
@@ -273,6 +356,12 @@ function WindowButtonMotionCallback2D(src, evnt)  %#ok
                 params.mZoomIndexY = params.mZoomIndexY + dz;
             end
         end
+
+        % Make sure we stay within the zooming grid
+        nz = length(params.mZoomGrid);
+        params.mZoomIndexX = min(max(params.mZoomIndexX, 1), nz);
+        params.mZoomIndexY = min(max(params.mZoomIndexY, 1), nz);
+
         xLim = RecalcZoomAxesLimits(xLim, params.mDefaultXLim, ...
             params.mBindX, params.mZoomGrid(params.mZoomIndexX), ...
             strcmp(get(params.hAx, 'xscale'), 'log'));
@@ -286,33 +375,39 @@ function WindowButtonMotionCallback2D(src, evnt)  %#ok
         params.mStartY = wcy;            
     end
 
+    % Store the updated parameter structure
     set(src, 'userdata', params);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function WindowKeyPressCallback2D(src, evnt)      %#ok
-    %WindowKeyPressCallback2D
+    %WindowKeyPressCallback2D is called when a keyboard key is pressed.
+    % Typically used as an alterative to the mouse interactions and applies
+    % discrete changes to the axis.
 
+    % Get the parameter structure
     params = get(src, 'userdata');
-    modifier = evnt.Modifier;
+
+    % We need a default value for the zoom factor to avoid duplicating
+    % the rather length code for zooming.
     dz = 0;
 
+    % Switch through the keys
     switch evnt.Key
-        case '0'
+        case {'0', 'equal'}
             %---ResetAxesToOrigView();
             SetAxesLimits(params.hAx, params.mDefaultXLim, params.mDefaultYLim);
             params.mZoomIndexX = find(params.mZoomGrid == 100);
             params.mZoomIndexY = params.mZoomIndexX;
-        case {'equal', 'add', 'plus', '1'}
-            %ZoomKeys('plus');
+        case {'add', 'plus', 'greater', 'comma'}
+            %---ZoomKeys('plus');
             dz = 1;
-        case {'hyphen', 'subtract', 'minus', 'slash'}
-            %ZoomKeys('minus');
+        case {'hyphen', 'subtract', 'minus', 'less', 'period'}
+            %---ZoomKeys('minus');
             dz = -1;
         case {'leftarrow', 'rightarrow', 'uparrow', 'downarrow', ...}
                 'left', 'right', 'up', 'down'}
-
             %---DragKeys('...');
             dx = params.mDragShiftStep;
             dy = params.mDragShiftStep;
@@ -320,6 +415,7 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
             % Increment of speed when you hold the button
             params.mDragShiftStep = params.mDragShiftStep + params.mDragShiftStepInc;
             
+            % Determine which movement increment to keep
             switch evnt.Key(1)
                 case 'r'
                     dx = -dx;
@@ -333,6 +429,7 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
                     dy = -dy;
             end
 
+            % Y-axis is inverted in images
             if (params.fIsImage)
                 pdy = -pdy;
             end
@@ -341,19 +438,20 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
                 params.fIsEnableDragX, params.fIsEnableDragY);
     
         case 'x'
-            %DragEnable('y', 'off');
-            %ZoomEnable('y', 'off');
+            % Toggles zoom & drag restriction along the X axis
+            % by forbidding movements along the Y axis
             params.fIsEnableDragY = ~params.fIsEnableDragY;
             params.fIsEnableZoomY = ~params.fIsEnableZoomY;
+
         case 'y'
-            %DragEnable('x', 'off');
-            %ZoomEnable('x', 'off');
+            % Toggles along the Y axis
             params.fIsEnableDragX = ~params.fIsEnableDragX;
             params.fIsEnableZoomX = ~params.fIsEnableZoomX;
     end
 
+    % Merged both zoom actions into a single one
     if (dz ~= 0)
-        %UpdateCurrentZoomAxes();
+        %---UpdateCurrentZoomAxes();
         
         % set new zoom grid for extend zoom
         [params.mZoomGrid, params.mZoomSteps] = ZoomLogGrid(params.mZoomMinPow, params.mZoomMaxPow, params.mZoomExtendNum);
@@ -377,6 +475,12 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
                 params.mZoomIndexY = params.mZoomIndexY + dz;
             end
         end
+
+        % Make sure we stay within the zooming grid
+        nz = length(params.mZoomGrid);
+        params.mZoomIndexX = min(max(params.mZoomIndexX, 1), nz);
+        params.mZoomIndexY = min(max(params.mZoomIndexY, 1), nz);
+
         xLim = RecalcZoomAxesLimits(xLim, params.mDefaultXLim, ...
             acx, params.mZoomGrid(params.mZoomIndexX), ...
             strcmp(get(params.hAx, 'xscale'), 'log'));
@@ -385,104 +489,46 @@ function WindowKeyPressCallback2D(src, evnt)      %#ok
             strcmp(get(params.hAx, 'yscale'), 'log'));
         
         SetAxesLimits(params.hAx, xLim, yLim);
-        
-        %ZoomAxes(direction, acx, acy)
-        %PointerCrossUpdate();
-        %SetDefaultZoomGrid();
     end
 
+    % Store the updated parameter structure
     set(src, 'userdata', params);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function WindowKeyReleaseCallback2D(src, evnt)    %#ok
-    %WindowKeyReleaseCallback2D
-    
-    params = get(src, 'userdata');
+    %WindowKeyReleaseCallback2D is called when a pressed key is released.
+    % The only usage is to restore the incremented drag shift to its
+    % original value.
 
     switch evnt.Key
-        case {'leftarrow', 'rightarrow', 'uparrow', 'downarrow'}
+        case {'leftarrow', 'rightarrow', 'uparrow', 'downarrow', ...}
+                'left', 'right', 'up', 'down'}
+            params = get(src, 'userdata');
             params.mDragShiftStep = params.mDragSaveShiftStep;
-        %case 'x'
-            %DragEnable('y', 'on');
-            %ZoomEnable('y', 'on');
-        %    params.fIsEnableDragY = true;
-        %    params.fIsEnableZoomY = true;
-        %case 'y'
-            %DragEnable('x', 'on');
-            %ZoomEnable('x', 'on');
-        %    params.fIsEnableDragY = true;
-        %    params.fIsEnableZoomY = true;
+            set(src, 'userdata', params);
     end
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-function params = Setup(hAx)
-    %Setup setup options
-            
-    h = findobj(hAx, 'Type', 'Image');
-        
-    mZoomMinPow = 0;
-    mZoomMaxPow = 5;
-    mZoomNum = 51;
-    mZoomIndex = 11; % 100%
-    [mDefaultZoomGrid, mDefaultZoomSteps] = ...
-        ZoomLogGrid(mZoomMinPow, mZoomMaxPow, mZoomNum);
-    
-    % handles
-    params = struct('hAx', hAx, ...
-        'mStartX', [], ...
-        'mStartY', [], ...
-        'mBindX', [], ...
-        'mBindY', [], ...
-        'mDragShiftStep', 3, ...
-        'mDragSaveShiftStep', 3, ...
-        'mDragShiftStepInc', 1, ...
-        'mZoomMinPow', mZoomMinPow, ...
-        'mZoomMaxPow', mZoomMaxPow, ...
-        'mZoomNum', mZoomNum, ...
-        'mZoomExtendNum', 301, ...
-        'mZoomKeysNum', 181, ...
-        'mDefaultZoomGrid', mDefaultZoomGrid, ...
-        'mDefaultZoomSteps', mDefaultZoomSteps, ...
-        'mZoomGrid', mDefaultZoomGrid, ...
-        'mZoomSteps', mDefaultZoomSteps, ...
-        'mZoomIndexX', mZoomIndex, ...
-        'mZoomIndexY', mZoomIndex, ...
-        'mDefaultXLim', get(hAx, 'XLim'), ...
-        'mDefaultYLim', get(hAx, 'YLim'), ...
-        'mRubberBand', [], ...
-        'mRbEdgeColor', 'k', ...
-        'mRbFaceColor', 'none', ...
-        'mRbFaceAlpha', 1, ...
-        'fIsDragAllowed', false, ...
-        'fIsZoomExtendAllowed', false, ...
-        'fIsRubberBandOn', false, ...
-        'fIsEnableDragX', true, ...
-        'fIsEnableDragY', true, ...
-        'fIsEnableZoomX', true, ...
-        'fIsEnableZoomY', true, ...
-        'fIsImage', ~isempty(h));
-
-end
-%--------------------------------------------------------------------------
-
-%==========================================================================
 function DragAxes(hAx, pdx, pdy, fIsEnableDragX, fIsEnableDragY)
-    %DragAxes
+    %DragAxes a subfunction responsible for calculating the new axes limits
+    % based on the provided movement increment.
     
     [xLim, yLim] = GetAxesLimits(hAx);
     
-    pos = GetObjPos(hAx, 'Pixels');
+    %---pos = GetObjPos(hAx, 'Pixels');
+    dfltUnits = get(hAx, 'Units');
+    set(hAx, 'Units', 'Pixels');
+    pos = get(hAx, 'Position');
+    set(hAx, 'Units', dfltUnits);
+
     pbar = get(hAx, 'PlotBoxAspectRatio');
     
-    %NOTE: MATLAB Bug?
-    % Fixed problem with AspectRatio and Position of Axes
-    % MATLAB Function PAN is not correct works with rectangular images!
-    % Here it is correctly.
-    
+    % Heuristic for replacing the PAN function that has some type
+    % of bug according to Evgeny (used in dragzoom.m)
     imAspectRatioX = pbar(2) / pbar(1);
     if (imAspectRatioX ~= 1)
         posAspectRatioX = pos(3) / pos(4);
@@ -541,13 +587,15 @@ function DragAxes(hAx, pdx, pdy, fIsEnableDragX, fIsEnableDragY)
         end
     end
     
+    % Applies the new limits to the axes
     SetAxesLimits(hAx, xLim, yLim);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
 function [curentZoomX, curentZoomY] = GetCurrentZoomAxesPercent(hAx, xLim, yLim, mDefaultXLim, mDefaultYLim)
-    %GetCurrentZoomAxesPercent
+    %GetCurrentZoomAxesPercent determines given the current axes limits 
+    % which zoom factor we are using.
     
     if strcmp(get(hAx, 'xscale'), 'log')
         xLim = log10(xLim);
@@ -568,106 +616,97 @@ end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-    function [x, y, z] = GetCursorCoordOnAxes(hAx)
-        %GetCursorCoordOnAxImg
-        
-        crd = get(hAx, 'CurrentPoint');
-        x = crd(2,1);
-        y = crd(2,2);
-        z = crd(2,3);
-    end
-%--------------------------------------------------------------------------
-
-%==========================================================================
-    function [x, y] = GetCursorCoordOnWindow(hFig)
-        %GetCursorCoordOnWindow
-        
-        dfltUnits = get(hFig, 'Units');
-        set(hFig, 'Units', 'pixels');
-        
-        crd = get(hFig, 'CurrentPoint');
-        x = crd(1); 
-        y = crd(2);
-        
-        set(hFig, 'Units', dfltUnits);
-    end
-%--------------------------------------------------------------------------
-
-%==========================================================================
-function pos = GetObjPos(h, units)
-    %GetObjPos get object position
+function [x, y] = GetCursorCoordOnAxes(hAx)
+    %GetCursorCoordOnAxImg helper function to get the position of the
+    % mouse in the coordinates of the axis.
     
-    dfltUnits = get(h, 'Units');
-    set(h, 'Units', units);
-    pos = get(h, 'Position');
-    set(h, 'Units', dfltUnits);
+    crd = get(hAx, 'CurrentPoint');
+    x = crd(2,1);
+    y = crd(2,2);
 end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-    function [xLim, yLim] = GetAxesLimits(hAx)
-        %GetAxesLimits
-        
-        xLim = get(hAx, 'XLim');
-        yLim = get(hAx, 'YLim');
-    end
+function [x, y] = GetCursorCoordOnWindow(hFig)
+    %GetCursorCoordOnWindow get the position of the mouse on the figure
+    % in pixels
+    
+    dfltUnits = get(hFig, 'Units');
+    set(hFig, 'Units', 'pixels');
+    
+    crd = get(hFig, 'CurrentPoint');
+    x = crd(1); 
+    y = crd(2);
+    
+    set(hFig, 'Units', dfltUnits);
+end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-    function SetAxesLimits(hAx, xLim, yLim)
-        %SetAxesLimits
-        
-        set(hAx, 'XLim', xLim);
-        set(hAx, 'YLim', yLim);
-    end
+function [xLim, yLim] = GetAxesLimits(hAx)
+    %GetAxesLimits
+    
+    xLim = get(hAx, 'XLim');
+    yLim = get(hAx, 'YLim');
+end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-    function axLim = RecalcZoomAxesLimits(axLim, axLimDflt, zcCrd, zoomPct, isLog)
-        %RecalcZoomAxesLimits recalc axes limits
-        
-        if isLog
-            axLim = log10(axLim);
-            %axLim = FixInfLogLimits(ax, axLim);
-            axLimDflt = log10(axLimDflt);
-            zcCrd = log10(zcCrd);
+function SetAxesLimits(hAx, xLim, yLim)
+    %SetAxesLimits
+    
+    set(hAx, 'XLim', xLim);
+    set(hAx, 'YLim', yLim);
+end
+%--------------------------------------------------------------------------
 
-            if (~all(isfinite(axLim)) || ~all(isreal(axLim)))
-                axLim = axLimDflt;
-            end
-        end
-                
-        if (zcCrd < axLim(1)), zcCrd = axLim(1); end
-        if (zcCrd > axLim(2)), zcCrd = axLim(2); end
-        
-        rf = range(axLim);
-        ra = range([axLim(1), zcCrd]);
-        rb = range([zcCrd, axLim(2)]);
-        
-        cfa = ra / rf; 
-        cfb = rb / rf;
-        
-        newRange = range(axLimDflt) * 100 / zoomPct;
-        dRange = newRange - rf;
-        
-        axLim(1) = axLim(1) - dRange * cfa;
-        axLim(2) = axLim(2) + dRange * cfb;
-        
-        if isLog
-            axLim = 10.^axLim;
+%==========================================================================
+function axLim = RecalcZoomAxesLimits(axLim, axLimDflt, zcCrd, zoomPct, isLog)
+    %RecalcZoomAxesLimits recalculates the axes limits
+    
+    if isLog
+        axLim = log10(axLim);
+        %---axLim = FixInfLogLimits(ax, axLim);
+        axLimDflt = log10(axLimDflt);
+        zcCrd = log10(zcCrd);
+
+        % Simple hack to avoid using the original undocumented
+        % axis function
+        if (~all(isfinite(axLim)) || ~all(isreal(axLim)))
+            axLim = axLimDflt;
         end
     end
+            
+    if (zcCrd < axLim(1)), zcCrd = axLim(1); end
+    if (zcCrd > axLim(2)), zcCrd = axLim(2); end
+    
+    rf = range(axLim);
+    ra = range([axLim(1), zcCrd]);
+    rb = range([zcCrd, axLim(2)]);
+    
+    cfa = ra / rf; 
+    cfb = rb / rf;
+    
+    newRange = range(axLimDflt) * 100 / zoomPct;
+    dRange = newRange - rf;
+    
+    axLim(1) = axLim(1) - dRange * cfa;
+    axLim(2) = axLim(2) + dRange * cfb;
+    
+    if isLog
+        axLim = 10.^axLim;
+    end
+end
 %--------------------------------------------------------------------------
 
 %==========================================================================
-    function [zg, st] = ZoomLogGrid(a, b, n)
-        %ZoomLogGrid log zoom grid
-        
-        zg = unique(round(logspace(a, b, n)));
-        
-        zg(zg<10) = [];	% begin zoom == 10%
-        st = length(zg);
-        
-    end
+function [zg, st] = ZoomLogGrid(a, b, n)
+    %ZoomLogGrid creates the log zoom grid
+    
+    zg = unique(round(logspace(a, b, n)));
+    
+    zg(zg<10) = [];	% begin zoom == 10%
+    st = length(zg);
+    
+end
 %--------------------------------------------------------------------------
-
