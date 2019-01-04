@@ -51,6 +51,10 @@ function [] = colony_census(fname)
     myrecording = get_struct('myrecording');
   end
 
+  % Load the required packages
+  pkg load image;
+  pkg load statistics;
+
   % Create the GUI
   [hFig, handles] = create_figure(channels);
 
@@ -335,7 +339,7 @@ imghelp = ['DRAGZOOM2D interactions (help dragzoom2D):\n\n', imghelp{1}{1}];
                    'current', 1);
 
   % Link both axes to keep the same information on both sides
-  linkaxes(handles.axes);
+  %linkaxes(handles.axes);
 
   return;
 end
@@ -485,6 +489,7 @@ function data = update_display(data, recompute)
 
     % Drag and Zoom library from Evgeny Pr aka iroln
     dragzoom2D(handles.axes(1))
+    linkaxes(handles.axes);
   end
 
   if (recompute || indx ~= handles.prev_channel)
@@ -554,13 +559,13 @@ function remove_channel_Callback(hObject, eventdata)
       set(handles.list, 'String', tmp_list, 'Value', 1);
     end
 
-  % Update the data
-  data.handles = handles;
+    % Update the data
+    data.handles = handles;
 
     % Release the GUI and update
     data = update_display(data, true);
 
-  guidata(handles.hFig, data);
+    guidata(handles.hFig, data);
 
     set(handles.all_buttons, 'Enable', 'on');
   end
@@ -682,7 +687,7 @@ function options_Callback(hObject, eventdata)
   % Block the GUI
   set(handles.all_buttons, 'Enable', 'off');
   drawnow;
-  refresh(hFig);
+  refresh(handles.hFig);
 
   % And get the type of button which called the callback (from its tag)
   type = get(hObject, 'tag');
@@ -699,19 +704,31 @@ function options_Callback(hObject, eventdata)
       % Fancy output
       disp('[Select a SVG filename]');
 
+      curdir = '';
+      if(exist('export', 'dir'))
+        curdir = pwd;
+        cd('export');
+      end
+
       % Prompting the user for the filename
-      [fname, dirpath] = uiputfile({'*.svg', 'SVG vectorized image'}, ['Select a filename for your snapshot'], 'export/snapshot.svg');
+      [fname, dirpath] = uiputfile({'*.svg', 'SVG vectorized image'}, ['Select a filename for your snapshot'], fullfile(pwd, 'snapshot.svg'));
+
+      % Return back to our original folder
+      if(~isempty(curdir))
+        cd(curdir);
+      end
 
       % Not cancelled
       if (ischar(fname))
 
         % This might take a while
         curr_name = get(handles.hFig, 'Name');
-        set(hFig, 'Name', [curr_name ' (Saving snapshot...)']);
+        set(handles.hFig, 'Name', [curr_name ' (Saving snapshot...)']);
 
         % Get the full name and save the snapshot !
         fname = fullfile(dirpath, fname);
-        plot2svg(fname, hFig);
+        plot2svg(fname, handles.hFig);
+        %print(handles.hFig, fname, '-dsvg');
 
         % And release !
         set(handles.hFig, 'Name', curr_name);
@@ -841,10 +858,10 @@ function fnames = load_images()
   % In case a subfolder name Movies exists, move into it for prompting
   curdir = '';
   if(exist('Movies', 'dir'))
-    curdir = cd;
+    curdir = pwd;
     cd('Movies');
   elseif(exist(['..' filesep 'Movies'], 'dir'))
-    curdir = cd;
+    curdir = pwd;
     cd(['..' filesep 'Movies']);
   end
 

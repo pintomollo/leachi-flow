@@ -183,46 +183,28 @@ end
 if nargin<2 % Check if handle was included into function call, otherwise take current figure
     id=gcf;
 end
-if nargin==0
-    if PLOT2SVG_globals.octave
-        error('PLOT2SVG in Octave mode does not yet support a file menu. File name is needed during function call.')
-    else
-        [filename, pathname] = uiputfile( {'*.svg', 'SVG File (*.svg)'},'Save Figure as SVG File');
-        if ~( isequal( filename, 0) || isequal( pathname, 0))    
-            % yes. add backslash to path (if not already there)
-            pathname = addBackSlash( pathname); 
-            % check, if extension is allrigth
-            if ( ~strcmpi( getFileExtension( filename), '.svg'))
-                filename = [ filename, '.svg'];
-            end
-            finalname=[pathname filename];
-        else
-            disp('   Cancel button was pressed.')
-            return
+PLOT2SVG_globals.MainFigure = id;
+if nargin==0 || isnumeric(param1)
+
+    [filename, pathname] = uiputfile( {'*.svg', 'SVG File (*.svg)'},'Save Figure as SVG File', pwd);
+
+    if ~( isequal( filename, 0) || isequal( pathname, 0))    
+        % yes. add backslash to path (if not already there)
+        %pathname = addBackSlash( pathname); 
+        % check, if extension is allrigth
+        if ( ~strcmpi( getFileExtension( filename), '.svg'))
+            filename = [ filename, '.svg'];
         end
-    end
-else
-    if isnumeric(param1)
-        if PLOT2SVG_globals.octave
-            error('PLOT2SVG in Octave mode does not yet support a file menu. File name is needed during function call.')
-        else
-            [filename, pathname] = uiputfile( {'*.svg', 'SVG File (*.svg)'},'Save Figure as SVG File');  
-            if ~( isequal( filename, 0) || isequal( pathname, 0))    
-                % yes. add backslash to path (if not already there)
-                pathname = addBackSlash( pathname); 
-                % check, if ectension is allrigth
-                if ( ~strcmpi( getFileExtension( filename), '.svg'))
-                    filename = [ filename, '.svg'];
-                end
-                finalname=[pathname filename];
-            else
-                disp('   Cancel button was pressed.')
-                return
-            end
-        end
+        finalname=fullfile(pathname, filename);
+        %finalname=[pathname filename];
     else
-        finalname=param1;   
+        disp('   Cancel button was pressed.')
+        return
     end
+end
+
+if ~isnumeric(param1)
+    finalname=param1;   
 end
 % needed to see annotation axes
 originalShowHiddenHandles = get(0, 'ShowHiddenHandles');
@@ -252,7 +234,7 @@ end
 [pathstr,name] = fileparts(finalname);
 dirname = fullfile(pathstr, name);
 if (~isdir(dirname))
-  mkdir(dirname)
+  mkdir(dirname);
 end
 %PLOT2SVG_globals.basefilename = fullfile(pathstr,name);
 PLOT2SVG_globals.basefilepath = pathstr;
@@ -293,7 +275,7 @@ fprintf(fid,'</svg>\n');
 fclose(fid);    % close text file
 
 if (~PLOT2SVG_globals.used_dir)
-  rmdir(dirname)
+  rmdir(dirname);
 end
 
 if nargout==1
@@ -1079,24 +1061,15 @@ if strcmp(get(ax,'Visible'),'on')
         p = back_faces(pindex);
         for k = 1:size(corners,1)
             selectedCorners = squeeze(corners(k,:,p));
-            if verLessThan('matlab', '8.4.0')
-                gridAlpha = 1;
-                minorGridAlpha = 1;
-            else
-                gridAlpha = get(ax, 'GridAlpha');
-                minorGridAlpha = get(ax, 'MinorGridAlpha');
-            end
+            gridAlpha = get(ax, 'GridAlpha');
+            minorGridAlpha = get(ax, 'MinorGridAlpha');
             switch corners(k,1,p)
                 case 1 % x
                     % Draw x-grid
-                    if verLessThan('matlab', '8.4.0')
+                    if strcmp(get(ax, 'GridColorMode'), 'auto')
                         scolorname = get(ax, 'XColor');
                     else
-                        if strcmp(get(ax, 'GridColorMode'), 'auto')
-                            scolorname = get(ax, 'XColor');
-                        else
-                            scolorname = get(ax, 'GridColor');
-                        end
+                        scolorname = get(ax, 'GridColor');
                     end
                     scolorname = searchcolor(id,scolorname);
                     if strcmp(get(ax,'XGrid'),'on') && gridBehind
@@ -1120,14 +1093,10 @@ if strcmp(get(ax,'Visible'),'on')
                     end
                 case 2 % y
                     % Draw y-grid
-                    if verLessThan('matlab', '8.4.0')
+                    if strcmp(get(ax, 'GridColorMode'), 'auto')
                         scolorname = get(ax, 'YColor');
                     else
-                        if strcmp(get(ax, 'GridColorMode'), 'auto')
-                            scolorname = get(ax, 'YColor');
-                        else
-                            scolorname = get(ax, 'GridColor');
-                        end
+                        scolorname = get(ax, 'GridColor');
                     end
                     scolorname = searchcolor(id,scolorname);
                     if strcmp(get(ax,'YGrid'),'on') && gridBehind
@@ -1151,14 +1120,10 @@ if strcmp(get(ax,'Visible'),'on')
                     end
                 case 3 % z
                     % Draw z-grid
-                    if verLessThan('matlab', '8.4.0')
+                    if strcmp(get(ax, 'GridColorMode'), 'auto')
                         scolorname = get(ax, 'ZColor');
                     else
-                        if strcmp(get(ax, 'GridColorMode'), 'auto')
-                            scolorname = get(ax, 'ZColor');
-                        else
-                            scolorname = get(ax, 'GridColor');
-                        end
+                        scolorname = get(ax, 'GridColor');
                     end
                     scolorname = searchcolor(id,scolorname);
                     if strcmp(get(ax,'ZGrid'),'on') && gridBehind
@@ -1186,7 +1151,8 @@ if strcmp(get(ax,'Visible'),'on')
 end
 fprintf(fid,'    <g>\n');
 axchild=get(ax,'Children');
-if ~verLessThan('matlab','8.4.0')
+if ~PLOT2SVG_globals.octave
+%if ~verLessThan('matlab','8.4.0')
     % Matlab h2 engine
     axchild = [axchild; ax.Title; ax.XLabel; ax.YLabel; ax.ZLabel];
 end
@@ -1325,11 +1291,19 @@ if strcmp(get(ax,'Visible'),'on')
                 end
                 if strcmp(get(ax,'XAxisLocation'),'top') && (projection.xyplane == true)
                     for i = 1:length(axxindex)
-                        label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabelx(i,:)),align,angle,'bottom',1,paperpos,scolorname,exponent);
+                        if iscell(axlabelx)
+                          label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabelx{i}),align,angle,'bottom',1,paperpos,scolorname,exponent);
+                        else
+                          label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabelx(i,:)),align,angle,'bottom',1,paperpos,scolorname,exponent);
+                        end
                     end
                 else
                     for i = 1:length(axxindex)
+                      if iscell(axlabelx)
+                        label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabelx{i}),align,angle,'top',1,paperpos,scolorname,exponent);
+                      else
                         label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabelx(i,:)),align,angle,'top',1,paperpos,scolorname,exponent);
+                      end
                     end
                 end
             end
@@ -1387,12 +1361,20 @@ if strcmp(get(ax,'Visible'),'on')
                     if strcmp(get(ax,'YAxisLocation'),'right')
                         [angle, align] = improvedYLabel(ax, 0, 'Left');
                         for i = 1:length(axyindex)
+                          if iscell(axlabely)
+                            label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabely{i}),align,angle,'middle',1,paperpos,scolorname,exponent);
+                          else
                             label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabely(i,:)),align,angle,'middle',1,paperpos,scolorname,exponent);
+                          end
                         end
                    else
                         [angle, align] = improvedYLabel(ax, 0, 'Right');
                         for i = 1:length(axyindex)
+                          if iscell(axlabely)
+                            label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabely{i}),align,angle,'middle',1,paperpos,scolorname,exponent);
+                          else
                             label2svg(fid,grouplabel,axpos,ax,xg_label_end(i),yg_label_end(i),convertString(axlabely(i,:)),align,angle,'middle',1,paperpos,scolorname,exponent);
+                          end
                         end
                     end
                 else
@@ -2227,8 +2209,9 @@ for i=length(axchild):-1:1
         %pointcclass = class(pointc);  % Bugfix proposed by Tom
         if strcmp(get(axchild(i),'CDataMapping'),'scaled')
             clim=get(ax,'CLim');
-            pointc=(pointc-clim(1))/(clim(2)-clim(1))*(size(cmap,1) - 1) + 1; % Bugfix proposed by Tom
+            %pointc=(double(pointc)-clim(1))/(clim(2)-clim(1))*(size(cmap,1) - 1) + 1; % Bugfix proposed by Tom
             %pointcclass = 'double'; % since range is now [0->size(cmap,1)-1]  % Bugfix proposed by Tom
+            pointc=imnorm(pointc, clim(1), clim(2));
         end
         data_aspect_ratio = get(ax,'DataAspectRatio');
         if length(x) == 2
@@ -2277,16 +2260,16 @@ for i=length(axchild):-1:1
         end
         % pointc = cast(pointc,pointcclass);  % Bugfix proposed by Tom
         % Function 'cast' is not supported by old Matlab versions
-        if (~isa(pointc, 'double') && ~isa(pointc, 'single'))
-            if strcmp(get(axchild(i),'CDataMapping'),'scaled')
-                pointc = double(pointc);
-            else
-                pointc = double(pointc) + 1;
-            end
-        end
-        if ndims(pointc) ~= 3
-            pointc = max(min(round(double(pointc)),size(cmap,1)),1);
-        end
+        %if (~isa(pointc, 'double') && ~isa(pointc, 'single'))
+        %    if strcmp(get(axchild(i),'CDataMapping'),'scaled')
+        %        pointc = double(pointc);
+        %    else
+        %        pointc = double(pointc) + 1;
+        %    end
+        %end
+        %if ndims(pointc) ~= 3
+        %    pointc = max(min(round(double(pointc)),size(cmap,1)),1);
+        %end
         CameraUpVector = get(ax,'CameraUpVector');
         filename = [PLOT2SVG_globals.basefilename sprintf('%03d',PLOT2SVG_globals.figurenumber) '.' PLOT2SVG_globals.pixelfiletype];
         PLOT2SVG_globals.figurenumber = PLOT2SVG_globals.figurenumber + 1;
@@ -2324,9 +2307,10 @@ for i=length(axchild):-1:1
             PLOT2SVG_globals.used_dir=true;
         else
             % pointc is probably indexed
-            if PLOT2SVG_globals.octave
-				pointc = max(2, pointc);
-            end
+            pointc = max(min(round(double(pointc)),size(cmap,1)),1);
+            %if PLOT2SVG_globals.octave
+            %  pointc = max(2, pointc);
+            %end
             %imwrite(pointc,cmap,fullfile(PLOT2SVG_globals.basefilepath,filename),PLOT2SVG_globals.pixelfiletype);
             ncmap = size(cmap,1);
             if (ncmap > 256)
@@ -2336,8 +2320,9 @@ for i=length(axchild):-1:1
             imwrite(pointc,cmap,filename,PLOT2SVG_globals.pixelfiletype);
             PLOT2SVG_globals.used_dir=true;
         end
-            lx=(size(pointc,2)*halfwidthx)*axpos(3)*paperpos(3);
-        	ly=(size(pointc,1)*halfwidthy)*axpos(4)*paperpos(4);
+
+        lx=(size(pointc,2)*halfwidthx)*axpos(3)*paperpos(3);
+        ly=(size(pointc,1)*halfwidthy)*axpos(4)*paperpos(4);
         if strcmp(get(ax,'DataAspectRatioMode'),'manual')
             pointsx=((min(x) - halfwidthx/2)*axpos(3)+axpos(1))*paperpos(3);
             pointsy=(1-((max(y) + halfwidthy/2)*axpos(4)+axpos(2)))*paperpos(4);
@@ -2636,11 +2621,11 @@ end
 function control2svg(fid,id,ax,group,paperpos)
 global PLOT2SVG_globals
 set(ax,'Units','pixels');
-if verLessThan('matlab', '8.4.0')
+%if verLessThan('matlab', '8.4.0')
     pos=get(ax,'Position');
-else
-    pos=ax.OuterPosition;
-end
+%else
+%    pos=ax.OuterPosition;
+%end
 %pict=getframe(id,pos);
 pict=getframe(PLOT2SVG_globals.MainFigure, pos);
 if isempty(pict.colormap)
@@ -3403,9 +3388,42 @@ else
     z = [zi(1) zi(1) zi(1) zi(1) zi(2) zi(2) zi(2) zi(2)]/projection.aspect_scaling(3);    
 end
 if PLOT2SVG_globals.octave
-        projection.A = get(ax,'x_ViewTransform');
-        projection.A(3,:) = -projection.A(3,:);
-        projection.A(1:3,4) = 0;
+         % Get the projection angle
+        [az, el] = view(ax);
+
+        % Projection matrix from view
+        % C        = viewmtx(az, el);
+        % NOTE: This is a subset of the MATLAB viewmtx function, as octave
+        % does not provide such functionality
+        % Make sure az and el are in the correct range.
+        el = rem(rem(el+180,360)+360,360)-180; % Make sure -180 <= el <= 180
+        if el>90,
+          el = 180-el;
+          az = az + 180;
+        elseif el<-90,
+          el = -180-el;
+          az = az + 180;
+        end
+        az = rem(rem(az,360)+360,360); % Make sure 0 <= az <= 360
+
+        % Convert from degrees to radians.
+        az = az*pi/180;
+        el = el*pi/180;
+
+        % View transformation matrix:
+        % Formed by composing two rotations:
+        %   1) Rotate about the z axis -AZ radians
+        %   2) Rotate about the x axis (EL-pi/2) radians
+
+        C = [ cos(az)           sin(az)           0       0
+             -sin(el)*sin(az)   sin(el)*cos(az)   cos(el) 0
+              cos(el)*sin(az)  -cos(el)*cos(az)   sin(el) 0
+              0 0 0 1 ]; 
+
+        projection.A= C;
+        %projection.A = get(ax,'x_viewtransform');
+        %projection.A(3,:) = -projection.A(3,:);
+        %projection.A(1:3,4) = 0;
 else
     if strcmp(get(ax,'Projection'),'orthographic')
         projection.A = viewmtx(vi(1),vi(2));
